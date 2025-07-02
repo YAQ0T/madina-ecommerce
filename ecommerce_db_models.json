@@ -1,0 +1,45 @@
+{
+    "users_example": {
+        "_id": "ObjectId",
+        "name": "أحمد سلامة",
+        "email": "ahmad@example.com",
+        "phone": "0599XXXXXX",
+        "password": "hashedPassword",
+        "isAdmin": false,
+        "createdAt": "2025-07-01T10:00:00Z"
+    },
+    "products_example": {
+        "_id": "ObjectId",
+        "name_ar": "إسفنجة تنجيد 10 سم",
+        "name_he": "ספוג ריפוד 10 ס\"מ",
+        "description_ar": "إسفنجة عالية الكثافة مناسبة للكنب.",
+        "description_he": "ספוג בצפיפות גבוהה המתאים לספות.",
+        "price": 60,
+        "category": "مواد تنجيد",
+        "imageUrl": "/uploads/sponge.jpg",
+        "stock": 25,
+        "createdAt": "2025-07-01T10:00:00Z"
+    },
+    "orders_example": {
+        "_id": "ObjectId",
+        "userId": "ObjectId",
+        "items": [
+            {
+                "productId": "ObjectId",
+                "quantity": 2,
+                "price": 60
+            }
+        ],
+        "total": 120,
+        "shippingAddress": "نابلس - شارع الجامعة",
+        "phone": "0599XXXXXX",
+        "status": "pending",
+        "createdAt": "2025-07-01T10:30:00Z"
+    },
+    "admin_example": {
+        "_id": "ObjectId",
+        "username": "admin",
+        "password": "hashedAdminPassword",
+        "role": "owner"
+    }
+}
