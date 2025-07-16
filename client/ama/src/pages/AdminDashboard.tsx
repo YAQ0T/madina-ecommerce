@@ -27,6 +27,30 @@ const AdminDashboard: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  const [orders, setOrders] = useState([
+  {
+    id: 1,
+    customer: "أحمد سلامة",
+    phone: "0599XXXXXX",
+    status: "قيد التنفيذ",
+    total: 240,
+    items: [
+      { name: "لوح خشب", quantity: 2, price: 60 },
+      { name: "إسفنجة", quantity: 2, price: 60 },
+    ],
+  },  {
+    id: 2,
+    customer: "أحمد سلامة",
+    phone: "0599XXXXXX",
+    status: "قيد التنفيذ",
+    total: 240,
+    items: [
+      { name: "لوح خشب", quantity: 2, price: 60 },
+      { name: "إسفنجة", quantity: 2, price: 60 },
+    ],
+  },
+]);
+
   return (
     <>
       <Navbar />
@@ -265,10 +289,33 @@ const AdminDashboard: React.FC = () => {
           </TabsContent>
 
           {/* ✅ تبويب الطلبات */}
-          <TabsContent value="orders">
-            <h2 className="text-xl font-semibold mb-4">الطلبات</h2>
-            <p className="text-gray-600">لا توجد طلبات حالياً.</p>
-          </TabsContent>
+<TabsContent value="orders">
+  <h2 className="text-xl font-semibold mb-4">الطلبات</h2>
+
+  {orders.length === 0 ? (
+    <p className="text-gray-600">لا توجد طلبات حالياً.</p>
+  ) : (
+    <div className="space-y-6">
+      {orders.map((order) => (
+        <div key={order.id} className="border rounded-lg p-4 text-right shadow-sm">
+          <h3 className="font-bold mb-2">طلب رقم #{order.id}</h3>
+          <p>العميل: {order.customer}</p>
+          <p>رقم الهاتف: {order.phone}</p>
+          <p>الحالة: {order.status}</p>
+          <p className="font-semibold mt-2">المنتجات:</p>
+          <ul className="list-disc pr-5 text-sm text-gray-700">
+            {order.items.map((item, idx) => (
+              <li key={idx}>
+                {item.name} × {item.quantity} — ₪{item.price * item.quantity}
+              </li>
+            ))}
+          </ul>
+          <p className="font-bold mt-2">المجموع: ₪{order.total}</p>
+        </div>
+      ))}
+    </div>
+  )}
+</TabsContent>
         </Tabs>
       </main>
       <Footer />
