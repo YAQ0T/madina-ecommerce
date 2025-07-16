@@ -20,18 +20,12 @@ app.get("/test", (req, res) => {
   res.send("🚀 السيرفر شغال تمام");
 });
 
-// POST route
-const Product = require("./models/Product");
-app.post("/api/products", async (req, res) => {
-  try {
-    const newProduct = new Product(req.body);
-    const saved = await newProduct.save();
-    res.status(201).json(saved);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+const productRoutes = require("./routes/products");
+app.use("/api/products", productRoutes);
 
+
+const orderRoutes = require("./routes/orders");
+app.use("/api/orders", orderRoutes);
 // Server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
