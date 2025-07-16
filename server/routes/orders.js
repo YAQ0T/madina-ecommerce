@@ -22,5 +22,19 @@ router.get("/", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// ✅ تحديث حالة الطلب
+router.put("/:id", async (req, res) => {
+  try {
+    const updated = await Order.findByIdAndUpdate(
+      req.params.id,
+      { status: req.body.status },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ error: "الطلب غير موجود" });
+    res.status(200).json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;
