@@ -1,23 +1,20 @@
 import React from "react";
-import { Button } from "@/components/ui/button";
-import { ShoppingCart } from "lucide-react";
 import { Link } from "react-router-dom";
+import { ShoppingCart } from "lucide-react";
+import { useCart } from "@/context/CartContext";
 
-interface CartButtonProps {
-  count: number;
-}
+const CartButton: React.FC = () => {
+  const { cart } = useCart();
+  const count = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-const CartButton: React.FC<CartButtonProps> = ({ count }) => {
   return (
-    <Link to="/cart">
-      <Button variant="outline" size="icon" className="relative">
-        <ShoppingCart className="w-5 h-5" />
-        {count > 0 && (
-          <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full px-1 text-xs">
-            {count}
-          </span>
-        )}
-      </Button>
+    <Link to="/cart" className="relative">
+      <ShoppingCart size={28} />
+      {count > 0 && (
+        <span className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+          {count}
+        </span>
+      )}
     </Link>
   );
 };

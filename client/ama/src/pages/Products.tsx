@@ -1,15 +1,22 @@
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input"; // شادCN Input
-import { products } from "@/data/products";
-import { Link } from "react-router-dom";
+import ProductCard from "@/components/ProductCard";
+import axios from "axios";
 
 const Products: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState("الكل");
   const [searchTerm, setSearchTerm] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [products, setProducts] = useState<any[]>([]);
+  useEffect(() => {
+    axios
+      .get("http://localhost:3001/api/products")
+      .then((res) => setProducts(res.data))
+      .catch((err) => console.error("❌ Failed to fetch products", err));
+  }, []);
 
   // استخرج كل الفئات بدون تكرار
   const categories = [
@@ -75,25 +82,7 @@ const Products: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {filteredProducts.map((product) => (
-              <div
-                key={product.id}
-                className="border rounded-lg p-4 text-right hover:shadow"
-              >
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="mb-3 w-full rounded"
-                />
-                <h3 className="text-lg font-medium mb-1">{product.name}</h3>
-                <p className="text-gray-600 mb-2">{product.description}</p>
-                <p className="font-bold mb-2">₪{product.price}</p>
-                <Button className="w-full">إضافة للسلة</Button>
-                <Link to={`/products/${product.id}`}>
-                  <Button variant="secondary" className="w-full mt-2">
-                    عرض التفاصيل
-                  </Button>
-                </Link>
-              </div>
+              <ProductCard product={product} />
             ))}
           </div>
         )}

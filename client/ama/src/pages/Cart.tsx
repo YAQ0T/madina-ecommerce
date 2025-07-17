@@ -1,20 +1,89 @@
-import React from "react";
+import React, { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
+import axios from "axios";
+import { useCart } from "@/context/CartContext";
 
 const Cart: React.FC = () => {
+  const { cart, removeFromCart, clearCart, updateQuantity } = useCart();
+
+  const [userData, setUserData] = useState({
+    name: "",
+    phone: "",
+    address: "",
+  });
+
+  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const handleOrder = async () => {
+    try {
+      const orderData = {
+        user: {
+          name: userData.name,
+          phone: userData.phone,
+        },
+        address: userData.address,
+        total,
+        items: cart.map((item) => ({
+          productId: item._id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+      };
+
+      const res = await axios.post(
+        "http://localhost:3001/api/orders",
+        orderData
+      );
+      if (res.status === 201) {
+        alert("✅ تم إرسال الطلب بنجاح!");
+        clearCart();
+      }
+    } catch (err) {
+      console.error("❌ Error sending order", err);
+      alert("فشل في إرسال الطلب");
+    }
+  };
+
   return (
     <>
       <Navbar />
-      <main className="container mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-6 text-right">سلة المشتريات</h1>
+      <main className="container mx-auto p-6 text-right">
+        <h1 className="text-3xl font-bold mb-6">سلة المشتريات</h1>
 
-        {/* تصميم جدول لــ md وأكبر */}
+        {/* 🧾 نموذج بيانات المستخدم */}
+        <div className="grid md:grid-cols-3 gap-4 my-6">
+          <input
+            className="border p-2 rounded"
+            placeholder="اسمك"
+            value={userData.name}
+            onChange={(e) => setUserData({ ...userData, name: e.target.value })}
+          />
+          <input
+            className="border p-2 rounded"
+            placeholder="رقم الهاتف"
+            value={userData.phone}
+            onChange={(e) =>
+              setUserData({ ...userData, phone: e.target.value })
+            }
+          />
+          <input
+            className="border p-2 rounded"
+            placeholder="العنوان"
+            value={userData.address}
+            onChange={(e) =>
+              setUserData({ ...userData, address: e.target.value })
+            }
+          />
+        </div>
+
+        {/* 💻 لسطح المكتب */}
         <div className="hidden md:block overflow-x-auto">
           <table className="min-w-full border text-right">
-            <thead>
-              <tr className="bg-gray-100">
+            <thead className="bg-gray-100">
+              <tr>
                 <th className="py-2 px-4 border">المنتج</th>
                 <th className="py-2 px-4 border">السعر</th>
                 <th className="py-2 px-4 border">الكمية</th>
@@ -23,40 +92,77 @@ const Cart: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td className="py-2 px-4 border">لوح خشب عالي الجودة</td>
-                <td className="py-2 px-4 border">₪150</td>
-                <td className="py-2 px-4 border">1</td>
-                <td className="py-2 px-4 border">₪150</td>
-                <td className="py-2 px-4 border">
-                  <Button variant="destructive" size="sm">
-                    إزالة
-                  </Button>
-                </td>
-              </tr>
+              {cart.map((item) => (
+                <tr key={item._id}>
+                  <td className="py-2 px-4 border">{item.name}</td>
+                  <td className="py-2 px-4 border">₪{item.price}</td>
+                  <td className="py-2 px-4 border">
+                    <input
+                      type="number"
+                      min={1}
+                      className="border w-16 px-2 rounded text-center"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        updateQuantity(item._id, parseInt(e.target.value) || 1)
+                      }
+                    />
+                  </td>
+                  <td className="py-2 px-4 border">
+                    ₪{item.price * item.quantity}
+                  </td>
+                  <td className="py-2 px-4 border">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => removeFromCart(item._id)}
+                    >
+                      إزالة
+                    </Button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
 
-        {/* تصميم Card للموبايل */}
+        {/* 📱 للموبايل */}
         <div className="grid gap-4 md:hidden">
-          <div className="border rounded-lg p-4 text-right">
-            <h3 className="text-lg font-semibold mb-2">لوح خشب عالي الجودة</h3>
-            <p className="text-gray-600 mb-1">السعر: ₪150</p>
-            <p className="text-gray-600 mb-1">الكمية: 1</p>
-            <p className="text-gray-700 font-semibold mb-3">الإجمالي: ₪150</p>
-            <Button variant="destructive" size="sm">
-              إزالة
-            </Button>
-          </div>
+          {cart.map((item) => (
+            <div key={item._id} className="border rounded-lg p-4 text-right">
+              <h3 className="text-lg font-semibold mb-2">{item.name}</h3>
+              <p className="text-gray-600 mb-1">السعر: ₪{item.price}</p>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-gray-600">الكمية:</span>
+                <input
+                  type="number"
+                  min={1}
+                  className="border w-16 px-2 rounded text-center"
+                  value={item.quantity}
+                  onChange={(e) =>
+                    updateQuantity(item._id, parseInt(e.target.value) || 1)
+                  }
+                />
+              </div>
+              <p className="text-gray-700 font-semibold mb-3">
+                الإجمالي: ₪{item.price * item.quantity}
+              </p>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => removeFromCart(item._id)}
+              >
+                إزالة
+              </Button>
+            </div>
+          ))}
         </div>
 
-        {/* المجموع وزر إتمام */}
+        {/* 💳 الإجمالي وزر الإرسال */}
         <div className="mt-6 flex justify-between items-center flex-col md:flex-row gap-4">
-          <p className="text-xl font-semibold text-right">
-            المجموع الكلي: <span className="text-green-600">₪150</span>
+          <p className="text-xl font-semibold">
+            المجموع الكلي: <span className="text-green-600">₪{total}</span>
           </p>
-          <Button>إتمام الطلب</Button>
+          <Button onClick={handleOrder}>تأكيد الطلب</Button>
         </div>
       </main>
       <Footer />
