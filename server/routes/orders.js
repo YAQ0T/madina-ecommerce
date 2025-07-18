@@ -16,7 +16,9 @@ router.post("/", async (req, res) => {
 // ✅ جلب كل الطلبات
 router.get("/", async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const orders = await Order.find()
+      .sort({ createdAt: -1 })
+      .populate("items.productId");
     res.status(200).json(orders);
   } catch (err) {
     res.status(500).json({ error: err.message });

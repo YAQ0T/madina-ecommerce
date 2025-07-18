@@ -445,7 +445,8 @@ const AdminDashboard: React.FC = () => {
                       <ul className="list-disc pr-5">
                         {selectedOrder.items.map((item: any, i: number) => (
                           <li key={i}>
-                            {item.name} × {item.quantity}
+                            {console.log(item)}
+                            {item.productId.name} × {item.quantity}
                           </li>
                         ))}
                       </ul>
