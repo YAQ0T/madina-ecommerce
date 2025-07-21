@@ -1,11 +1,14 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import CartButton from "@/components/CartButton";
 import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react"; // أيقونة ☰ من Lucide
+import { Menu } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const links = [
     { name: "الرئيسية", path: "/" },
@@ -13,8 +16,6 @@ const Navbar: React.FC = () => {
     { name: "من نحن", path: "/about" },
     { name: "تواصل معنا", path: "/contact" },
     { name: "حسابي", path: "/account" },
-    { name: "تسجيل الدخول", path: "/login" },
-    { name: "تسجيل", path: "/register" },
   ];
 
   return (
@@ -44,6 +45,34 @@ const Navbar: React.FC = () => {
               <Link to={link.path}>{link.name}</Link>
             </Button>
           ))}
+
+          {!user && (
+            <>
+              <Button asChild variant="ghost">
+                <Link to="/login">تسجيل الدخول</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link to="/register">تسجيل</Link>
+              </Button>
+            </>
+          )}
+
+          {user && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">أهلاً، {user.name}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  logout();
+                  navigate("/login");
+                }}
+              >
+                تسجيل الخروج
+              </Button>
+            </div>
+          )}
+
           <CartButton count={0} />
         </div>
       </nav>
@@ -62,6 +91,43 @@ const Navbar: React.FC = () => {
               </Link>
             </div>
           ))}
+
+          {!user && (
+            <>
+              <Link
+                to="/login"
+                className="block py-2 text-gray-800 font-medium hover:text-black"
+                onClick={() => setMenuOpen(false)}
+              >
+                تسجيل الدخول
+              </Link>
+              <Link
+                to="/register"
+                className="block py-2 text-gray-800 font-medium hover:text-black"
+                onClick={() => setMenuOpen(false)}
+              >
+                تسجيل
+              </Link>
+            </>
+          )}
+
+          {user && (
+            <>
+              <span className="block py-2 text-gray-800 font-medium">
+                أهلاً، {user.name}
+              </span>
+              <button
+                onClick={() => {
+                  logout();
+                  setMenuOpen(false);
+                  navigate("/login");
+                }}
+                className="block w-full text-right py-2 text-red-600 font-medium hover:text-red-800"
+              >
+                تسجيل الخروج
+              </button>
+            </>
+          )}
         </div>
       )}
     </header>

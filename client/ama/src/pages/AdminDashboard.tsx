@@ -369,6 +369,7 @@ const AdminDashboard: React.FC = () => {
                       <th className="border px-4 py-2">الحالة</th>
                       <th className="border px-4 py-2">عدد المنتجات</th>
                       <th className="border px-4 py-2">تحديث الحالة</th>
+                      <th className="border px-4 py-2">تاريخ الطلب</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -391,7 +392,14 @@ const AdminDashboard: React.FC = () => {
                         <td className="border px-4 py-2">
                           {order.items.length}
                         </td>
-                        <td className="border px-4 py-2 space-x-2 space-x-reverse">
+                        <td className="border px-4 py-2 space-x-4 space-x-reverse space-y-2 ">
+                          <Button
+                            size="sm"
+                            onClick={() => updateStatus(order._id, "pending")}
+                            variant="outline"
+                          >
+                            ⏳ قيد الانتظار
+                          </Button>
                           <Button
                             size="sm"
                             onClick={() => updateStatus(order._id, "delivered")}
@@ -406,6 +414,11 @@ const AdminDashboard: React.FC = () => {
                           >
                             ❌ إلغاء
                           </Button>
+                        </td>
+                        <td className="border px-4 py-2">
+                          {new Date(order.createdAt).toLocaleDateString(
+                            "ar-EG"
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -439,18 +452,50 @@ const AdminDashboard: React.FC = () => {
                     <p>
                       <strong>الحالة:</strong> {selectedOrder.status}
                     </p>
+                    <p>
+                      <strong>تاريخ الطلب:</strong>{" "}
+                      {new Date(selectedOrder.createdAt).toLocaleString(
+                        "ar-EG"
+                      )}
+                    </p>
 
                     <div>
                       <strong>المنتجات:</strong>
                       <ul className="list-disc pr-5">
                         {selectedOrder.items.map((item: any, i: number) => (
                           <li key={i}>
-                            {console.log(item)}
-                            {item.productId.name} × {item.quantity}
+                            {item.productId
+                              ? `${item.productId.name} × ${item.quantity}`
+                              : `منتج محذوف × ${item.quantity}`}
                           </li>
                         ))}
                       </ul>
                     </div>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={async () => {
+                        const confirmDelete = confirm(
+                          "هل أنت متأكد من حذف هذا الطلب نهائيًا؟"
+                        );
+                        if (confirmDelete) {
+                          try {
+                            await axios.delete(
+                              `http://localhost:3001/api/orders/${selectedOrder._id}`
+                            );
+                            setOrders((prev) =>
+                              prev.filter((o) => o._id !== selectedOrder._id)
+                            );
+                            setSelectedOrder(null);
+                          } catch (err) {
+                            console.error("❌ Error deleting order", err);
+                            alert("فشل في حذف الطلب");
+                          }
+                        }
+                      }}
+                    >
+                      🗑️ حذف نهائي
+                    </Button>
                   </div>
 
                   <DialogFooter>

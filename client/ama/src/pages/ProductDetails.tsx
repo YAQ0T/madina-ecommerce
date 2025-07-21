@@ -4,8 +4,11 @@ import axios from "axios";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
+import { useCart } from "@/context/CartContext";
 
 const ProductDetails: React.FC = () => {
+  const { addToCart } = useCart();
+
   const { id } = useParams();
   const [product, setProduct] = useState<any>(null);
 
@@ -34,7 +37,7 @@ const ProductDetails: React.FC = () => {
             <h1 className="text-3xl font-bold mb-4">{product.name}</h1>
             <p className="text-gray-700 mb-4">{product.description}</p>
             <p className="text-xl font-semibold mb-6">₪{product.price}</p>
-            <Button>إضافة للسلة</Button>
+            <Button onClick={() => addToCart(product)}>إضافة للسلة</Button>
           </div>
         </div>
       </main>

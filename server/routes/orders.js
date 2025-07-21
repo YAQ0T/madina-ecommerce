@@ -38,5 +38,14 @@ router.put("/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+router.delete("/:id", async (req, res) => {
+  try {
+    const deleted = await Order.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ error: "الطلب غير موجود" });
+    res.status(200).json({ message: "تم حذف الطلب" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;

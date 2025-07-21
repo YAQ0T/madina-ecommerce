@@ -4,6 +4,8 @@ import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input"; // شادCN Input
 import ProductCard from "@/components/ProductCard";
+import { useLocation } from "react-router-dom";
+
 import axios from "axios";
 
 const Products: React.FC = () => {
@@ -11,12 +13,21 @@ const Products: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [products, setProducts] = useState<any[]>([]);
+  const location = useLocation();
+
   useEffect(() => {
     axios
       .get("http://localhost:3001/api/products")
       .then((res) => setProducts(res.data))
       .catch((err) => console.error("❌ Failed to fetch products", err));
   }, []);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const category = params.get("category");
+    if (category) {
+      setSelectedCategory(category);
+    }
+  }, [location.search]);
 
   // استخرج كل الفئات بدون تكرار
   const categories = [

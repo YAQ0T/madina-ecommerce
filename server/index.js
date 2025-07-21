@@ -23,10 +23,11 @@ app.get("/test", (req, res) => {
 const productRoutes = require("./routes/products");
 app.use("/api/products", productRoutes);
 
-
 const orderRoutes = require("./routes/orders");
 app.use("/api/orders", orderRoutes);
 // Server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
+const authRoutes = require("./routes/auth");
+app.use("/api/auth", authRoutes);
