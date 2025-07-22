@@ -32,8 +32,7 @@ const Login: React.FC = () => {
         email,
         password,
       });
-
-      login(res.data.user); // ⬅️ تحديث الـ context
+      login(res.data.user, res.data.token); // ⬅️ تحديث الـ context
       if (res.data.user.role === "admin") {
         navigate("/admin");
       } else {

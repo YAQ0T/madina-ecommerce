@@ -3,6 +3,10 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+
 import {
   Dialog,
   DialogTrigger,
@@ -15,6 +19,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "axios";
 const AdminDashboard: React.FC = () => {
+  const { user, loading, token } = useAuth();
+  const navigate = useNavigate();
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [newProduct, setNewProduct] = useState({
     name: "",
     price: "",
@@ -24,34 +31,57 @@ const AdminDashboard: React.FC = () => {
   });
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
   const [orders, setOrders] = useState<any[]>([]);
   const [filter, setFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-
   const filteredOrders = orders.filter((order) =>
     filter === "all" ? true : order.status === filter
   );
   const [productsState, setProductsState] = useState<any[]>([]);
 
   useEffect(() => {
-    axios
-      .get("http://localhost:3001/api/products")
-      .then((res) => setProductsState(res.data))
-      .catch((err) => console.error("❌ Failed to fetch products", err));
-  }, []);
+    if (!loading && (!user || user.role !== "admin")) {
+      navigate("/");
+    } else {
+      setCheckingAuth(false);
+    }
+  }, [user, loading, navigate]);
 
   useEffect(() => {
+    if (!token) return;
     axios
-      .get("http://localhost:3001/api/orders")
+      .get("http://localhost:3001/api/products", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((res) => setProductsState(res.data))
+      .catch((err) => console.error("❌ Failed to fetch products", err));
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    axios
+      .get("http://localhost:3001/api/orders", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
       .then((res) => setOrders(res.data))
       .catch((err) => console.error("Order Fetch Error:", err));
-  }, []);
+  }, [token]);
+
   const updateStatus = async (orderId: string, newStatus: string) => {
     try {
-      await axios.put(`http://localhost:3001/api/orders/${orderId}`, {
-        status: newStatus,
-      });
+      await axios.put(
+        `http://localhost:3001/api/orders/${orderId}`,
+        { status: newStatus },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
       setOrders((prev) =>
         prev.map((o) => (o._id === orderId ? { ...o, status: newStatus } : o))
       );
@@ -59,6 +89,17 @@ const AdminDashboard: React.FC = () => {
       console.error("Failed to update status", err);
     }
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        <p className="text-sm text-muted-foreground">
+          جارٍ التحقق من الصلاحيات...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>

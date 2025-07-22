@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 
 const Cart: React.FC = () => {
   const { cart, removeFromCart, clearCart, updateQuantity } = useCart();
+  const { user, token } = useAuth();
 
   const [userData, setUserData] = useState({
     name: "",
@@ -14,9 +16,38 @@ const Cart: React.FC = () => {
     address: "",
   });
 
+  useEffect(() => {
+    console.log("Cart user:", user);
+    if (user) {
+      setUserData((prev) => ({
+        ...prev,
+        name: user.name || "",
+        phone: user.phone || "",
+      }));
+    }
+  }, [user]);
+
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const handleOrder = async () => {
+    if (!user) {
+      alert("يجب تسجيل الدخول قبل تأكيد الطلب");
+      return;
+    }
+    if (
+      !userData.name.trim() ||
+      !userData.phone.trim() ||
+      !userData.address.trim()
+    ) {
+      alert("الرجاء تعبئة جميع الحقول قبل تأكيد الطلب.");
+      return;
+    }
+
+    if (cart.length === 0) {
+      alert("سلة الشراء فارغة");
+      return;
+    }
+
     try {
       const orderData = {
         user: {
@@ -35,7 +66,12 @@ const Cart: React.FC = () => {
 
       const res = await axios.post(
         "http://localhost:3001/api/orders",
-        orderData
+        orderData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
       if (res.status === 201) {
         alert("✅ تم إرسال الطلب بنجاح!");
@@ -59,12 +95,14 @@ const Cart: React.FC = () => {
             className="border p-2 rounded"
             placeholder="اسمك"
             value={userData.name}
+            readOnly={!!user}
             onChange={(e) => setUserData({ ...userData, name: e.target.value })}
           />
           <input
             className="border p-2 rounded"
             placeholder="رقم الهاتف"
             value={userData.phone}
+            readOnly={!!user}
             onChange={(e) =>
               setUserData({ ...userData, phone: e.target.value })
             }
