@@ -6,6 +6,14 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import {
   Dialog,
@@ -29,6 +37,8 @@ const AdminDashboard: React.FC = () => {
     description: "",
     image: "",
   });
+  const [productFilter, setProductFilter] = useState("all");
+
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
@@ -117,191 +127,234 @@ const AdminDashboard: React.FC = () => {
           <TabsContent value="products">
             <div className="flex justify-between mb-4">
               <h2 className="text-xl font-semibold">جميع المنتجات</h2>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button>➕ إضافة منتج</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>إضافة منتج جديد</DialogTitle>
-                  </DialogHeader>
+              <div className="flex gap-2">
+                {/* Filter Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline">🧮 تصفية حسب الفئة</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setProductFilter("all")}>
+                      الكل
+                    </DropdownMenuItem>
+                    {Array.from(
+                      new Set(productsState.map((p) => p.category))
+                    ).map((category) => (
+                      <DropdownMenuItem
+                        key={category}
+                        onClick={() => setProductFilter(category)}
+                      >
+                        {category}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-                  <div className="grid gap-4 py-4 text-right">
-                    <Input
-                      placeholder="اسم المنتج"
-                      value={newProduct.name}
-                      onChange={(e) =>
-                        setNewProduct({ ...newProduct, name: e.target.value })
-                      }
-                    />
-                    <Input
-                      type="number"
-                      placeholder="السعر"
-                      value={newProduct.price}
-                      onChange={(e) =>
-                        setNewProduct({ ...newProduct, price: e.target.value })
-                      }
-                    />
-                    <Input
-                      placeholder="الفئة"
-                      value={newProduct.category}
-                      onChange={(e) =>
-                        setNewProduct({
-                          ...newProduct,
-                          category: e.target.value,
-                        })
-                      }
-                    />
-                    <Textarea
-                      placeholder="وصف المنتج"
-                      value={newProduct.description}
-                      onChange={(e) =>
-                        setNewProduct({
-                          ...newProduct,
-                          description: e.target.value,
-                        })
-                      }
-                    />
-                    <Input
-                      placeholder="رابط الصورة"
-                      value={newProduct.image}
-                      onChange={(e) =>
-                        setNewProduct({ ...newProduct, image: e.target.value })
-                      }
-                    />
-                  </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button>➕ إضافة منتج</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>إضافة منتج جديد</DialogTitle>
+                    </DialogHeader>
 
-                  <DialogFooter>
-                    <Button
-                      onClick={async () => {
-                        try {
-                          const res = await axios.post(
-                            "http://localhost:3001/api/products",
-                            {
-                              ...newProduct,
-                              price: parseFloat(newProduct.price),
-                            }
-                          );
-
-                          // إضافة المنتج الجديد للـ state
-                          setProductsState([...productsState, res.data]);
-
-                          // تصفير النموذج
-                          setNewProduct({
-                            name: "",
-                            price: "",
-                            category: "",
-                            description: "",
-                            image: "",
-                          });
-                        } catch (err) {
-                          console.error("❌ Error adding product", err);
-                          alert("فشل في إضافة المنتج");
+                    <div className="grid gap-4 py-4 text-right">
+                      <Input
+                        placeholder="اسم المنتج"
+                        value={newProduct.name}
+                        onChange={(e) =>
+                          setNewProduct({ ...newProduct, name: e.target.value })
                         }
-                      }}
-                    >
-                      حفظ المنتج
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-              <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>تعديل منتج</DialogTitle>
-                  </DialogHeader>
-                  {editingProduct && (
-                    <>
-                      <div className="grid gap-4 py-4 text-right">
-                        <Input
-                          placeholder="اسم المنتج"
-                          value={editingProduct.name}
-                          onChange={(e) =>
-                            setEditingProduct({
-                              ...editingProduct,
-                              name: e.target.value,
-                            })
-                          }
-                        />
-                        <Input
-                          type="number"
-                          placeholder="السعر"
-                          value={editingProduct.price}
-                          onChange={(e) =>
-                            setEditingProduct({
-                              ...editingProduct,
-                              price: e.target.value,
-                            })
-                          }
-                        />
-                        <Input
-                          placeholder="الفئة"
-                          value={editingProduct.category}
-                          onChange={(e) =>
-                            setEditingProduct({
-                              ...editingProduct,
-                              category: e.target.value,
-                            })
-                          }
-                        />
-                        <Textarea
-                          placeholder="وصف المنتج"
-                          value={editingProduct.description}
-                          onChange={(e) =>
-                            setEditingProduct({
-                              ...editingProduct,
-                              description: e.target.value,
-                            })
-                          }
-                        />
-                        <Input
-                          placeholder="رابط الصورة"
-                          value={editingProduct.image}
-                          onChange={(e) =>
-                            setEditingProduct({
-                              ...editingProduct,
-                              image: e.target.value,
-                            })
-                          }
-                        />
-                      </div>
-                      <DialogFooter>
-                        <Button
-                          onClick={async () => {
-                            try {
-                              const res = await axios.put(
-                                `http://localhost:3001/api/products/${editingProduct._id}`,
-                                {
-                                  ...editingProduct,
-                                  price: parseFloat(editingProduct.price),
-                                }
-                              );
+                      />
+                      <Input
+                        type="number"
+                        placeholder="السعر"
+                        value={newProduct.price}
+                        onChange={(e) =>
+                          setNewProduct({
+                            ...newProduct,
+                            price: e.target.value,
+                          })
+                        }
+                      />
+                      <Input
+                        placeholder="الفئة"
+                        value={newProduct.category}
+                        onChange={(e) =>
+                          setNewProduct({
+                            ...newProduct,
+                            category: e.target.value,
+                          })
+                        }
+                      />
+                      <Textarea
+                        placeholder="وصف المنتج"
+                        value={newProduct.description}
+                        onChange={(e) =>
+                          setNewProduct({
+                            ...newProduct,
+                            description: e.target.value,
+                          })
+                        }
+                      />
+                      <Input
+                        placeholder="رابط الصورة"
+                        value={newProduct.image}
+                        onChange={(e) =>
+                          setNewProduct({
+                            ...newProduct,
+                            image: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
 
-                              // تحديث الـ state بالمنتج الجديد
-                              setProductsState((prev) =>
-                                prev.map((p) =>
-                                  p._id === res.data._id ? res.data : p
-                                )
-                              );
+                    <DialogFooter>
+                      <Button
+                        onClick={async () => {
+                          try {
+                            const res = await axios.post(
+                              "http://localhost:3001/api/products",
+                              {
+                                ...newProduct,
+                                price: parseFloat(newProduct.price),
+                              },
+                              {
+                                headers: {
+                                  Authorization: `Bearer ${token}`,
+                                },
+                              }
+                            );
 
-                              // إغلاق المودال
-                              setIsEditModalOpen(false);
-                              setEditingProduct(null);
-                            } catch (err) {
-                              console.error("❌ Error editing product", err);
-                              alert("فشل في تعديل المنتج");
+                            // إضافة المنتج الجديد للـ state
+                            setProductsState([...productsState, res.data]);
+
+                            // تصفير النموذج
+                            setNewProduct({
+                              name: "",
+                              price: "",
+                              category: "",
+                              description: "",
+                              image: "",
+                            });
+                          } catch (err) {
+                            console.error("❌ Error adding product", err);
+                            alert("فشل في إضافة المنتج");
+                          }
+                        }}
+                      >
+                        حفظ المنتج
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+                <Dialog
+                  open={isEditModalOpen}
+                  onOpenChange={setIsEditModalOpen}
+                >
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>تعديل منتج</DialogTitle>
+                    </DialogHeader>
+                    {editingProduct && (
+                      <>
+                        <div className="grid gap-4 py-4 text-right">
+                          <Input
+                            placeholder="اسم المنتج"
+                            value={editingProduct.name}
+                            onChange={(e) =>
+                              setEditingProduct({
+                                ...editingProduct,
+                                name: e.target.value,
+                              })
                             }
-                          }}
-                        >
-                          حفظ التعديلات
-                        </Button>
-                      </DialogFooter>
-                    </>
-                  )}
-                </DialogContent>
-              </Dialog>
+                          />
+                          <Input
+                            type="number"
+                            placeholder="السعر"
+                            value={editingProduct.price}
+                            onChange={(e) =>
+                              setEditingProduct({
+                                ...editingProduct,
+                                price: e.target.value,
+                              })
+                            }
+                          />
+                          <Input
+                            placeholder="الفئة"
+                            value={editingProduct.category}
+                            onChange={(e) =>
+                              setEditingProduct({
+                                ...editingProduct,
+                                category: e.target.value,
+                              })
+                            }
+                          />
+                          <Textarea
+                            placeholder="وصف المنتج"
+                            value={editingProduct.description}
+                            onChange={(e) =>
+                              setEditingProduct({
+                                ...editingProduct,
+                                description: e.target.value,
+                              })
+                            }
+                          />
+                          <Input
+                            placeholder="رابط الصورة"
+                            value={editingProduct.image}
+                            onChange={(e) =>
+                              setEditingProduct({
+                                ...editingProduct,
+                                image: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <DialogFooter>
+                          <Button
+                            onClick={async () => {
+                              try {
+                                const res = await axios.put(
+                                  `http://localhost:3001/api/products/${editingProduct._id}`,
+                                  {
+                                    ...editingProduct,
+                                    price: parseFloat(editingProduct.price),
+                                  },
+                                  {
+                                    headers: {
+                                      Authorization: `Bearer ${token}`,
+                                    },
+                                  }
+                                );
 
-              {/* ممكن نربطه بـ Modal أو صفحة تانية */}
+                                // تحديث الـ state بالمنتج الجديد
+                                setProductsState((prev) =>
+                                  prev.map((p) =>
+                                    p._id === res.data._id ? res.data : p
+                                  )
+                                );
+
+                                // إغلاق المودال
+                                setIsEditModalOpen(false);
+                                setEditingProduct(null);
+                              } catch (err) {
+                                console.error("❌ Error editing product", err);
+                                alert("فشل في تعديل المنتج");
+                              }
+                            }}
+                          >
+                            حفظ التعديلات
+                          </Button>
+                        </DialogFooter>
+                      </>
+                    )}
+                  </DialogContent>
+                </Dialog>
+
+                {/* ممكن نربطه بـ Modal أو صفحة تانية */}
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -316,50 +369,64 @@ const AdminDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {productsState.map((product, idx) => (
-                    <tr key={product.id}>
-                      <td className="border px-4 py-2">{idx + 1}</td>
-                      <td className="border px-4 py-2">{product.name}</td>
-                      <td className="border px-4 py-2">₪{product.price}</td>
-                      <td className="border px-4 py-2">{product.category}</td>
-                      <td className="border px-4 py-2 space-x-2 space-x-reverse">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEditingProduct(product);
-                            setIsEditModalOpen(true);
-                          }}
-                        >
-                          ✏️ تعديل
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={async () => {
-                            const confirmDelete = confirm(
-                              `هل أنت متأكد من حذف "${product.name}"؟`
-                            );
-                            if (confirmDelete) {
-                              try {
-                                await axios.delete(
-                                  `http://localhost:3001/api/products/${product._id}`
-                                );
-                                setProductsState((prev) =>
-                                  prev.filter((p) => p._id !== product._id)
-                                );
-                              } catch (err) {
-                                console.error("❌ Error deleting product", err);
-                                alert("فشل في حذف المنتج");
+                  {productsState
+                    .filter((product) =>
+                      productFilter === "all"
+                        ? true
+                        : product.category === productFilter
+                    )
+                    .map((product, idx) => (
+                      <tr key={product._id}>
+                        <td className="border px-4 py-2">{idx + 1}</td>
+                        <td className="border px-4 py-2">{product.name}</td>
+                        <td className="border px-4 py-2">₪{product.price}</td>
+                        <td className="border px-4 py-2">{product.category}</td>
+                        <td className="border px-4 py-2 space-x-2 space-x-reverse">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingProduct(product);
+                              setIsEditModalOpen(true);
+                            }}
+                          >
+                            ✏️ تعديل
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              const confirmDelete = confirm(
+                                `هل أنت متأكد من حذف "${product.name}"؟`
+                              );
+                              if (confirmDelete) {
+                                try {
+                                  await axios.delete(
+                                    `http://localhost:3001/api/products/${product._id}`,
+                                    {
+                                      headers: {
+                                        Authorization: `Bearer ${token}`,
+                                      },
+                                    }
+                                  );
+                                  setProductsState((prev) =>
+                                    prev.filter((p) => p._id !== product._id)
+                                  );
+                                } catch (err) {
+                                  console.error(
+                                    "❌ Error deleting product",
+                                    err
+                                  );
+                                  alert("فشل في حذف المنتج");
+                                }
                               }
-                            }
-                          }}
-                        >
-                          🗑️ حذف
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                            }}
+                          >
+                            🗑️ حذف
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
@@ -522,7 +589,12 @@ const AdminDashboard: React.FC = () => {
                         if (confirmDelete) {
                           try {
                             await axios.delete(
-                              `http://localhost:3001/api/orders/${selectedOrder._id}`
+                              `http://localhost:3001/api/orders/${selectedOrder._id}`,
+                              {
+                                headers: {
+                                  Authorization: `Bearer ${token}`,
+                                },
+                              }
                             );
                             setOrders((prev) =>
                               prev.filter((o) => o._id !== selectedOrder._id)

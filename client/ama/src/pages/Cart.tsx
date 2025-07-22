@@ -17,7 +17,6 @@ const Cart: React.FC = () => {
   });
 
   useEffect(() => {
-    console.log("Cart user:", user);
     if (user) {
       setUserData((prev) => ({
         ...prev,

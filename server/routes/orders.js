@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const Order = require("../models/Order");
+const { verifyToken, isAdmin } = require("../middleware/authMiddleware");
 
-// ✅ إضافة طلب جديد
-router.post("/", async (req, res) => {
+// ✅ إضافة طلب جديد (مفتوح لأي مستخدم مسجل)
+router.post("/", verifyToken, async (req, res) => {
   try {
     const newOrder = new Order(req.body);
     const saved = await newOrder.save();
@@ -13,8 +14,8 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ✅ جلب كل الطلبات
-router.get("/", async (req, res) => {
+// ✅ جلب كل الطلبات (أدمن فقط)
+router.get("/", verifyToken, isAdmin, async (req, res) => {
   try {
     const orders = await Order.find()
       .sort({ createdAt: -1 })
@@ -24,8 +25,9 @@ router.get("/", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-// ✅ تحديث حالة الطلب
-router.put("/:id", async (req, res) => {
+
+// ✅ تحديث حالة الطلب (أدمن فقط)
+router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     const updated = await Order.findByIdAndUpdate(
       req.params.id,
@@ -38,7 +40,9 @@ router.put("/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-router.delete("/:id", async (req, res) => {
+
+// ✅ حذف الطلب (أدمن فقط)
+router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     const deleted = await Order.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ error: "الطلب غير موجود" });

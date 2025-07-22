@@ -51,6 +51,7 @@ router.post("/login", async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        phone: user.phone, // إضافة رقم الهاتف
       },
     });
   } catch (err) {
