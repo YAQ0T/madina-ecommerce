@@ -10,8 +10,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -33,7 +31,8 @@ const AdminDashboard: React.FC = () => {
   const [newProduct, setNewProduct] = useState({
     name: "",
     price: "",
-    category: "",
+    mainCategory: "",
+    subCategory: "",
     description: "",
     image: "",
   });
@@ -48,6 +47,15 @@ const AdminDashboard: React.FC = () => {
     filter === "all" ? true : order.status === filter
   );
   const [productsState, setProductsState] = useState<any[]>([]);
+  const categoryMap = productsState.reduce((acc, product) => {
+    if (!acc[product.mainCategory]) {
+      acc[product.mainCategory] = new Set();
+    }
+    acc[product.mainCategory].add(product.subCategory);
+    return acc;
+  }, {} as Record<string, Set<string>>);
+  const [selectedMainCategory, setSelectedMainCategory] =
+    useState<string>("all");
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "admin")) {
@@ -129,22 +137,52 @@ const AdminDashboard: React.FC = () => {
               <h2 className="text-xl font-semibold">جميع المنتجات</h2>
               <div className="flex gap-2">
                 {/* Filter Dropdown */}
+                {/* Filter Dropdown */}
+                {/* 🔽 تصفية حسب التصنيف الفرعي (يظهر فقط عند اختيار تصنيف رئيسي) */}
+                {selectedMainCategory !== "all" && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline">🧮 تصفية فرعية</Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {Array.from(categoryMap[selectedMainCategory] || []).map(
+                        (sub) => (
+                          <DropdownMenuItem
+                            key={String(sub)}
+                            onClick={() => setProductFilter(sub as string)}
+                          >
+                            {String(sub)}
+                          </DropdownMenuItem>
+                        )
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+
+                {/* 🔽 تصفية حسب التصنيف الرئيسي */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline">🧮 تصفية حسب الفئة</Button>
+                    <Button variant="outline">🧮 تصفية رئيسية</Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setProductFilter("all")}>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedMainCategory("all");
+                        setProductFilter("all");
+                      }}
+                    >
                       الكل
                     </DropdownMenuItem>
-                    {Array.from(
-                      new Set(productsState.map((p) => p.category))
-                    ).map((category) => (
+
+                    {Object.keys(categoryMap).map((main) => (
                       <DropdownMenuItem
-                        key={category}
-                        onClick={() => setProductFilter(category)}
+                        key={main}
+                        onClick={() => {
+                          setSelectedMainCategory(main);
+                          setProductFilter(main);
+                        }}
                       >
-                        {category}
+                        {main}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -179,25 +217,26 @@ const AdminDashboard: React.FC = () => {
                         }
                       />
                       <Input
-                        placeholder="الفئة"
-                        value={newProduct.category}
+                        placeholder="التصنيف الرئيسي"
+                        value={newProduct.mainCategory}
                         onChange={(e) =>
                           setNewProduct({
                             ...newProduct,
-                            category: e.target.value,
+                            mainCategory: e.target.value,
                           })
                         }
                       />
-                      <Textarea
-                        placeholder="وصف المنتج"
-                        value={newProduct.description}
+                      <Input
+                        placeholder="التصنيف الفرعي"
+                        value={newProduct.subCategory}
                         onChange={(e) =>
                           setNewProduct({
                             ...newProduct,
-                            description: e.target.value,
+                            subCategory: e.target.value,
                           })
                         }
                       />
+
                       <Input
                         placeholder="رابط الصورة"
                         value={newProduct.image}
@@ -234,7 +273,8 @@ const AdminDashboard: React.FC = () => {
                             setNewProduct({
                               name: "",
                               price: "",
-                              category: "",
+                              mainCategory: "",
+                              subCategory: "",
                               description: "",
                               image: "",
                             });
@@ -283,11 +323,11 @@ const AdminDashboard: React.FC = () => {
                           />
                           <Input
                             placeholder="الفئة"
-                            value={editingProduct.category}
+                            value={editingProduct.mainCategory}
                             onChange={(e) =>
                               setEditingProduct({
                                 ...editingProduct,
-                                category: e.target.value,
+                                mainCategory: e.target.value,
                               })
                             }
                           />
@@ -364,23 +404,31 @@ const AdminDashboard: React.FC = () => {
                     <th className="border px-4 py-2">#</th>
                     <th className="border px-4 py-2">الاسم</th>
                     <th className="border px-4 py-2">السعر</th>
-                    <th className="border px-4 py-2">الفئة</th>
+                    <th className="border px-4 py-2">التصنيف الرئيسي</th>
+                    <th className="border px-4 py-2">التصنيف الفرعي</th>
                     <th className="border px-4 py-2">الإجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
                   {productsState
-                    .filter((product) =>
-                      productFilter === "all"
-                        ? true
-                        : product.category === productFilter
-                    )
+                    .filter((product) => {
+                      if (productFilter === "all") return true;
+                      return (
+                        product.mainCategory === productFilter ||
+                        product.subCategory === productFilter
+                      );
+                    })
                     .map((product, idx) => (
                       <tr key={product._id}>
                         <td className="border px-4 py-2">{idx + 1}</td>
                         <td className="border px-4 py-2">{product.name}</td>
                         <td className="border px-4 py-2">₪{product.price}</td>
-                        <td className="border px-4 py-2">{product.category}</td>
+                        <td className="border px-4 py-2">
+                          {product.mainCategory}
+                        </td>
+                        <td className="border px-4 py-2">
+                          {product.subCategory}
+                        </td>
                         <td className="border px-4 py-2 space-x-2 space-x-reverse">
                           <Button
                             variant="outline"

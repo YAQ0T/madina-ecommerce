@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input"; // شادCN Input
+import { Input } from "@/components/ui/input";
 import ProductCard from "@/components/ProductCard";
+import CategorySidebar from "@/components/CategorySidebar";
 import { useLocation } from "react-router-dom";
-
 import axios from "axios";
 
 const Products: React.FC = () => {
-  const [selectedCategory, setSelectedCategory] = useState("الكل");
+  const [selectedMainCategory, setSelectedMainCategory] = useState("الكل");
+  const [selectedSubCategory, setSelectedSubCategory] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [products, setProducts] = useState<any[]>([]);
@@ -21,30 +21,51 @@ const Products: React.FC = () => {
       .then((res) => setProducts(res.data))
       .catch((err) => console.error("❌ Failed to fetch products", err));
   }, []);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const category = params.get("category");
     if (category) {
-      setSelectedCategory(category);
+      setSelectedMainCategory(category);
     }
   }, [location.search]);
 
-  // استخرج كل الفئات بدون تكرار
-  const categories = [
-    "الكل",
-    ...Array.from(new Set(products.map((p) => p.category))),
-  ];
+  const handleCategorySelect = (main: string, sub: string = "") => {
+    setSelectedMainCategory(main);
+    setSelectedSubCategory(sub);
+  };
 
-  // فلترة حسب الفئة + الاسم + السعر
+  const categoryGroups = products.reduce((acc, product) => {
+    const { mainCategory, subCategory } = product;
+    if (!mainCategory) return acc;
+
+    const existing = acc.find((cat) => cat.mainCategory === mainCategory);
+    if (existing) {
+      if (subCategory && !existing.subCategories.includes(subCategory)) {
+        existing.subCategories.push(subCategory);
+      }
+    } else {
+      acc.push({
+        mainCategory,
+        subCategories: subCategory ? [subCategory] : [],
+      });
+    }
+
+    return acc;
+  }, [] as { mainCategory: string; subCategories: string[] }[]);
+
   const filteredProducts = products.filter((product) => {
-    const byCategory =
-      selectedCategory === "الكل" || product.category === selectedCategory;
+    const byMain =
+      selectedMainCategory === "الكل" ||
+      product.mainCategory === selectedMainCategory;
+    const bySub =
+      selectedSubCategory === "" || product.subCategory === selectedSubCategory;
     const byName =
       searchTerm === "" ||
       product.name.toLowerCase().includes(searchTerm.toLowerCase());
     const byPrice = maxPrice === "" || product.price <= parseFloat(maxPrice);
 
-    return byCategory && byName && byPrice;
+    return byMain && bySub && byName && byPrice;
   });
 
   return (
@@ -53,50 +74,45 @@ const Products: React.FC = () => {
       <main className="container mx-auto p-6">
         <h1 className="text-3xl font-bold mb-6 text-right">جميع المنتجات</h1>
 
-        {/* الفلاتر */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          {/* أزرار الفئات */}
-          <div className="flex flex-wrap gap-2 justify-end">
-            {categories.map((cat) => (
-              <Button
-                key={cat}
-                variant={selectedCategory === cat ? "default" : "outline"}
-                onClick={() => setSelectedCategory(cat)}
-              >
-                {cat}
-              </Button>
-            ))}
-          </div>
+        <div className="flex flex-col lg:flex-row gap-6">
+          <aside className="w-full lg:w-1/4">
+            <CategorySidebar
+              categories={categoryGroups}
+              onFilter={handleCategorySelect}
+              selectedMain={selectedMainCategory}
+              selectedSub={selectedSubCategory}
+            />
+          </aside>
 
-          {/* البحث والسعر */}
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <Input
-              type="text"
-              placeholder="ابحث باسم المنتج..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Input
-              type="number"
-              placeholder="سعر أقصى"
-              value={maxPrice}
-              onChange={(e) => setMaxPrice(e.target.value)}
-            />
-          </div>
+          <section className="flex-1">
+            <div className="flex flex-col sm:flex-row gap-2 mb-6">
+              <Input
+                type="text"
+                placeholder="ابحث باسم المنتج..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <Input
+                type="number"
+                placeholder="سعر أقصى"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+              />
+            </div>
+
+            {filteredProducts.length === 0 ? (
+              <p className="text-center text-gray-600 text-lg">
+                لا يوجد منتجات مطابقة للبحث
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 items-start">
+                {filteredProducts.map((product) => (
+                  <ProductCard key={product._id} product={product} />
+                ))}
+              </div>
+            )}
+          </section>
         </div>
-
-        {/* المنتجات أو لا يوجد نتائج */}
-        {filteredProducts.length === 0 ? (
-          <p className="text-center text-gray-600 text-lg">
-            لا يوجد منتجات مطابقة للبحث
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 items-start">
-            {filteredProducts.map((product) => (
-              <ProductCard product={product} />
-            ))}
-          </div>
-        )}
       </main>
       <Footer />
     </>

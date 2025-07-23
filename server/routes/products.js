@@ -6,7 +6,32 @@ const { verifyToken, isAdmin } = require("../middleware/authMiddleware");
 // ✅ إنشاء منتج (أدمن فقط)
 router.post("/", verifyToken, isAdmin, async (req, res) => {
   try {
-    const newProduct = new Product(req.body);
+    const {
+      name,
+      price,
+      category,
+      mainCategory,
+      subCategory,
+      description,
+      image,
+    } = req.body;
+
+    if (!name || !price || !mainCategory || !subCategory) {
+      return res
+        .status(400)
+        .json({ error: "يرجى تعبئة جميع الحقول المطلوبة." });
+    }
+
+    const newProduct = new Product({
+      name,
+      price,
+      category,
+      mainCategory,
+      subCategory,
+      description,
+      image,
+    });
+
     const saved = await newProduct.save();
     res.status(201).json(saved);
   } catch (err) {

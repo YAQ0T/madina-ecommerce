@@ -1,9 +1,50 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
+import axios from "axios";
 
 const Contact: React.FC = () => {
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    message: "",
+  });
+  useEffect(() => {
+    console.log("Contact page loaded");
+  }, []);
+  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    setFormData({ ...formData, [e.target.id]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setFeedback(null);
+
+    try {
+      const res = await axios.post(
+        "http://localhost:3001/api/contact",
+        formData
+      );
+      if (res.status === 200) {
+        console.log("✅ تم إرسال الرسالة بنجاح");
+        setFeedback("✅ تم إرسال الرسالة بنجاح!");
+        setFormData({ name: "", email: "", message: "" });
+      }
+    } catch (err) {
+      console.error("❌ فشل في إرسال الرسالة", err);
+      setFeedback("❌ حدث خطأ أثناء إرسال الرسالة");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <Navbar />
@@ -14,7 +55,10 @@ const Contact: React.FC = () => {
           الاتصال بنا مباشرة.
         </p>
 
-        <form className="grid grid-cols-1 gap-4 max-w-lg mx-auto text-right">
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 gap-4 max-w-lg mx-auto text-right"
+        >
           <div>
             <label htmlFor="name" className="block mb-1 font-medium">
               الاسم الكامل
@@ -22,8 +66,11 @@ const Contact: React.FC = () => {
             <input
               id="name"
               type="text"
+              value={formData.name}
+              onChange={handleChange}
               placeholder="أدخل اسمك"
               className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300"
+              required
             />
           </div>
           <div>
@@ -33,8 +80,11 @@ const Contact: React.FC = () => {
             <input
               id="email"
               type="email"
+              value={formData.email}
+              onChange={handleChange}
               placeholder="example@example.com"
               className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300"
+              required
             />
           </div>
           <div>
@@ -44,13 +94,27 @@ const Contact: React.FC = () => {
             <textarea
               id="message"
               rows={4}
+              value={formData.message}
+              onChange={handleChange}
               placeholder="اكتب رسالتك هنا..."
               className="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300"
+              required
             />
           </div>
           <div className="text-left">
-            <Button type="submit">إرسال الرسالة</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "جاري الإرسال..." : "إرسال الرسالة"}
+            </Button>
           </div>
+          {feedback && (
+            <p
+              className={`text-sm mt-2 ${
+                feedback.startsWith("✅") ? "text-green-600" : "text-red-600"
+              }`}
+            >
+              {feedback}
+            </p>
+          )}
         </form>
       </main>
       <Footer />
