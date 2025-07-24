@@ -34,3 +34,6 @@ app.use("/api/auth", authRoutes);
 
 const contactRoute = require("./routes/contact");
 app.use("/api/contact", contactRoute);
+
+const userRoutes = require("./routes/user");
+app.use("/api/users", userRoutes);

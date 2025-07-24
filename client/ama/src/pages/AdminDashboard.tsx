@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import axios from "axios";
+import UserTable from "@/components/admin/UserTable";
 
 // ✅ مكونات الأدمن المفصولة
 import ProductForm from "@/components/admin/ProductForm";
@@ -38,6 +39,8 @@ const AdminDashboard: React.FC = () => {
   const [productFilter, setProductFilter] = useState("all");
   const [selectedMainCategory, setSelectedMainCategory] =
     useState<string>("all");
+  const [users, setUsers] = useState<any[]>([]);
+  const [userRoleFilter, setUserRoleFilter] = useState("all");
 
   // الطلبات
   const [orders, setOrders] = useState<any[]>([]);
@@ -52,6 +55,40 @@ const AdminDashboard: React.FC = () => {
     acc[product.mainCategory].add(product.subCategory);
     return acc;
   }, {} as Record<string, Set<string>>);
+  const filteredUsers = users.filter((u) =>
+    userRoleFilter === "all" ? true : u.role === userRoleFilter
+  );
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    const confirmDelete = confirm(
+      `هل أنت متأكد من حذف المستخدم "${userName}"؟`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await axios.delete(`http://localhost:3001/api/users/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setUsers((prev) => prev.filter((u) => u._id !== userId));
+    } catch (err) {
+      console.error("❌ Error deleting user", err);
+      alert("فشل في حذف المستخدم");
+    }
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    axios
+      .get("http://localhost:3001/api/users", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((res) => setUsers(res.data))
+      .catch((err) => console.error("❌ Failed to fetch users", err));
+  }, [token]);
 
   // تحقق من صلاحيات الأدمن
   useEffect(() => {
@@ -129,6 +166,7 @@ const AdminDashboard: React.FC = () => {
           <TabsList className="flex justify-end mb-6">
             <TabsTrigger value="products">المنتجات</TabsTrigger>
             <TabsTrigger value="orders">الطلبات</TabsTrigger>
+            <TabsTrigger value="users">المستخدمين</TabsTrigger>
           </TabsList>
 
           {/* ✅ تبويب المنتجات */}
@@ -230,6 +268,36 @@ const AdminDashboard: React.FC = () => {
               setSelectedOrder={setSelectedOrder}
               setOrders={setOrders}
               token={token}
+            />
+          </TabsContent>
+
+          <TabsContent value="users">
+            <h2 className="text-xl font-semibold mb-4">جميع المستخدمين</h2>
+            <div className="flex justify-end gap-2 mb-4">
+              <Button
+                variant={userRoleFilter === "all" ? "default" : "outline"}
+                onClick={() => setUserRoleFilter("all")}
+              >
+                الكل
+              </Button>
+              <Button
+                variant={userRoleFilter === "admin" ? "default" : "outline"}
+                onClick={() => setUserRoleFilter("admin")}
+              >
+                أدمن
+              </Button>
+              <Button
+                variant={userRoleFilter === "user" ? "default" : "outline"}
+                onClick={() => setUserRoleFilter("user")}
+              >
+                مستخدم
+              </Button>
+            </div>
+
+            <UserTable
+              users={filteredUsers}
+              onDelete={handleDeleteUser}
+              currentAdminId={user?._id}
             />
           </TabsContent>
         </Tabs>

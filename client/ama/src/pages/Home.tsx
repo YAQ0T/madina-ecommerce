@@ -34,44 +34,6 @@ const Home: React.FC = () => {
           </Button>
         </div>
 
-        {/* الفئات الرئيسية */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-semibold mb-4 text-right">
-            الفئات الرئيسية
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div
-              className="border rounded-lg p-4 text-right hover:shadow"
-              onClick={() => navigate(`/products?category=wood`)}
-            >
-              <h3 className="text-xl font-semibold mb-2">مواد النجارة</h3>
-              <p className="text-gray-600">
-                تشكيلة متنوعة من المواد عالية الجودة.
-              </p>
-            </div>
-            <div
-              className="border rounded-lg p-4 text-right hover:shadow"
-              onClick={() => navigate(`/products?category=wood`)}
-            >
-              <h3 className="text-xl font-semibold mb-2">أقمشة التنجيد</h3>
-              <p className="text-gray-600">
-                أفضل الأقمشة لتنجيد الكنب والكراسي.
-              </p>
-            </div>
-            <div
-              className="border rounded-lg p-4 text-right hover:shadow"
-              onClick={() => navigate(`/products?category=wood`)}
-            >
-              <h3 className="text-xl font-semibold mb-2">
-                مستلزمات صناعة الكنب
-              </h3>
-              <p className="text-gray-600">
-                كل ما تحتاجه لصناعة الكنب بجودة عالية.
-              </p>
-            </div>
-          </div>
-        </section>
-
         {/* منتجات مختارة */}
         {/* عرض مرئي لأهم الفئات */}
         {/* عرض مرئي جميل لما نقدمه */}
