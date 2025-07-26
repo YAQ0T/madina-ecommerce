@@ -15,6 +15,13 @@ const OrderStatusButtons: React.FC<OrderStatusButtonsProps> = ({
     <div className="space-x-4 space-x-reverse space-y-2">
       <Button
         size="sm"
+        onClick={() => updateStatus(orderId, "on_the_way")}
+        variant="outline"
+      >
+        🚚 في الطريق
+      </Button>
+      <Button
+        size="sm"
         onClick={() => updateStatus(orderId, "pending")}
         variant="outline"
       >
@@ -22,17 +29,18 @@ const OrderStatusButtons: React.FC<OrderStatusButtonsProps> = ({
       </Button>
       <Button
         size="sm"
+        onClick={() => updateStatus(orderId, "cancelled")}
+        variant="destructive"
+        className="me-2"
+      >
+        ❌ إلغاء
+      </Button>
+      <Button
+        size="sm"
         onClick={() => updateStatus(orderId, "delivered")}
         variant="outline"
       >
         ✅ تم التوصيل
-      </Button>
-      <Button
-        size="sm"
-        onClick={() => updateStatus(orderId, "cancelled")}
-        variant="destructive"
-      >
-        ❌ إلغاء
       </Button>
     </div>
   );

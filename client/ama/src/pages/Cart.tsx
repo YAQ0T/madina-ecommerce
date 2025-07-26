@@ -77,8 +77,10 @@ const Cart: React.FC = () => {
         clearCart();
       }
     } catch (err) {
-      console.error("❌ Error sending order", err);
-      alert("فشل في إرسال الطلب");
+      const message =
+        err?.response?.data?.message || "حدث خطأ أثناء تنفيذ الطلب.";
+      console.error(message, err);
+      alert(message);
     }
   };
 

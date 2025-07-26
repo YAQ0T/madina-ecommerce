@@ -32,6 +32,7 @@ const AdminDashboard: React.FC = () => {
     subCategory: "",
     description: "",
     image: "",
+    countity: "",
   });
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -242,6 +243,13 @@ const AdminDashboard: React.FC = () => {
               >
                 قيد الانتظار
               </Button>
+              <Button
+                variant={filter === "on_the_way" ? "default" : "outline"}
+                onClick={() => setFilter("on_the_way")}
+              >
+                🚚 في الطريق
+              </Button>
+
               <Button
                 variant={filter === "delivered" ? "default" : "outline"}
                 onClick={() => setFilter("delivered")}

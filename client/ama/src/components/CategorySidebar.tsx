@@ -62,7 +62,7 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
                 )}
               >
                 <span>{cat.mainCategory}</span>
-                <span className="ml-2">{isOpen ? "▲" : "▼"}</span>
+                <span className="ml-2">{isOpen ? "  ▲  " : "  ▼  "}</span>
               </div>
 
               {/* القائمة الفرعية */}

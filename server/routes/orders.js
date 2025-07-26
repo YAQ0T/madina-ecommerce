@@ -2,12 +2,39 @@ const express = require("express");
 const router = express.Router();
 const Order = require("../models/Order");
 const { verifyToken, isAdmin } = require("../middleware/authMiddleware");
-
+const Product = require("../models/Product");
 // ✅ إضافة طلب جديد (مفتوح لأي مستخدم مسجل)
 router.post("/", verifyToken, async (req, res) => {
   try {
     const newOrder = new Order(req.body);
+    // ✅ التحقق أولًا قبل أي خصم
+    for (const item of newOrder.items) {
+      const product = await Product.findById(item.productId);
+
+      if (!product) {
+        return res.status(400).json({ message: `المنتج غير موجود` });
+      }
+
+      if (product.quantity < item.quantity) {
+        console.log("طلب:", item.quantity, "المتوفر:", product.quantity);
+
+        return res.status(400).json({
+          message: `الكمية المطلوبة للمنتج "${product.name}" غير متوفرة. فقط ${product.quantity} متوفر.`,
+        });
+      }
+    }
+
     const saved = await newOrder.save();
+    for (const item of newOrder.items) {
+      const productId = item.productId;
+      const quantityOrdered = item.quantity;
+
+      await Product.findByIdAndUpdate(
+        productId,
+        { $inc: { quantity: -quantityOrdered } }, // ⬅️ تقليل الكمية
+        { new: true }
+      );
+    }
     res.status(201).json(saved);
   } catch (err) {
     res.status(500).json({ error: err.message });

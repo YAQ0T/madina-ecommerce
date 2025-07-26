@@ -38,6 +38,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         {
           ...editingProduct,
           price: parseFloat(editingProduct.price),
+          quantity: parseInt(editingProduct.quantity),
         },
         {
           headers: {
@@ -103,6 +104,18 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
             })
           }
         />
+        <Input
+          type="number"
+          placeholder="الكمية"
+          value={editingProduct.quantity}
+          onChange={(e) =>
+            setEditingProduct({
+              ...editingProduct,
+              quantity: e.target.value,
+            })
+          }
+        />
+
         <Input
           placeholder="رابط الصورة"
           value={editingProduct.image}

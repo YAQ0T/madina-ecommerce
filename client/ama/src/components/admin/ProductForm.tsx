@@ -33,6 +33,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         {
           ...newProduct,
           price: parseFloat(newProduct.price),
+          countity: parseInt(newProduct.countity),
         },
         {
           headers: {
@@ -100,6 +101,14 @@ const ProductForm: React.FC<ProductFormProps> = ({
           value={newProduct.description}
           onChange={(e) =>
             setNewProduct({ ...newProduct, description: e.target.value })
+          }
+        />
+        <Input
+          type="number"
+          placeholder="الكمية المتوفرة"
+          value={newProduct.countity}
+          onChange={(e) =>
+            setNewProduct({ ...newProduct, countity: e.target.value })
           }
         />
         <Input
