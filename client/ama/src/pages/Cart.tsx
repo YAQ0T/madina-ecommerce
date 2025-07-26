@@ -77,8 +77,10 @@ const Cart: React.FC = () => {
         clearCart();
       }
     } catch (err) {
-      const message =
-        err?.response?.data?.message || "حدث خطأ أثناء تنفيذ الطلب.";
+      let message = "حدث خطأ أثناء تنفيذ الطلب.";
+      if (axios.isAxiosError(err) && err.response?.data?.message) {
+        message = err.response.data.message;
+      }
       console.error(message, err);
       alert(message);
     }

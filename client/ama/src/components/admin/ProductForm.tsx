@@ -69,7 +69,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
       <div className="grid gap-4 py-4 text-right">
         <Input
           placeholder="اسم المنتج"
-          value={newProduct.name}
+          value={newProduct.name ?? ""}
           onChange={(e) =>
             setNewProduct({ ...newProduct, name: e.target.value })
           }
@@ -77,28 +77,28 @@ const ProductForm: React.FC<ProductFormProps> = ({
         <Input
           type="number"
           placeholder="السعر"
-          value={newProduct.price}
+          value={newProduct.price ?? ""}
           onChange={(e) =>
             setNewProduct({ ...newProduct, price: e.target.value })
           }
         />
         <Input
           placeholder="التصنيف الرئيسي"
-          value={newProduct.mainCategory}
+          value={newProduct.mainCategory ?? ""}
           onChange={(e) =>
             setNewProduct({ ...newProduct, mainCategory: e.target.value })
           }
         />
         <Input
           placeholder="التصنيف الفرعي"
-          value={newProduct.subCategory}
+          value={newProduct.subCategory ?? ""}
           onChange={(e) =>
             setNewProduct({ ...newProduct, subCategory: e.target.value })
           }
         />
         <Textarea
           placeholder="وصف المنتج"
-          value={newProduct.description}
+          value={newProduct.description ?? ""}
           onChange={(e) =>
             setNewProduct({ ...newProduct, description: e.target.value })
           }
@@ -106,14 +106,14 @@ const ProductForm: React.FC<ProductFormProps> = ({
         <Input
           type="number"
           placeholder="الكمية المتوفرة"
-          value={newProduct.countity}
+          value={newProduct.countity ?? ""}
           onChange={(e) =>
             setNewProduct({ ...newProduct, countity: e.target.value })
           }
         />
         <Input
           placeholder="رابط الصورة"
-          value={newProduct.image}
+          value={newProduct.image ?? ""}
           onChange={(e) =>
             setNewProduct({ ...newProduct, image: e.target.value })
           }
