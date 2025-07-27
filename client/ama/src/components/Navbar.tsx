@@ -23,7 +23,7 @@ const Navbar: React.FC = () => {
       <nav className="container mx-auto p-4 flex items-center justify-between">
         {/* الشعار */}
         <Link to="/" className="text-2xl font-bold">
-          المدينة المنورة
+          Dekori | ديكوري
         </Link>
 
         {/* زر القائمة للجوال */}

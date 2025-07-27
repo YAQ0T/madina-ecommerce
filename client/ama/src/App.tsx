@@ -11,6 +11,7 @@ import ProductDetails from "@/pages/ProductDetails";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import AdminDashboard from "./pages/AdminDashboard";
+import UserOrderDetails from "./pages/UserOrderDetails";
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/my-orders/:orderId" element={<UserOrderDetails />} />
     </Routes>
   );
 }

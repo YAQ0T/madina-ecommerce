@@ -44,7 +44,7 @@ const Register: React.FC = () => {
         password,
       });
 
-      login(res.data.user);
+      login(res.data.user, res.data.token);
       navigate("/");
     } catch (err: any) {
       setError(err?.response?.data?.message || "فشل في إنشاء الحساب");

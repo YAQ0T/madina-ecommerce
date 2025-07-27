@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
+import OrderDetailsContent from "@/components/common/OrderDetailsContent";
 
 interface OrderDetailsDialogProps {
   selectedOrder: any;
@@ -56,44 +57,11 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
           <DialogDescription>لتعديل تفاصيل الطلب رقم</DialogDescription>
         </DialogHeader>
 
-        <div className="text-right space-y-2">
-          <p>
-            <strong>الاسم:</strong> {selectedOrder.user.name}
-          </p>
-          <p>
-            <strong>الهاتف:</strong> {selectedOrder.user.phone}
-          </p>
-          <p>
-            <strong>العنوان:</strong> {selectedOrder.address}
-          </p>
-          <p>
-            <strong>الإجمالي:</strong> ₪{selectedOrder.total}
-          </p>
-          <p>
-            <strong>الحالة:</strong> {selectedOrder.status}
-          </p>
-          <p>
-            <strong>تاريخ الطلب:</strong>{" "}
-            {new Date(selectedOrder.createdAt).toLocaleString("ar-EG")}
-          </p>
+        <OrderDetailsContent order={selectedOrder} />
 
-          <div>
-            <strong>المنتجات:</strong>
-            <ul className="list-disc pr-5">
-              {selectedOrder.items.map((item: any, i: number) => (
-                <li key={i}>
-                  {item.productId
-                    ? `${item.productId.name} × ${item.quantity}`
-                    : `منتج محذوف × ${item.quantity}`}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <Button size="sm" variant="destructive" onClick={handleDelete}>
-            🗑️ حذف نهائي
-          </Button>
-        </div>
+        <Button size="sm" variant="destructive" onClick={handleDelete}>
+          🗑️ حذف نهائي
+        </Button>
 
         <DialogFooter>
           <Button onClick={() => setSelectedOrder(null)}>إغلاق</Button>

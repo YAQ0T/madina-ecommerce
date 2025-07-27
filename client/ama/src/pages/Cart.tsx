@@ -33,12 +33,9 @@ const Cart: React.FC = () => {
       alert("يجب تسجيل الدخول قبل تأكيد الطلب");
       return;
     }
-    if (
-      !userData.name.trim() ||
-      !userData.phone.trim() ||
-      !userData.address.trim()
-    ) {
-      alert("الرجاء تعبئة جميع الحقول قبل تأكيد الطلب.");
+
+    if (!userData.address.trim()) {
+      alert("الرجاء تعبئة العنوان قبل تأكيد الطلب.");
       return;
     }
 
@@ -49,10 +46,6 @@ const Cart: React.FC = () => {
 
     try {
       const orderData = {
-        user: {
-          name: userData.name,
-          phone: userData.phone,
-        },
         address: userData.address,
         total,
         items: cart.map((item) => ({
@@ -72,6 +65,7 @@ const Cart: React.FC = () => {
           },
         }
       );
+
       if (res.status === 201) {
         alert("✅ تم إرسال الطلب بنجاح!");
         clearCart();
