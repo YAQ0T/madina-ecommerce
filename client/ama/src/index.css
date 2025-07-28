@@ -2,7 +2,39 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+@utility container {
+  /* Set max-width to match breakpoints (default behavior of 'container') */
+  /* This is usually handled by the core TailwindCSS import, but you can explicitly re-apply */
+  /* For example, if you want to override default breakpoint values, you'd define them here too */
 
+  /* To center by default */
+  margin-inline: 0px;
+
+  /* To add horizontal padding by default */
+  padding-inline: 0rem; /* Example: 2rem padding */
+
+  /* You can also add breakpoint-specific padding here if needed,
+     similar to how you'd do it with the old config: */
+  @media (min-width: 640px) {
+    padding-inline: 0rem;
+  }
+  @media (min-width: 768px) {
+    padding-inline: 0rem;
+  }
+  /* ... and so on for other breakpoints */
+}
+
+/* Other theme customizations using @theme */
+@theme {
+  /* You can define custom container sizes here if you want to override the default breakpoint values for the 'container' utility */
+  /* For example, if you want a custom 2xl container size */
+  --container-2xl: 1400px; /* Example: custom 2xl max-width for the 'container' utility */
+
+  /* You might also define or override breakpoints themselves here */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  /* ... and so on */
+}
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

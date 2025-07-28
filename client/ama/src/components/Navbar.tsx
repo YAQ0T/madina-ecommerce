@@ -4,6 +4,7 @@ import CartButton from "@/components/CartButton";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -22,12 +23,15 @@ const Navbar: React.FC = () => {
     <header className="border-b mb-6">
       <nav className="container mx-auto p-4 flex items-center justify-between">
         {/* الشعار */}
-        <Link to="/" className="text-2xl font-bold">
+        {!user && <ThemeToggle />}
+        {user && user.role != "admin" && <ThemeToggle />}
+        <Link to="/" className="text-2xl font-bold min-w-45">
           Dekori | ديكوري
         </Link>
+        {/* <div className="bg-testRed">لو ظهر أحمر، كل شيء تمام</div> */}
 
         {/* زر القائمة للجوال */}
-        <div className="flex items-center gap-4 md:hidden">
+        <div className="flex items-center gap-4 lg:hidden">
           <CartButton count={0} />
           <Button
             variant="ghost"
@@ -39,7 +43,7 @@ const Navbar: React.FC = () => {
         </div>
 
         {/* روابط الصفحة على الشاشات الكبيرة */}
-        <div className="hidden md:flex gap-2 items-center">
+        <div className="hidden lg:flex gap-2 items-center">
           {links.map((link) => (
             <Button key={link.path} asChild variant="ghost">
               <Link to={link.path}>{link.name}</Link>
@@ -79,7 +83,7 @@ const Navbar: React.FC = () => {
 
       {/* القائمة الجوالية */}
       {menuOpen && (
-        <div className="md:hidden bg-white shadow-lg border-t py-4 px-6 space-y-3 text-right z-50">
+        <div className="lg:hidden bg-white shadow-lg border-t py-4 px-6 space-y-3 text-right z-50">
           {links.map((link) => (
             <div key={link.path}>
               <Link

@@ -21,14 +21,14 @@ const Home: React.FC = () => {
   return (
     <>
       <Navbar />
-      <main className="container mx-auto p-6">
-        <h1 className="text-4xl font-bold mb-4 text-right">
+      <main className="container mx-auto p-6 ">
+        <h1 className="text-4xl font-bold mb-4 text-right ">
           مرحبًا بكم في متجر ديكوري
         </h1>
-        <p className="text-lg mb-6 text-right text-gray-700">
+        <p className="text-lg mb-6 text-right text-gray-700 dark:text-gray-200">
           هنا تجد أفضل مستلزمات النجارة وأقمشة التنجيد وخامات صناعة الكنب.
         </p>
-        <div className="flex justify-end mb-10">
+        <div className="flex justify-end mb-10 ">
           <Button className="text-base" onClick={() => navigate(`/products`)}>
             ابدأ التسوق الآن
           </Button>
@@ -53,7 +53,9 @@ const Home: React.FC = () => {
                 />
               </div>
               <div className="p-4 text-right">
-                <h3 className="text-lg font-bold mb-1">مواد النجارة</h3>
+                <h3 className="text-lg font-bold mb-1 dark:text-black">
+                  مواد النجارة
+                </h3>
                 <p className="text-gray-600 text-sm">
                   خشب، مسامير، وأدوات بناء الكنب.
                 </p>
@@ -72,7 +74,9 @@ const Home: React.FC = () => {
                 />
               </div>
               <div className="p-4 text-right">
-                <h3 className="text-lg font-bold mb-1">أقمشة التنجيد</h3>
+                <h3 className="text-lg font-bold mb-1 dark:text-black">
+                  أقمشة التنجيد
+                </h3>
                 <p className="text-gray-600 text-sm">
                   تشكيلات متنوعة وفاخرة لتنجيد الكنب والكراسي.
                 </p>
@@ -91,7 +95,9 @@ const Home: React.FC = () => {
                 />
               </div>
               <div className="p-4 text-right">
-                <h3 className="text-lg font-bold mb-1">مستلزمات صناعة الكنب</h3>
+                <h3 className="text-lg font-bold mb-1 dark:text-black">
+                  مستلزمات صناعة الكنب
+                </h3>
                 <p className="text-gray-600 text-sm">
                   إسفنج، أربطة، وإكسسوارات تصنيع الكنب.
                 </p>
@@ -109,7 +115,9 @@ const Home: React.FC = () => {
                 />
               </div>
               <div className="p-4 text-right">
-                <h3 className="text-lg font-bold mb-1">مواد النجارة</h3>
+                <h3 className="text-lg font-bold mb-1 dark:text-black">
+                  مواد النجارة
+                </h3>
                 <p className="text-gray-600 text-sm">
                   خشب، مسامير، وأدوات بناء الكنب.
                 </p>
@@ -128,7 +136,9 @@ const Home: React.FC = () => {
                 />
               </div>
               <div className="p-4 text-right">
-                <h3 className="text-lg font-bold mb-1">أقمشة التنجيد</h3>
+                <h3 className="text-lg font-bold mb-1 dark:text-black">
+                  أقمشة التنجيد
+                </h3>
                 <p className="text-gray-600 text-sm">
                   تشكيلات متنوعة وفاخرة لتنجيد الكنب والكراسي.
                 </p>
@@ -147,7 +157,9 @@ const Home: React.FC = () => {
                 />
               </div>
               <div className="p-4 text-right">
-                <h3 className="text-lg font-bold mb-1">مستلزمات صناعة الكنب</h3>
+                <h3 className="text-lg font-bold mb-1 dark:text-black">
+                  مستلزمات صناعة الكنب
+                </h3>
                 <p className="text-gray-600 text-sm">
                   إسفنج، أربطة، وإكسسوارات تصنيع الكنب.
                 </p>
@@ -165,7 +177,9 @@ const Home: React.FC = () => {
                 />
               </div>
               <div className="p-4 text-right">
-                <h3 className="text-lg font-bold mb-1">مواد النجارة</h3>
+                <h3 className="text-lg font-bold mb-1 dark:text-black">
+                  مواد النجارة
+                </h3>
                 <p className="text-gray-600 text-sm">
                   خشب، مسامير، وأدوات بناء الكنب.
                 </p>
@@ -184,7 +198,9 @@ const Home: React.FC = () => {
                 />
               </div>
               <div className="p-4 text-right">
-                <h3 className="text-lg font-bold mb-1">أقمشة التنجيد</h3>
+                <h3 className="text-lg font-bold mb-1 dark:text-black">
+                  أقمشة التنجيد
+                </h3>
                 <p className="text-gray-600 text-sm">
                   تشكيلات متنوعة وفاخرة لتنجيد الكنب والكراسي.
                 </p>
@@ -203,7 +219,9 @@ const Home: React.FC = () => {
                 />
               </div>
               <div className="p-4 text-right">
-                <h3 className="text-lg font-bold mb-1">مستلزمات صناعة الكنب</h3>
+                <h3 className="text-lg font-bold mb-1 dark:text-black">
+                  مستلزمات صناعة الكنب
+                </h3>
                 <p className="text-gray-600 text-sm">
                   إسفنج، أربطة، وإكسسوارات تصنيع الكنب.
                 </p>

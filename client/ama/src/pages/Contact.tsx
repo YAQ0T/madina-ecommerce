@@ -50,7 +50,7 @@ const Contact: React.FC = () => {
       <Navbar />
       <main className="container mx-auto p-6">
         <h1 className="text-3xl font-bold mb-4 text-right">تواصل معنا</h1>
-        <p className="text-lg mb-6 text-right text-gray-700">
+        <p className="dark:text-gray-200 text-lg mb-6 text-right text-gray-700">
           يسعدنا تواصلك معنا لأي استفسار أو طلب. يمكنك تعبئة النموذج أدناه أو
           الاتصال بنا مباشرة.
         </p>
