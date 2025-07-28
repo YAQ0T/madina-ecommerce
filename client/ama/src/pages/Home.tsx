@@ -52,7 +52,7 @@ const Home: React.FC = () => {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
-              <div className="p-4 text-right">
+              <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
                   مواد النجارة
                 </h3>
@@ -73,7 +73,7 @@ const Home: React.FC = () => {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
-              <div className="p-4 text-right">
+              <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
                   أقمشة التنجيد
                 </h3>
@@ -94,7 +94,7 @@ const Home: React.FC = () => {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
-              <div className="p-4 text-right">
+              <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
                   مستلزمات صناعة الكنب
                 </h3>
@@ -114,7 +114,7 @@ const Home: React.FC = () => {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
-              <div className="p-4 text-right">
+              <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
                   مواد النجارة
                 </h3>
@@ -135,7 +135,7 @@ const Home: React.FC = () => {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
-              <div className="p-4 text-right">
+              <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
                   أقمشة التنجيد
                 </h3>
@@ -156,7 +156,7 @@ const Home: React.FC = () => {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
-              <div className="p-4 text-right">
+              <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
                   مستلزمات صناعة الكنب
                 </h3>
@@ -176,7 +176,7 @@ const Home: React.FC = () => {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
-              <div className="p-4 text-right">
+              <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
                   مواد النجارة
                 </h3>
@@ -197,7 +197,7 @@ const Home: React.FC = () => {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
-              <div className="p-4 text-right">
+              <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
                   أقمشة التنجيد
                 </h3>
@@ -218,7 +218,7 @@ const Home: React.FC = () => {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
-              <div className="p-4 text-right">
+              <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
                   مستلزمات صناعة الكنب
                 </h3>

@@ -37,7 +37,7 @@ const ThemeToggle = () => {
         />
 
         {/* Icon inside thumb */}
-        <span className="absolute top-1.5 left-1.5 text-white text-xs pointer-events-none transition-all duration-300">
+        <span className="absolute top-1.5 left-1.5 text-white text-xs pointer-events-none transition-all duration-300 me-0.5 mt-0.5">
           {isDark ? <Moon size={16} /> : <Sun size={16} />}
         </span>
       </button>
