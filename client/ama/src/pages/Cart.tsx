@@ -116,8 +116,8 @@ const Cart: React.FC = () => {
 
         {/* 💻 لسطح المكتب */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="min-w-full border text-right">
-            <thead className="bg-gray-100">
+          <table className="min-w-full border text-right ">
+            <thead className="bg-gray-100 dark:bg-black dark:text-white">
               <tr>
                 <th className="py-2 px-4 border">المنتج</th>
                 <th className="py-2 px-4 border">السعر</th>

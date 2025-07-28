@@ -10,14 +10,14 @@ const About: React.FC = () => {
       <Navbar />
       <main className="container mx-auto p-6">
         <h1 className="text-3xl font-bold mb-4 text-right">من نحن</h1>
-        <p className="text-lg mb-6 text-right text-gray-700 leading-7">
+        <p className="dark:text-gray-200 text-lg mb-6 text-right text-gray-700 leading-7">
           متجر <span className="font-semibold">المدينة المنورة</span> هو وجهتك
           الأولى لشراء مستلزمات النجارة، أقمشة التنجيد، وخامات صناعة الكنب بجودة
           عالية وأسعار منافسة. نهدف لتقديم أفضل تجربة تسوق عبر الإنترنت لعملائنا
           في الضفة الغربية وإسرائيل.
         </p>
 
-        <p className="text-lg mb-6 text-right text-gray-700 leading-7">
+        <p className="dark:text-gray-200 text-lg mb-6 text-right text-gray-700 leading-7">
           تأسس المتجر على يد فريق محترف لديه خبرة طويلة في مجال تجارة مستلزمات
           الأثاث والصناعات الخشبية. نحن ملتزمون بتوفير منتجات أصلية وتوصيل سريع
           ودعم مستمر لعملائنا.
