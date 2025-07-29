@@ -21,58 +21,60 @@ const Home: React.FC = () => {
             ابدأ التسوق الآن
           </Button>
         </div>
-        <div className="bg-testRed text-black p-4 rounded">
-          هذا مربع بلون testRed
-        </div>
-        {/* منتجات مختارة */}
-        {/* عرض مرئي لأهم الفئات */}
+        {/* مستلزمات نجارين
+جوارير / سحابات ومفصلات
+مستلزمات منجدين
+مقابض ابواب
+مقابض خزائن المطبخ
+اكسسورات مطابخ 
+اكسسورات غرف نوم
+اقمشة كنب */}
         {/* عرض مرئي جميل لما نقدمه */}
         <section className="mt-12">
           <h2 className="text-2xl font-semibold mb-6 text-right">ماذا نقدم؟</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {/* صورة: مواد النجارة */}
             <div
               onClick={() => navigate("/products?category=wood")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
                 <img
-                  src="https://i.imgur.com/uazWZhd.jpeg"
-                  alt="مواد النجارة"
+                  src="https://i.imgur.com/BEfwYpQ.png"
+                  alt="مستلزمات نجارين"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
-                  مواد النجارة
+                  مستلزمات نجارين
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  خشب، مسامير، وأدوات بناء الكنب.
+                  كل ما يحتاجه النجار من أدوات وخامات لتجهيز الأثاث والأبواب
+                  والخزائن بجودة عالية.
                 </p>
               </div>
             </div>
-            {/* صورة: أقمشة التنجيد */}
             <div
               onClick={() => navigate("/products?category=fabric")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
                 <img
-                  src="https://i.imgur.com/CCEly6H.jpeg"
-                  alt="أقمشة التنجيد"
+                  src="https://i.imgur.com/bf8geWx.jpeg"
+                  alt="جوارير / سحابات ومفصلات"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
-                  أقمشة التنجيد
+                  جوارير / سحابات ومفصلات
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  تشكيلات متنوعة وفاخرة لتنجيد الكنب والكراسي.
+                  مجموعة متنوعة من السحابات والمفصلات والجوارير التي تضمن حركة
+                  سلسة ومتانة للأثاث.
                 </p>
               </div>
             </div>
-            {/* صورة: مستلزمات الكنب */}
             <div
               onClick={() => navigate("/products?category=sofa")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
@@ -86,13 +88,14 @@ const Home: React.FC = () => {
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
-                  مستلزمات صناعة الكنب
+                  مستلزمات منجدين
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  إسفنج، أربطة، وإكسسوارات تصنيع الكنب.
+                  تشكيلة من الأدوات والخامات الضرورية لأعمال التنجيد وتجديد
+                  الأرائك والكراسي.
                 </p>
               </div>
-            </div>{" "}
+            </div>
             <div
               onClick={() => navigate("/products?category=wood")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
@@ -100,20 +103,19 @@ const Home: React.FC = () => {
               <div className="overflow-hidden h-56">
                 <img
                   src="https://i.imgur.com/uazWZhd.jpeg"
-                  alt="مواد النجارة"
+                  alt="مقابض ابواب"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
-                  مواد النجارة
+                  مقابض ابواب
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  خشب، مسامير، وأدوات بناء الكنب.
+                  تصاميم أنيقة وعملية لمقابض الأبواب، تناسب مختلف أنماط الديكور.
                 </p>
               </div>
             </div>
-            {/* صورة: أقمشة التنجيد */}
             <div
               onClick={() => navigate("/products?category=fabric")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
@@ -121,40 +123,41 @@ const Home: React.FC = () => {
               <div className="overflow-hidden h-56">
                 <img
                   src="https://i.imgur.com/CCEly6H.jpeg"
-                  alt="أقمشة التنجيد"
+                  alt="مقابض خزائن"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
-                  أقمشة التنجيد
+                  مقابض خزائن
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  تشكيلات متنوعة وفاخرة لتنجيد الكنب والكراسي.
+                  مجموعة مميزة من المقابض التي تضيف لمسة جمالية وعملية لخزائن
+                  المطبخ.
                 </p>
               </div>
             </div>
-            {/* صورة: مستلزمات الكنب */}
             <div
               onClick={() => navigate("/products?category=sofa")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
                 <img
-                  src="https://i.imgur.com/bf8geWx.jpeg"
-                  alt="مستلزمات الكنب"
+                  src="https://i.imgur.com/CCEly6H.jpeg"
+                  alt="اكسسورات مطابخ"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
-                  مستلزمات صناعة الكنب
+                  اكسسورات مطابخ
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  إسفنج، أربطة، وإكسسوارات تصنيع الكنب.
+                  اكسسوارات ذكية وعصرية تساعد على تنظيم المساحات وتسهيل
+                  الاستخدام اليومي في المطبخ.
                 </p>
               </div>
-            </div>{" "}
+            </div>
             <div
               onClick={() => navigate("/products?category=wood")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
@@ -162,20 +165,19 @@ const Home: React.FC = () => {
               <div className="overflow-hidden h-56">
                 <img
                   src="https://i.imgur.com/uazWZhd.jpeg"
-                  alt="مواد النجارة"
+                  alt="اكسسورات غرف نوم"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
-                  مواد النجارة
+                  اكسسورات غرف نوم
                 </h3>
                 <p className="text-gray-600 text-sm">
                   خشب، مسامير، وأدوات بناء الكنب.
                 </p>
               </div>
             </div>
-            {/* صورة: أقمشة التنجيد */}
             <div
               onClick={() => navigate("/products?category=fabric")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
@@ -183,20 +185,20 @@ const Home: React.FC = () => {
               <div className="overflow-hidden h-56">
                 <img
                   src="https://i.imgur.com/CCEly6H.jpeg"
-                  alt="أقمشة التنجيد"
+                  alt="اكسسورات غرف نوم"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
-                  أقمشة التنجيد
+                  اكسسورات غرف نوم
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  تشكيلات متنوعة وفاخرة لتنجيد الكنب والكراسي.
+                  تفاصيل أنيقة تكمل ديكور غرفة النوم، من وحدات تخزين إلى قطع
+                  زخرفية عملية.
                 </p>
               </div>
             </div>
-            {/* صورة: مستلزمات الكنب */}
             <div
               onClick={() => navigate("/products?category=sofa")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
@@ -204,16 +206,17 @@ const Home: React.FC = () => {
               <div className="overflow-hidden h-56">
                 <img
                   src="https://i.imgur.com/bf8geWx.jpeg"
-                  alt="مستلزمات الكنب"
+                  alt="اقمشة كنب"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
                 <h3 className="text-lg font-bold mb-1 dark:text-black">
-                  مستلزمات صناعة الكنب
+                  اقمشة كنب
                 </h3>
                 <p className="text-gray-600 text-sm">
-                  إسفنج، أربطة، وإكسسوارات تصنيع الكنب.
+                  تشكيلة من أقمشة الكنب المتينة والأنيقة، بتصاميم وألوان متعددة
+                  تناسب جميع الأذواق.
                 </p>
               </div>
             </div>
