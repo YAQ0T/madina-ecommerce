@@ -19,7 +19,6 @@ interface CategoryFilterMenusProps {
 const CategoryFilterMenus: React.FC<CategoryFilterMenusProps> = ({
   selectedMainCategory,
   setSelectedMainCategory,
-  productFilter,
   setProductFilter,
   categoryMap,
 }) => {

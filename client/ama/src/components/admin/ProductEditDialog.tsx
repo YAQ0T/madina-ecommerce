@@ -13,20 +13,20 @@ import { Button } from "@/components/ui/button";
 import axios from "axios";
 
 interface ProductEditDialogProps {
-  isOpen: boolean;
   onClose: () => void;
   editingProduct: any;
   setEditingProduct: (product: any) => void;
   setProductsState: (products: any[]) => void;
+  products: any[]; // ✅ أضفنا هذا السطر
   token: string;
 }
 
 const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
-  isOpen,
   onClose,
   editingProduct,
   setEditingProduct,
   setProductsState,
+  products, // ✅ استخدمناه هون
   token,
 }) => {
   if (!editingProduct) return null;
@@ -47,10 +47,11 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         }
       );
 
-      setProductsState((prev) =>
-        prev.map((p) => (p._id === res.data._id ? res.data : p))
+      const updatedProducts = products.map((p) =>
+        p._id === res.data._id ? res.data : p
       );
 
+      setProductsState(updatedProducts); // ✅ نمرر مصفوفة مباشرة
       setEditingProduct(null);
       onClose();
     } catch (err) {

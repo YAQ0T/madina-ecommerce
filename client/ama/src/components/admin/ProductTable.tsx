@@ -29,7 +29,7 @@ const ProductTable: React.FC<ProductTableProps> = ({
         },
       });
 
-      setProductsState((prev) => prev.filter((p) => p._id !== productId));
+      setProductsState(productsState.filter((p) => p._id !== productId)); // ✅ تم التعديل
     } catch (err) {
       console.error("❌ Error deleting product", err);
       alert("فشل في حذف المنتج");

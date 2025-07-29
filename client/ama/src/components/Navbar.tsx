@@ -32,7 +32,7 @@ const Navbar: React.FC = () => {
 
         {/* زر القائمة للجوال */}
         <div className="flex items-center gap-4 lg:hidden">
-          <CartButton count={0} />
+          <CartButton />
           <Button
             variant="ghost"
             size="icon"
@@ -77,7 +77,7 @@ const Navbar: React.FC = () => {
             </div>
           )}
 
-          <CartButton count={0} />
+          <CartButton />
         </div>
       </nav>
 

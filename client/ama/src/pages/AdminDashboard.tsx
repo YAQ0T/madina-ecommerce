@@ -188,13 +188,15 @@ const AdminDashboard: React.FC = () => {
                     <Button>➕ إضافة منتج</Button>
                   </DialogTrigger>
                   <DialogContent>
-                    <ProductForm
-                      newProduct={newProduct}
-                      setNewProduct={setNewProduct}
-                      productsState={productsState}
-                      setProductsState={setProductsState}
-                      token={token}
-                    />
+                    {token && (
+                      <ProductForm
+                        newProduct={newProduct}
+                        setNewProduct={setNewProduct}
+                        productsState={productsState}
+                        setProductsState={setProductsState}
+                        token={token}
+                      />
+                    )}
                   </DialogContent>
                 </Dialog>
 
@@ -202,28 +204,31 @@ const AdminDashboard: React.FC = () => {
                   open={isEditModalOpen}
                   onOpenChange={setIsEditModalOpen}
                 >
-                  <ProductEditDialog
-                    isOpen={isEditModalOpen}
-                    onClose={() => setIsEditModalOpen(false)}
-                    editingProduct={editingProduct}
-                    setEditingProduct={setEditingProduct}
-                    setProductsState={setProductsState}
-                    token={token}
-                  />
+                  {token && (
+                    <ProductEditDialog
+                      onClose={() => setIsEditModalOpen(false)}
+                      editingProduct={editingProduct}
+                      setEditingProduct={setEditingProduct}
+                      setProductsState={setProductsState}
+                      token={token}
+                      products={productsState}
+                    />
+                  )}
                 </Dialog>
               </div>
             </div>
-
-            <ProductTable
-              productsState={productsState}
-              setProductsState={setProductsState}
-              productFilter={productFilter}
-              token={token}
-              onEdit={(product) => {
-                setEditingProduct(product);
-                setIsEditModalOpen(true);
-              }}
-            />
+            {token && (
+              <ProductTable
+                productsState={productsState}
+                setProductsState={setProductsState}
+                productFilter={productFilter}
+                token={token}
+                onEdit={(product) => {
+                  setEditingProduct(product);
+                  setIsEditModalOpen(true);
+                }}
+              />
+            )}
           </TabsContent>
 
           {/* ✅ تبويب الطلبات */}
@@ -270,13 +275,15 @@ const AdminDashboard: React.FC = () => {
               updateStatus={updateStatus}
               setSelectedOrder={setSelectedOrder}
             />
-
-            <OrderDetailsDialog
-              selectedOrder={selectedOrder}
-              setSelectedOrder={setSelectedOrder}
-              setOrders={setOrders}
-              token={token}
-            />
+            {token && (
+              <OrderDetailsDialog
+                selectedOrder={selectedOrder}
+                setSelectedOrder={setSelectedOrder}
+                setOrders={setOrders}
+                token={token}
+                orders={orders}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="users">
@@ -301,12 +308,13 @@ const AdminDashboard: React.FC = () => {
                 مستخدم
               </Button>
             </div>
-
-            <UserTable
-              users={filteredUsers}
-              onDelete={handleDeleteUser}
-              currentAdminId={user?._id}
-            />
+            {user?._id && (
+              <UserTable
+                users={filteredUsers}
+                onDelete={handleDeleteUser}
+                currentAdminId={user?._id}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </main>

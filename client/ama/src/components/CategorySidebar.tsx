@@ -18,6 +18,7 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
   selectedSub,
 }) => {
   const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false); // فتح القائمة في الجوال
 
   const handleMainClick = (cat: string) => {
     setOpenCategory((prev) => (prev === cat ? null : cat));
@@ -26,15 +27,34 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
 
   return (
     <aside className="w-full">
-      <h2 className="text-lg font-bold mb-4 text-right">التصنيفات</h2>
+      <h2 className="text-lg font-bold mb-4 text-right hidden xl:block">
+        التصنيفات
+      </h2>
 
-      <ul className="flex flex-wrap gap-2 text-right xl:flex-col xl:space-y-2">
-        {/* زر "الكل" */}
+      {/* زر فتح القائمة في الجوال */}
+      <div className="xl:hidden mb-4 text-right">
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="bg-gray-100 px-4 py-2 rounded font-semibold"
+        >
+          التصنيفات {mobileOpen ? "▲" : "▼"}
+        </button>
+      </div>
+
+      {/* القائمة نفسها */}
+      <ul
+        className={cn(
+          "flex flex-col xl:space-y-2 text-right transition-all duration-300",
+          mobileOpen ? "block" : "hidden xl:block"
+        )}
+      >
+        {/* زر الكل */}
         <li className="relative">
           <div
             onClick={() => {
               setOpenCategory(null);
               onFilter("الكل", "");
+              if (window.innerWidth < 1280) setMobileOpen(false);
             }}
             className={cn(
               "cursor-pointer font-medium px-2 py-1 rounded transition-colors",
@@ -57,15 +77,14 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
               <div
                 onClick={() => handleMainClick(cat.mainCategory)}
                 className={cn(
-                  "cursor-pointer font-medium px-2 py-1 rounded transition-colors",
+                  "cursor-pointer font-medium px-2 py-1 rounded transition-colors flex justify-between items-center",
                   isActive ? "bg-black text-white" : "hover:bg-gray-100"
                 )}
               >
                 <span>{cat.mainCategory}</span>
-                <span className="ml-2">{isOpen ? "  ▲  " : "  ▼  "}</span>
+                <span>{isOpen ? "▲" : "▼"}</span>
               </div>
 
-              {/* القائمة الفرعية */}
               {isOpen && (
                 <ul
                   className={cn(
@@ -80,6 +99,7 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
                       onClick={() => {
                         onFilter(cat.mainCategory, sub);
                         if (window.innerWidth < 1280) {
+                          setMobileOpen(false);
                           setOpenCategory(null);
                         }
                       }}

@@ -39,7 +39,10 @@ const Products: React.FC = () => {
     const { mainCategory, subCategory } = product;
     if (!mainCategory) return acc;
 
-    const existing = acc.find((cat) => cat.mainCategory === mainCategory);
+    const existing = acc.find(
+      (cat: { mainCategory: string; subCategories: string[] }) =>
+        cat.mainCategory === mainCategory
+    );
     if (existing) {
       if (subCategory && !existing.subCategories.includes(subCategory)) {
         existing.subCategories.push(subCategory);

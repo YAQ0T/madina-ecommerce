@@ -3,25 +3,34 @@
 
 @custom-variant dark (&:is(.dark *));
 @utility container {
-  /* Set max-width to match breakpoints (default behavior of 'container') */
-  /* This is usually handled by the core TailwindCSS import, but you can explicitly re-apply */
-  /* For example, if you want to override default breakpoint values, you'd define them here too */
+  /* padding-left: 1rem;
+  padding-right: 1rem; */
+  margin-left: auto;
+  margin-right: auto;
 
-  /* To center by default */
-  margin-inline: 0px;
-
-  /* To add horizontal padding by default */
-  padding-inline: 0rem; /* Example: 2rem padding */
-
-  /* You can also add breakpoint-specific padding here if needed,
-     similar to how you'd do it with the old config: */
-  @media (min-width: 640px) {
-    padding-inline: 0rem;
+  /* Default max-width for smaller screens */
+  @screen sm {
+    max-width: 640px;
   }
-  @media (min-width: 768px) {
-    padding-inline: 0rem;
+  /* Medium screens (e.g., 'md' breakpoint and up) */
+  @screen md {
+    max-width: 768px;
   }
-  /* ... and so on for other breakpoints */
+
+  /* Large screens (e.g., 'lg' breakpoint and up) */
+  @screen lg {
+    max-width: 1024px;
+  }
+
+  /* Extra-large screens (e.g., 'xl' breakpoint and up) */
+  @screen xl {
+    max-width: 1280px;
+  }
+
+  /* 2XL screens (e.g., '2xl' breakpoint and up) */
+  @screen 2xl {
+    max-width: 1536px;
+  }
 }
 
 /* Other theme customizations using @theme */

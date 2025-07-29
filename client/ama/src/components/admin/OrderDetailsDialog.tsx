@@ -16,6 +16,7 @@ interface OrderDetailsDialogProps {
   selectedOrder: any;
   setSelectedOrder: (order: any | null) => void;
   setOrders: (orders: any[]) => void;
+  orders: any[]; // ✅ أضفنا هذا السطر
   token: string;
 }
 
@@ -23,6 +24,7 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
   selectedOrder,
   setSelectedOrder,
   setOrders,
+  orders, // ✅ استخدمناه هون
   token,
 }) => {
   if (!selectedOrder) return null;
@@ -41,7 +43,8 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
         }
       );
 
-      setOrders((prev) => prev.filter((o) => o._id !== selectedOrder._id));
+      const updatedOrders = orders.filter((o) => o._id !== selectedOrder._id);
+      setOrders(updatedOrders);
       setSelectedOrder(null);
     } catch (err) {
       console.error("❌ Error deleting order", err);

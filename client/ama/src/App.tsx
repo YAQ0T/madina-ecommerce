@@ -3,7 +3,7 @@ import Home from "@/pages/Home";
 import Products from "./pages/Products";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
-import Cart from "./pages/cart";
+import Cart from "./pages/Cart";
 import Account from "./pages/Account";
 import Login from "./pages/Login";
 import Register from "./pages/Register";

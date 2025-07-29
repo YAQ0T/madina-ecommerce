@@ -1,22 +1,10 @@
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-
-import ProductCard from "@/components/ProductCard";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
-import axios from "axios";
 
 const Home: React.FC = () => {
-  const [products, setProducts] = useState<any[]>([]);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    axios
-      .get("http://localhost:3001/api/products")
-      .then((res) => setProducts(res.data))
-      .catch((err) => console.error("❌ Failed to fetch products", err));
-  }, []);
 
   return (
     <>
@@ -33,7 +21,9 @@ const Home: React.FC = () => {
             ابدأ التسوق الآن
           </Button>
         </div>
-
+        <div className="bg-testRed text-black p-4 rounded">
+          هذا مربع بلون testRed
+        </div>
         {/* منتجات مختارة */}
         {/* عرض مرئي لأهم الفئات */}
         {/* عرض مرئي جميل لما نقدمه */}
