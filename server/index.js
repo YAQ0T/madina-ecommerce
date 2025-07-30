@@ -10,6 +10,8 @@ const PORT = process.env.PORT || 3001;
 const allowedOrigins = [
   "http://localhost:5173",
   "https://madina-ecommerce.vercel.app",
+  "https://dikori.com",
+  "https://www.dikori.com",
 ];
 
 app.use(
