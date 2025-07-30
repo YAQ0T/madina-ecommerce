@@ -18,7 +18,7 @@ const Account: React.FC = () => {
 
     if (user && token) {
       axios
-        .get(`http://localhost:3001/api/orders/user/${user._id}`, {
+        .get(`${import.meta.env.VITE_API_URL}/api/orders/user/${user._id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

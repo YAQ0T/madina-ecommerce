@@ -30,7 +30,7 @@ const Register: React.FC = () => {
 
     try {
       // نسجل المستخدم كـ role: "user"
-      await axios.post("http://localhost:3001/api/auth/signup", {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/signup`, {
         name,
         phone,
         email,
@@ -39,10 +39,13 @@ const Register: React.FC = () => {
       });
 
       // بعد النجاح، نعمل تسجيل دخول مباشر
-      const res = await axios.post("http://localhost:3001/api/auth/login", {
-        email,
-        password,
-      });
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/auth/login`,
+        {
+          email,
+          password,
+        }
+      );
 
       login(res.data.user, res.data.token);
       navigate("/");

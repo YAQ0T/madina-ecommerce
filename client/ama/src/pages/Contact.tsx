@@ -29,7 +29,7 @@ const Contact: React.FC = () => {
 
     try {
       const res = await axios.post(
-        "http://localhost:3001/api/contact",
+        `${import.meta.env.VITE_API_URL}/api/contact`,
         formData
       );
       if (res.status === 200) {

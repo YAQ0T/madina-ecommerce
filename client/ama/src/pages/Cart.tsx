@@ -57,7 +57,7 @@ const Cart: React.FC = () => {
       };
 
       const res = await axios.post(
-        "http://localhost:3001/api/orders",
+        `${import.meta.env.VITE_API_URL}/api/orders`,
         orderData,
         {
           headers: {

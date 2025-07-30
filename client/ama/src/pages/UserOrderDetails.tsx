@@ -20,7 +20,9 @@ const UserOrderDetails: React.FC = () => {
 
     axios
       .get(
-        `http://localhost:3001/api/orders/user/${user._id}/order/${orderId}`,
+        `${import.meta.env.VITE_API_URL}/api/orders/user/${
+          user._id
+        }/order/${orderId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

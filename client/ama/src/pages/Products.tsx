@@ -17,7 +17,7 @@ const Products: React.FC = () => {
 
   useEffect(() => {
     axios
-      .get("http://localhost:3001/api/products")
+      .get(`${import.meta.env.VITE_API_URL}/api/products`)
       .then((res) => setProducts(res.data))
       .catch((err) => console.error("❌ Failed to fetch products", err));
   }, []);
