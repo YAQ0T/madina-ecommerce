@@ -35,7 +35,7 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
 
     try {
       await axios.delete(
-        `http://localhost:3001/api/orders/${selectedOrder._id}`,
+        `${import.meta.env.VITE_API_URL}/api/orders/${selectedOrder._id}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

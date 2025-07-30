@@ -23,11 +23,14 @@ const ProductTable: React.FC<ProductTableProps> = ({
     if (!confirmDelete) return;
 
     try {
-      await axios.delete(`http://localhost:3001/api/products/${productId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await axios.delete(
+        `${import.meta.env.VITE_API_URL}/api/products/${productId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       setProductsState(productsState.filter((p) => p._id !== productId)); // ✅ تم التعديل
     } catch (err) {

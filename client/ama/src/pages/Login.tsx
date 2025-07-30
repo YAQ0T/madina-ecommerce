@@ -28,10 +28,13 @@ const Login: React.FC = () => {
     setError("");
 
     try {
-      const res = await axios.post("http://localhost:3001/api/auth/login", {
-        email,
-        password,
-      });
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/auth/login`,
+        {
+          email,
+          password,
+        }
+      );
       login(res.data.user, res.data.token); // ⬅️ تحديث الـ context
       if (res.data.user.role === "admin") {
         navigate("/admin");

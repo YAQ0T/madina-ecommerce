@@ -66,11 +66,14 @@ const AdminDashboard: React.FC = () => {
     if (!confirmDelete) return;
 
     try {
-      await axios.delete(`http://localhost:3001/api/users/${userId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await axios.delete(
+        `${import.meta.env.VITE_API_URL}/api/users/${userId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       setUsers((prev) => prev.filter((u) => u._id !== userId));
     } catch (err) {
@@ -82,7 +85,7 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     if (!token) return;
     axios
-      .get("http://localhost:3001/api/users", {
+      .get(`${import.meta.env.VITE_API_URL}/api/users`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -104,7 +107,7 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     if (!token) return;
     axios
-      .get("http://localhost:3001/api/products", {
+      .get(`${import.meta.env.VITE_API_URL}/api/products`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -117,7 +120,7 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     if (!token) return;
     axios
-      .get("http://localhost:3001/api/orders", {
+      .get(`${import.meta.env.VITE_API_URL}/api/orders`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -129,7 +132,7 @@ const AdminDashboard: React.FC = () => {
   const updateStatus = async (orderId: string, newStatus: string) => {
     try {
       await axios.put(
-        `http://localhost:3001/api/orders/${orderId}`,
+        `${import.meta.env.VITE_API_URL}/api/orders/${orderId}`,
         { status: newStatus },
         {
           headers: {

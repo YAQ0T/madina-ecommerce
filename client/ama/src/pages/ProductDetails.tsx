@@ -14,7 +14,7 @@ const ProductDetails: React.FC = () => {
 
   useEffect(() => {
     axios
-      .get(`http://localhost:3001/api/products/${id}`)
+      .get(`${import.meta.env.VITE_API_URL}/api/products/${id}`)
       .then((res) => setProduct(res.data))
       .catch((err) => console.error("❌ Failed to fetch product details", err));
   }, [id]);

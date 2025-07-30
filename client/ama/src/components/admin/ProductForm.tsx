@@ -29,7 +29,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   const handleSubmit = async () => {
     try {
       const res = await axios.post(
-        "http://localhost:3001/api/products",
+        `${import.meta.env.VITE_API_URL}/api/products`,
         {
           ...newProduct,
           price: parseFloat(newProduct.price),

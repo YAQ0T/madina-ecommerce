@@ -34,7 +34,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
   const handleSave = async () => {
     try {
       const res = await axios.put(
-        `http://localhost:3001/api/products/${editingProduct._id}`,
+        `${import.meta.env.VITE_API_URL}/api/products/${editingProduct._id}`,
         {
           ...editingProduct,
           price: parseFloat(editingProduct.price),
