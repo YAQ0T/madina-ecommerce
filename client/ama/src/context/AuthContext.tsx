@@ -29,8 +29,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const storedToken = localStorage.getItem("token");
 
     if (storedUser && storedToken) {
-      setUser(JSON.parse(storedUser));
-      setToken(storedToken);
+      const payload = JSON.parse(atob(storedToken.split(".")[1]));
+      const exp = payload.exp * 1000; // نحولها من ثواني إلى ملي ثانية
+
+      if (Date.now() >= exp) {
+        logout(); // ⛔ التوكن منتهي، نسجل خروج المستخدم
+      } else {
+        setUser(JSON.parse(storedUser));
+        setToken(storedToken);
+      }
     }
 
     setLoading(false);
