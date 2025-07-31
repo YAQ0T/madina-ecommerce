@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import QuantityInput from "@/components/common/QuantityInput";
 
 const Cart: React.FC = () => {
   const { cart, removeFromCart, clearCart, updateQuantity } = useCart();
@@ -132,15 +133,31 @@ const Cart: React.FC = () => {
                   <td className="py-2 px-4 border">{item.name}</td>
                   <td className="py-2 px-4 border">₪{item.price}</td>
                   <td className="py-2 px-4 border">
-                    <input
-                      type="number"
-                      min={1}
-                      className="border w-16 px-2 rounded text-center"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        updateQuantity(item._id, parseInt(e.target.value) || 1)
-                      }
-                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="px-2 py-1 border rounded"
+                        onClick={() =>
+                          updateQuantity(item._id, item.quantity - 1)
+                        }
+                        disabled={item.quantity <= 1}
+                      >
+                        -
+                      </button>
+
+                      <QuantityInput
+                        quantity={item.quantity}
+                        onChange={(newQty) => updateQuantity(item._id, newQty)}
+                      />
+
+                      <button
+                        className="px-2 py-1 border rounded"
+                        onClick={() =>
+                          updateQuantity(item._id, item.quantity + 1)
+                        }
+                      >
+                        +
+                      </button>
+                    </div>
                   </td>
                   <td className="py-2 px-4 border">
                     ₪{item.price * item.quantity}
@@ -168,14 +185,9 @@ const Cart: React.FC = () => {
               <p className="text-gray-600 mb-1">السعر: ₪{item.price}</p>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-gray-600">الكمية:</span>
-                <input
-                  type="number"
-                  min={1}
-                  className="border w-16 px-2 rounded text-center"
-                  value={item.quantity}
-                  onChange={(e) =>
-                    updateQuantity(item._id, parseInt(e.target.value) || 1)
-                  }
+                <QuantityInput
+                  quantity={item.quantity}
+                  onChange={(newQty) => updateQuantity(item._id, newQty)}
                 />
               </div>
               <p className="text-gray-700 font-semibold mb-3">

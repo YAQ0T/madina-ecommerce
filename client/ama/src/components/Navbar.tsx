@@ -26,7 +26,7 @@ const Navbar: React.FC = () => {
         {!user && <ThemeToggle />}
         {user && user.role != "admin" && <ThemeToggle />}
         <Link to="/" className="text-2xl font-bold min-w-45">
-          Dekori | ديكوري
+          Dikori | ديكوري
         </Link>
         {/* <div className="bg-testRed">لو ظهر أحمر، كل شيء تمام</div> */}
 
