@@ -56,6 +56,18 @@ const ProductForm: React.FC<ProductFormProps> = ({
       alert("فشل في إضافة المنتج");
     }
   };
+  // التصنيفات الرئيسية المتوفرة (بدون تكرار)
+  const mainCategories = [
+    ...new Set(productsState.map((p) => p.mainCategory)),
+  ].filter(Boolean);
+
+  // التصنيفات الفرعية المرتبطة بالتصنيف الرئيسي المختار فقط
+  const subCategoriesForSelectedMain = productsState
+    .filter((p) => p.mainCategory === newProduct.mainCategory)
+    .map((p) => p.subCategory)
+    .filter(Boolean);
+
+  const uniqueSubCategories = [...new Set(subCategoriesForSelectedMain)];
 
   return (
     <>
@@ -82,20 +94,36 @@ const ProductForm: React.FC<ProductFormProps> = ({
             setNewProduct({ ...newProduct, price: e.target.value })
           }
         />
+        {/* 🔠 التصنيف الرئيسي مع اقتراحات */}
         <Input
+          list="main-categories"
           placeholder="التصنيف الرئيسي"
           value={newProduct.mainCategory ?? ""}
           onChange={(e) =>
             setNewProduct({ ...newProduct, mainCategory: e.target.value })
           }
         />
+        <datalist id="main-categories">
+          {mainCategories.map((cat, idx) => (
+            <option key={idx} value={cat} />
+          ))}
+        </datalist>
+
+        {/* 🔠 التصنيف الفرعي مع اقتراحات */}
         <Input
+          list="sub-categories"
           placeholder="التصنيف الفرعي"
           value={newProduct.subCategory ?? ""}
           onChange={(e) =>
             setNewProduct({ ...newProduct, subCategory: e.target.value })
           }
         />
+        <datalist id="sub-categories">
+          {uniqueSubCategories.map((sub, idx) => (
+            <option key={idx} value={sub} />
+          ))}
+        </datalist>
+
         <Textarea
           placeholder="وصف المنتج"
           value={newProduct.description ?? ""}
