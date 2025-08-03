@@ -1,5 +1,4 @@
-// src/components/admin/ProductEditDialog.tsx
-import React from "react";
+import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -17,7 +16,7 @@ interface ProductEditDialogProps {
   editingProduct: any;
   setEditingProduct: (product: any) => void;
   setProductsState: (products: any[]) => void;
-  products: any[]; // ✅ أضفنا هذا السطر
+  products: any[];
   token: string;
 }
 
@@ -26,9 +25,11 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
   editingProduct,
   setEditingProduct,
   setProductsState,
-  products, // ✅ استخدمناه هون
+  products,
   token,
 }) => {
+  const [newImage, setNewImage] = useState("");
+
   if (!editingProduct) return null;
 
   const handleSave = async () => {
@@ -51,7 +52,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         p._id === res.data._id ? res.data : p
       );
 
-      setProductsState(updatedProducts); // ✅ نمرر مصفوفة مباشرة
+      setProductsState(updatedProducts);
       setEditingProduct(null);
       onClose();
     } catch (err) {
@@ -60,12 +61,28 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
     }
   };
 
+  const handleAddImage = () => {
+    if (newImage.trim()) {
+      setEditingProduct({
+        ...editingProduct,
+        images: [...(editingProduct.images || []), newImage],
+      });
+      setNewImage("");
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    const updatedImages = [...editingProduct.images];
+    updatedImages.splice(index, 1);
+    setEditingProduct({ ...editingProduct, images: updatedImages });
+  };
+
   return (
     <DialogContent>
       <DialogHeader>
         <DialogTitle>تعديل منتج</DialogTitle>
         <DialogDescription>
-          قم بملء الحقول التالية لتعديل المنتج
+          قم بتعديل الحقول التالية ثم اضغط حفظ
         </DialogDescription>
       </DialogHeader>
 
@@ -86,7 +103,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
           }
         />
         <Input
-          placeholder="الفئة"
+          placeholder="التصنيف الرئيسي"
           value={editingProduct.mainCategory}
           onChange={(e) =>
             setEditingProduct({
@@ -117,13 +134,34 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
           }
         />
 
-        <Input
-          placeholder="رابط الصورة"
-          value={editingProduct.image}
-          onChange={(e) =>
-            setEditingProduct({ ...editingProduct, image: e.target.value })
-          }
-        />
+        {/* ✅ تعديل الصور المتعددة */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              placeholder="رابط صورة جديدة"
+              value={newImage}
+              onChange={(e) => setNewImage(e.target.value)}
+            />
+            <Button type="button" onClick={handleAddImage}>
+              إضافة صورة
+            </Button>
+          </div>
+
+          <ul className="text-sm text-gray-700 space-y-1">
+            {(editingProduct.images || []).map((img: string, idx: number) => (
+              <li key={idx} className="flex justify-between items-center">
+                <span className="truncate max-w-xs">{img}</span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleRemoveImage(idx)}
+                >
+                  حذف
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <DialogFooter>

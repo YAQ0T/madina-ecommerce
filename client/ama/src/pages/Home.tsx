@@ -21,15 +21,7 @@ const Home: React.FC = () => {
             ابدأ التسوق الآن
           </Button>
         </div>
-        {/* مستلزمات نجارين
-جوارير / سحابات ومفصلات
-مستلزمات منجدين
-مقابض ابواب
-مقابض خزائن المطبخ
-اكسسورات مطابخ 
-اكسسورات غرف نوم
-اقمشة كنب */}
-        {/* عرض مرئي جميل لما نقدمه */}
+
         <section className="mt-12">
           <h2 className="text-2xl font-semibold mb-6 text-right">ماذا نقدم؟</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -42,6 +34,8 @@ const Home: React.FC = () => {
                   src="https://i.imgur.com/BEfwYpQ.png"
                   alt="مستلزمات نجارين"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  width={400}
+                  height={224}
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
@@ -63,6 +57,8 @@ const Home: React.FC = () => {
                   src="https://i.imgur.com/bf8geWx.jpeg"
                   alt="جوارير / سحابات ومفصلات"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  width={400}
+                  height={224}
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
@@ -84,6 +80,8 @@ const Home: React.FC = () => {
                   src="https://i.imgur.com/oW6JO0A.png"
                   alt="مستلزمات الكنب"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  width={400}
+                  height={224}
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
@@ -105,6 +103,8 @@ const Home: React.FC = () => {
                   src="https://i.imgur.com/uazWZhd.jpeg"
                   alt="مقابض ابواب"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  width={400}
+                  height={224}
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
@@ -122,9 +122,11 @@ const Home: React.FC = () => {
             >
               <div className="overflow-hidden h-56">
                 <img
-                  src="https://i.imgur.com/CCEly6H.jpeg"
+                  src="https://i.imgur.com/lu2y3pi.png"
                   alt="مقابض خزائن"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  width={400}
+                  height={224}
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
@@ -146,6 +148,8 @@ const Home: React.FC = () => {
                   src="https://i.imgur.com/CCEly6H.jpeg"
                   alt="اكسسورات مطابخ"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  width={400}
+                  height={224}
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
@@ -167,6 +171,8 @@ const Home: React.FC = () => {
                   src="https://i.imgur.com/uazWZhd.jpeg"
                   alt="اكسسورات غرف نوم"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  width={400}
+                  height={224}
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
@@ -187,6 +193,8 @@ const Home: React.FC = () => {
                   src="https://i.imgur.com/CCEly6H.jpeg"
                   alt="اكسسورات غرف نوم"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  width={400}
+                  height={224}
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
@@ -208,6 +216,8 @@ const Home: React.FC = () => {
                   src="https://i.imgur.com/bf8geWx.jpeg"
                   alt="اقمشة كنب"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  width={400}
+                  height={224}
                 />
               </div>
               <div className="p-4 text-right dark:bg-gray-300">
