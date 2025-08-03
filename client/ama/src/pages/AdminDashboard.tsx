@@ -31,8 +31,8 @@ const AdminDashboard: React.FC = () => {
     mainCategory: "",
     subCategory: "",
     description: "",
-    image: "",
-    countity: "",
+    images: [],
+    quantity: "",
   });
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);

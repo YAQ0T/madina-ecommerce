@@ -13,10 +13,11 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
       mainCategory,
       subCategory,
       description,
-      image,
+      images,
+      quantity,
     } = req.body;
 
-    if (!name || !price || !mainCategory || !subCategory) {
+    if (!name || !price || !mainCategory || !subCategory || !images?.length) {
       return res
         .status(400)
         .json({ error: "يرجى تعبئة جميع الحقول المطلوبة." });
@@ -29,7 +30,8 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
       mainCategory,
       subCategory,
       description,
-      image,
+      images,
+      quantity, // ✅ أضف هذا
     });
 
     const saved = await newProduct.save();
@@ -63,9 +65,32 @@ router.get("/:id", async (req, res) => {
 // ✅ تعديل منتج (أدمن فقط)
 router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
-    const updated = await Product.findByIdAndUpdate(req.params.id, req.body, {
+    const {
+      name,
+      price,
+      category,
+      mainCategory,
+      subCategory,
+      description,
+      images,
+      quantity,
+    } = req.body;
+
+    const updateData = {
+      ...(name && { name }),
+      ...(price && { price }),
+      ...(category && { category }),
+      ...(mainCategory && { mainCategory }),
+      ...(subCategory && { subCategory }),
+      ...(description && { description }),
+      ...(Array.isArray(images) && images.length > 0 && { images }),
+      ...(typeof quantity === "number" && { quantity }),
+    };
+
+    const updated = await Product.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
     });
+
     if (!updated) return res.status(404).json({ error: "المنتج غير موجود" });
     res.status(200).json(updated);
   } catch (err) {

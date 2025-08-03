@@ -1,4 +1,3 @@
-// src/components/admin/ProductForm.tsx
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "axios";
-import React from "react";
+import React, { useState } from "react";
 
 interface ProductFormProps {
   newProduct: any;
@@ -26,6 +25,24 @@ const ProductForm: React.FC<ProductFormProps> = ({
   setProductsState,
   token,
 }) => {
+  const [newImage, setNewImage] = useState("");
+
+  const handleAddImage = () => {
+    if (newImage.trim()) {
+      setNewProduct({
+        ...newProduct,
+        images: [...(newProduct.images || []), newImage],
+      });
+      setNewImage("");
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    const updatedImages = [...newProduct.images];
+    updatedImages.splice(index, 1);
+    setNewProduct({ ...newProduct, images: updatedImages });
+  };
+
   const handleSubmit = async () => {
     try {
       const res = await axios.post(
@@ -33,7 +50,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         {
           ...newProduct,
           price: parseFloat(newProduct.price),
-          countity: parseInt(newProduct.countity),
+          quantity: parseInt(newProduct.quantity), // ✅ لازم تكون بهذا الشكل
         },
         {
           headers: {
@@ -43,25 +60,27 @@ const ProductForm: React.FC<ProductFormProps> = ({
       );
 
       setProductsState([...productsState, res.data]);
+
+      // ✅ إعادة تعيين الحقول بعد الحفظ
       setNewProduct({
         name: "",
         price: "",
         mainCategory: "",
         subCategory: "",
         description: "",
-        image: "",
+        images: [],
+        quantity: "", // تأكد أنها reset
       });
     } catch (err) {
       console.error("❌ Error adding product", err);
       alert("فشل في إضافة المنتج");
     }
   };
-  // التصنيفات الرئيسية المتوفرة (بدون تكرار)
+
   const mainCategories = [
     ...new Set(productsState.map((p) => p.mainCategory)),
   ].filter(Boolean);
 
-  // التصنيفات الفرعية المرتبطة بالتصنيف الرئيسي المختار فقط
   const subCategoriesForSelectedMain = productsState
     .filter((p) => p.mainCategory === newProduct.mainCategory)
     .map((p) => p.subCategory)
@@ -94,7 +113,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
             setNewProduct({ ...newProduct, price: e.target.value })
           }
         />
-        {/* 🔠 التصنيف الرئيسي مع اقتراحات */}
         <Input
           list="main-categories"
           placeholder="التصنيف الرئيسي"
@@ -109,7 +127,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
           ))}
         </datalist>
 
-        {/* 🔠 التصنيف الفرعي مع اقتراحات */}
         <Input
           list="sub-categories"
           placeholder="التصنيف الفرعي"
@@ -134,18 +151,39 @@ const ProductForm: React.FC<ProductFormProps> = ({
         <Input
           type="number"
           placeholder="الكمية المتوفرة"
-          value={newProduct.countity ?? ""}
+          value={newProduct.quantity ?? ""}
           onChange={(e) =>
-            setNewProduct({ ...newProduct, countity: e.target.value })
+            setNewProduct({ ...newProduct, quantity: e.target.value })
           }
         />
-        <Input
-          placeholder="رابط الصورة"
-          value={newProduct.image ?? ""}
-          onChange={(e) =>
-            setNewProduct({ ...newProduct, image: e.target.value })
-          }
-        />
+
+        {/* ✅ إدخال صور متعددة */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              placeholder="رابط صورة جديدة"
+              value={newImage}
+              onChange={(e) => setNewImage(e.target.value)}
+            />
+            <Button type="button" onClick={handleAddImage}>
+              إضافة
+            </Button>
+          </div>
+          <ul className="text-sm text-gray-700 space-y-1">
+            {(newProduct.images || []).map((img: string, idx: number) => (
+              <li key={idx} className="flex justify-between items-center">
+                <span className="truncate max-w-xs">{img}</span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleRemoveImage(idx)}
+                >
+                  حذف
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <DialogFooter>
