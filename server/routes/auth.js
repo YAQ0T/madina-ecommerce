@@ -41,7 +41,7 @@ router.post("/login", async (req, res) => {
     if (!match) return res.status(401).json({ message: "كلمة المرور خاطئة" });
 
     const token = jwt.sign({ id: user._id, role: user.role }, "yourSecretKey", {
-      expiresIn: "2h",
+      expiresIn: "24h",
     });
 
     res.json({
