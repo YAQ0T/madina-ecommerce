@@ -26,7 +26,7 @@ const Home: React.FC = () => {
           <h2 className="text-2xl font-semibold mb-6 text-right">ماذا نقدم؟</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             <div
-              onClick={() => navigate("/products?category=wood")}
+              onClick={() => navigate("/products")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
@@ -49,7 +49,7 @@ const Home: React.FC = () => {
               </div>
             </div>
             <div
-              onClick={() => navigate("/products?category=fabric")}
+              onClick={() => navigate("/products")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
@@ -72,7 +72,7 @@ const Home: React.FC = () => {
               </div>
             </div>
             <div
-              onClick={() => navigate("/products?category=sofa")}
+              onClick={() => navigate("/products")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
@@ -95,7 +95,7 @@ const Home: React.FC = () => {
               </div>
             </div>
             <div
-              onClick={() => navigate("/products?category=wood")}
+              onClick={() => navigate("/products")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
@@ -117,7 +117,7 @@ const Home: React.FC = () => {
               </div>
             </div>
             <div
-              onClick={() => navigate("/products?category=fabric")}
+              onClick={() => navigate("/products")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
@@ -140,7 +140,7 @@ const Home: React.FC = () => {
               </div>
             </div>
             <div
-              onClick={() => navigate("/products?category=sofa")}
+              onClick={() => navigate("/products")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
@@ -163,7 +163,7 @@ const Home: React.FC = () => {
               </div>
             </div>
             <div
-              onClick={() => navigate("/products?category=wood")}
+              onClick={() => navigate("/products")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
@@ -185,7 +185,7 @@ const Home: React.FC = () => {
               </div>
             </div>
             <div
-              onClick={() => navigate("/products?category=fabric")}
+              onClick={() => navigate("/products")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
@@ -208,7 +208,7 @@ const Home: React.FC = () => {
               </div>
             </div>
             <div
-              onClick={() => navigate("/products?category=sofa")}
+              onClick={() => navigate("/products")}
               className="cursor-pointer group overflow-hidden rounded-xl shadow-lg bg-white"
             >
               <div className="overflow-hidden h-56">
