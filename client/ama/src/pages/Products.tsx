@@ -15,6 +15,10 @@ const Products: React.FC = () => {
   const [products, setProducts] = useState<any[]>([]);
   const location = useLocation();
 
+  // متغيرات الترقيم
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 9;
+
   useEffect(() => {
     axios
       .get(`${import.meta.env.VITE_API_URL}/api/products`)
@@ -33,6 +37,7 @@ const Products: React.FC = () => {
   const handleCategorySelect = (main: string, sub: string = "") => {
     setSelectedMainCategory(main);
     setSelectedSubCategory(sub);
+    setCurrentPage(1); // لما يغير الفلتر يرجع لأول صفحة
   };
 
   const categoryGroups = products.reduce((acc, product) => {
@@ -71,6 +76,18 @@ const Products: React.FC = () => {
     return byMain && bySub && byName && byPrice;
   });
 
+  // حساب المنتجات المعروضة لكل صفحة
+  const indexOfLastProduct = currentPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = filteredProducts
+    .filter((product) => product.quantity > 0)
+    .slice(indexOfFirstProduct, indexOfLastProduct);
+
+  const totalPages = Math.ceil(
+    filteredProducts.filter((product) => product.quantity > 0).length /
+      productsPerPage
+  );
+
   return (
     <>
       <Navbar />
@@ -93,13 +110,19 @@ const Products: React.FC = () => {
                 type="text"
                 placeholder="ابحث باسم المنتج..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
               />
               <Input
                 type="number"
                 placeholder="سعر أقصى"
                 value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
+                onChange={(e) => {
+                  setMaxPrice(e.target.value);
+                  setCurrentPage(1);
+                }}
               />
             </div>
 
@@ -108,13 +131,30 @@ const Products: React.FC = () => {
                 لا يوجد منتجات مطابقة للبحث
               </p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 items-start">
-                {filteredProducts
-                  .filter((product) => product.quantity > 0)
-                  .map((product) => (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 items-start">
+                  {currentProducts.map((product) => (
                     <ProductCard key={product._id} product={product} />
                   ))}
-              </div>
+                </div>
+
+                {/* أزرار الترقيم */}
+                <div className="flex justify-center mt-6 gap-2">
+                  {Array.from({ length: totalPages }, (_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`px-3 py-1 rounded transition-colors duration-200 ${
+                        currentPage === i + 1
+                          ? "bg-black text-white"
+                          : "bg-gray-100 text-black hover:bg-gray-400"
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </section>
         </div>
