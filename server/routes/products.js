@@ -1,8 +1,8 @@
 // routes/products.js
 const express = require("express");
 const router = express.Router();
-const Product = require("../models/product"); // انتبه لاسم الملف lowercase لو غيّرته
-const Variant = require("../models/variant");
+const Product = require("../models/Product"); // انتبه لاسم الملف lowercase لو غيّرته
+const Variant = require("../models/Variant");
 const { verifyToken, isAdmin } = require("../middleware/authMiddleware");
 
 // ✅ إنشاء منتج (أدمن فقط)
