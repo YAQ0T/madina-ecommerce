@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+// src/pages/Products.tsx
+import { useEffect, useMemo, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
@@ -7,86 +8,149 @@ import CategorySidebar from "@/components/CategorySidebar";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
 
+type ProductItem = {
+  _id: string;
+  name: string;
+  description: string; // غير اختياري
+  images: string[]; // غير اختياري
+  mainCategory?: string;
+  subCategory?: string;
+
+  // قيم قادمة من السيرفر
+  minPrice?: number;
+  totalStock?: number;
+
+  // قيَم نهائية نمررها لـ ProductCard
+  price: number; // غير اختياري
+  quantity: number; // غير اختياري
+};
+
 const Products: React.FC = () => {
   const [selectedMainCategory, setSelectedMainCategory] = useState("الكل");
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+
   const location = useLocation();
 
-  // متغيرات الترقيم
+  // الترقيم (السيرفر سيرجع صفحة واحدة بالفعل)
   const [currentPage, setCurrentPage] = useState(1);
-  const productsPerPage = 9;
 
-  useEffect(() => {
-    axios
-      .get(`${import.meta.env.VITE_API_URL}/api/products`)
-      .then((res) => setProducts(res.data))
-      .catch((err) => console.error("❌ Failed to fetch products", err));
-  }, []);
-
+  // قراءة باراميتر category من الـ URL
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const category = params.get("category");
-    if (category) {
-      setSelectedMainCategory(category);
-    }
+    if (category) setSelectedMainCategory(category);
   }, [location.search]);
+
+  // جلب المنتجات + الإحصاءات (minPrice/totalStock) من السيرفر
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      setLoading(true);
+
+      const params = new URLSearchParams();
+      params.set("page", String(currentPage));
+      params.set("limit", "9");
+      if (selectedMainCategory && selectedMainCategory !== "الكل") {
+        params.set("mainCategory", selectedMainCategory);
+      }
+      if (selectedSubCategory) params.set("subCategory", selectedSubCategory);
+      if (searchTerm) params.set("q", searchTerm);
+      if (maxPrice) params.set("maxPrice", maxPrice);
+
+      try {
+        const url = `${
+          import.meta.env.VITE_API_URL
+        }/api/products/with-stats?${params.toString()}`;
+        const res = await axios.get(url);
+        if (ignore) return;
+
+        const { items, totalPages: tp } = res.data || {
+          items: [],
+          totalPages: 1,
+        };
+
+        // توحيد الحقول مع ProductCard بقيم افتراضية آمنة
+        const mapped: ProductItem[] = (items || []).map((p: any) => ({
+          _id: p._id,
+          name: p.name ?? "",
+          description: p.description ?? "",
+          images: Array.isArray(p.images) ? p.images : [],
+          mainCategory: p.mainCategory,
+          subCategory: p.subCategory,
+          minPrice: p.minPrice,
+          totalStock: p.totalStock,
+          price: typeof p.minPrice === "number" ? p.minPrice : 0,
+          quantity: typeof p.totalStock === "number" ? p.totalStock : 0,
+        }));
+
+        setProducts(mapped);
+        setTotalPages(tp || 1);
+      } catch (err) {
+        console.error("❌ Failed to fetch products with stats", err);
+        setProducts([]);
+        setTotalPages(1);
+      } finally {
+        setLoading(false);
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [
+    currentPage,
+    selectedMainCategory,
+    selectedSubCategory,
+    searchTerm,
+    maxPrice,
+  ]);
 
   const handleCategorySelect = (main: string, sub: string = "") => {
     setSelectedMainCategory(main);
     setSelectedSubCategory(sub);
-    setCurrentPage(1); // لما يغير الفلتر يرجع لأول صفحة
+    setCurrentPage(1);
   };
 
-  const categoryGroups = products.reduce((acc, product) => {
-    const { mainCategory, subCategory } = product;
-    if (!mainCategory) return acc;
+  // تجميع الفئات
+  const categoryGroups = useMemo(() => {
+    return products.reduce((acc, product) => {
+      const { mainCategory, subCategory } = product;
+      if (!mainCategory) return acc;
 
-    const existing = acc.find(
-      (cat: { mainCategory: string; subCategories: string[] }) =>
-        cat.mainCategory === mainCategory
-    );
-    if (existing) {
-      if (subCategory && !existing.subCategories.includes(subCategory)) {
-        existing.subCategories.push(subCategory);
+      const existing = acc.find(
+        (cat: { mainCategory: string; subCategories: string[] }) =>
+          cat.mainCategory === mainCategory
+      );
+      if (existing) {
+        if (subCategory && !existing.subCategories.includes(subCategory)) {
+          existing.subCategories.push(subCategory);
+        }
+      } else {
+        acc.push({
+          mainCategory,
+          subCategories: subCategory ? [subCategory] : [],
+        });
       }
-    } else {
-      acc.push({
-        mainCategory,
-        subCategories: subCategory ? [subCategory] : [],
-      });
-    }
+      return acc;
+    }, [] as { mainCategory: string; subCategories: string[] }[]);
+  }, [products]);
 
-    return acc;
-  }, [] as { mainCategory: string; subCategories: string[] }[]);
-
-  const filteredProducts = products.filter((product) => {
-    const byMain =
-      selectedMainCategory === "الكل" ||
-      product.mainCategory === selectedMainCategory;
-    const bySub =
-      selectedSubCategory === "" || product.subCategory === selectedSubCategory;
-    const byName =
-      searchTerm === "" ||
-      product.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const byPrice = maxPrice === "" || product.price <= parseFloat(maxPrice);
-
-    return byMain && bySub && byName && byPrice;
-  });
-
-  // حساب المنتجات المعروضة لكل صفحة
-  const indexOfLastProduct = currentPage * productsPerPage;
-  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
-  const currentProducts = filteredProducts
-    .filter((product) => product.quantity > 0)
-    .slice(indexOfFirstProduct, indexOfLastProduct);
-
-  const totalPages = Math.ceil(
-    filteredProducts.filter((product) => product.quantity > 0).length /
-      productsPerPage
-  );
+  if (loading && products.length === 0) {
+    return (
+      <>
+        <Navbar />
+        <main className="container mx-auto p-6">
+          <h1 className="text-3xl font-bold mb-6 text-right">جميع المنتجات</h1>
+          <p className="text-center text-gray-600 text-lg">جاري التحميل…</p>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
@@ -126,19 +190,20 @@ const Products: React.FC = () => {
               />
             </div>
 
-            {filteredProducts.length === 0 ? (
+            {products.length === 0 ? (
               <p className="text-center text-gray-600 text-lg">
                 لا يوجد منتجات مطابقة للبحث
               </p>
             ) : (
               <>
+                {/* الصفحة الحالية جاهزة من السيرفر */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 items-start">
-                  {currentProducts.map((product) => (
+                  {products.map((product) => (
                     <ProductCard key={product._id} product={product} />
                   ))}
                 </div>
 
-                {/* أزرار الترقيم */}
+                {/* الترقيم */}
                 <div className="flex justify-center mt-6 gap-2">
                   {Array.from({ length: totalPages }, (_, i) => (
                     <button

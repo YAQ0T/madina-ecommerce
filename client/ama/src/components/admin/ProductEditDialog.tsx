@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/components/admin/ProductEditDialog.tsx
+import React, { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -18,6 +19,7 @@ interface ProductEditDialogProps {
   setProductsState: (products: any[]) => void;
   products: any[];
   token: string;
+  onSuccess?: () => void; // لإعادة الجلب بعد النجاح (اختياري)
 }
 
 const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
@@ -27,32 +29,54 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
   setProductsState,
   products,
   token,
+  onSuccess,
 }) => {
   const [newImage, setNewImage] = useState("");
+
+  const mainCategories = useMemo(
+    () => [...new Set(products.map((p) => p.mainCategory))].filter(Boolean),
+    [products]
+  );
+
+  const uniqueSubCategories = useMemo(() => {
+    const list = products
+      .filter((p) => p.mainCategory === editingProduct?.mainCategory)
+      .map((p) => p.subCategory)
+      .filter(Boolean);
+    return [...new Set(list)];
+  }, [products, editingProduct?.mainCategory]);
 
   if (!editingProduct) return null;
 
   const handleSave = async () => {
     try {
+      const payload = {
+        name: editingProduct.name?.trim(),
+        mainCategory: editingProduct.mainCategory?.trim(),
+        subCategory: editingProduct.subCategory?.trim(),
+        description: editingProduct.description?.trim(),
+        images: Array.isArray(editingProduct.images)
+          ? editingProduct.images
+          : [],
+      };
+
       const res = await axios.put(
         `${import.meta.env.VITE_API_URL}/api/products/${editingProduct._id}`,
-        {
-          ...editingProduct,
-          price: parseFloat(editingProduct.price),
-          quantity: parseInt(editingProduct.quantity),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      const updatedProducts = products.map((p) =>
-        p._id === res.data._id ? res.data : p
-      );
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        const updatedProducts = products.map((p) =>
+          p._id === res.data._id
+            ? { ...res.data, price: p.price, quantity: p.quantity }
+            : p
+        );
+        setProductsState(updatedProducts);
+      }
 
-      setProductsState(updatedProducts);
       setEditingProduct(null);
       onClose();
     } catch (err) {
@@ -65,14 +89,14 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
     if (newImage.trim()) {
       setEditingProduct({
         ...editingProduct,
-        images: [...(editingProduct.images || []), newImage],
+        images: [...(editingProduct.images || []), newImage.trim()],
       });
       setNewImage("");
     }
   };
 
   const handleRemoveImage = (index: number) => {
-    const updatedImages = [...editingProduct.images];
+    const updatedImages = [...(editingProduct.images || [])];
     updatedImages.splice(index, 1);
     setEditingProduct({ ...editingProduct, images: updatedImages });
   };
@@ -86,25 +110,19 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="grid gap-4 py-4 text-right">
+      <div className="max-h-[70vh] overflow-y-auto grid gap-4 py-4 text-right">
         <Input
           placeholder="اسم المنتج"
-          value={editingProduct.name}
+          value={editingProduct.name ?? ""}
           onChange={(e) =>
             setEditingProduct({ ...editingProduct, name: e.target.value })
           }
         />
+
         <Input
-          type="number"
-          placeholder="السعر"
-          value={editingProduct.price}
-          onChange={(e) =>
-            setEditingProduct({ ...editingProduct, price: e.target.value })
-          }
-        />
-        <Input
+          list="main-categories-edit"
           placeholder="التصنيف الرئيسي"
-          value={editingProduct.mainCategory}
+          value={editingProduct.mainCategory ?? ""}
           onChange={(e) =>
             setEditingProduct({
               ...editingProduct,
@@ -112,9 +130,32 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
             })
           }
         />
+        <datalist id="main-categories-edit">
+          {mainCategories.map((cat, idx) => (
+            <option key={idx} value={cat} />
+          ))}
+        </datalist>
+
+        <Input
+          list="sub-categories-edit"
+          placeholder="التصنيف الفرعي"
+          value={editingProduct.subCategory ?? ""}
+          onChange={(e) =>
+            setEditingProduct({
+              ...editingProduct,
+              subCategory: e.target.value,
+            })
+          }
+        />
+        <datalist id="sub-categories-edit">
+          {uniqueSubCategories.map((sub, idx) => (
+            <option key={idx} value={sub} />
+          ))}
+        </datalist>
+
         <Textarea
           placeholder="وصف المنتج"
-          value={editingProduct.description}
+          value={editingProduct.description ?? ""}
           onChange={(e) =>
             setEditingProduct({
               ...editingProduct,
@@ -122,19 +163,8 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
             })
           }
         />
-        <Input
-          type="number"
-          placeholder="الكمية"
-          value={editingProduct.quantity}
-          onChange={(e) =>
-            setEditingProduct({
-              ...editingProduct,
-              quantity: e.target.value,
-            })
-          }
-        />
 
-        {/* ✅ تعديل الصور المتعددة */}
+        {/* صور */}
         <div className="space-y-2">
           <div className="flex gap-2">
             <Input

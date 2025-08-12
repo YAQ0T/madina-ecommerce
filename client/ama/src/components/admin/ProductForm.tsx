@@ -1,3 +1,4 @@
+// src/components/admin/ProductForm.tsx
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "axios";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 
 interface ProductFormProps {
   newProduct: any;
@@ -16,6 +17,7 @@ interface ProductFormProps {
   productsState: any[];
   setProductsState: (data: any[]) => void;
   token: string;
+  onSuccess?: () => void; // لإعادة الجلب بعد النجاح (اختياري)
 }
 
 const ProductForm: React.FC<ProductFormProps> = ({
@@ -24,69 +26,82 @@ const ProductForm: React.FC<ProductFormProps> = ({
   productsState,
   setProductsState,
   token,
+  onSuccess,
 }) => {
   const [newImage, setNewImage] = useState("");
 
+  const mainCategories = useMemo(
+    () =>
+      [...new Set(productsState.map((p) => p.mainCategory))].filter(Boolean),
+    [productsState]
+  );
+
+  const uniqueSubCategories = useMemo(() => {
+    const list = productsState
+      .filter((p) => p.mainCategory === newProduct.mainCategory)
+      .map((p) => p.subCategory)
+      .filter(Boolean);
+    return [...new Set(list)];
+  }, [productsState, newProduct.mainCategory]);
+
+  // إضافة صورة
   const handleAddImage = () => {
     if (newImage.trim()) {
       setNewProduct({
         ...newProduct,
-        images: [...(newProduct.images || []), newImage],
+        images: [...(newProduct.images || []), newImage.trim()],
       });
       setNewImage("");
     }
   };
 
-  const handleRemoveImage = (index: number) => {
-    const updatedImages = [...newProduct.images];
-    updatedImages.splice(index, 1);
-    setNewProduct({ ...newProduct, images: updatedImages });
+  // حذف عنصر من مصفوفة
+  const handleRemoveItem = (index: number) => {
+    const updated = [...(newProduct.images || [])];
+    updated.splice(index, 1);
+    setNewProduct({ ...newProduct, images: updated });
   };
 
+  // إرسال المنتج (بدون price/quantity/discount/tags/measures/colors)
   const handleSubmit = async () => {
     try {
+      const payload = {
+        name: newProduct.name?.trim(),
+        mainCategory: newProduct.mainCategory?.trim(),
+        subCategory: newProduct.subCategory?.trim(),
+        description: newProduct.description?.trim(),
+        images: Array.isArray(newProduct.images) ? newProduct.images : [],
+      };
+
       const res = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/products`,
-        {
-          ...newProduct,
-          price: parseFloat(newProduct.price),
-          quantity: parseInt(newProduct.quantity), // ✅ لازم تكون بهذا الشكل
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setProductsState([...productsState, res.data]);
+      // إمّا نحدّث الحالة محليًا أو نعيد الجلب
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        setProductsState([
+          ...productsState,
+          { ...res.data, price: 0, quantity: 0 },
+        ]);
+      }
 
-      // ✅ إعادة تعيين الحقول بعد الحفظ
+      // إعادة تعيين الحقول
       setNewProduct({
         name: "",
-        price: "",
         mainCategory: "",
         subCategory: "",
         description: "",
         images: [],
-        quantity: "", // تأكد أنها reset
       });
     } catch (err) {
       console.error("❌ Error adding product", err);
       alert("فشل في إضافة المنتج");
     }
   };
-
-  const mainCategories = [
-    ...new Set(productsState.map((p) => p.mainCategory)),
-  ].filter(Boolean);
-
-  const subCategoriesForSelectedMain = productsState
-    .filter((p) => p.mainCategory === newProduct.mainCategory)
-    .map((p) => p.subCategory)
-    .filter(Boolean);
-
-  const uniqueSubCategories = [...new Set(subCategoriesForSelectedMain)];
 
   return (
     <>
@@ -97,7 +112,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="grid gap-4 py-4 text-right">
+      <div className="max-h-[70vh] overflow-y-auto grid gap-4 py-4 text-right">
         <Input
           placeholder="اسم المنتج"
           value={newProduct.name ?? ""}
@@ -105,14 +120,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
             setNewProduct({ ...newProduct, name: e.target.value })
           }
         />
-        <Input
-          type="number"
-          placeholder="السعر"
-          value={newProduct.price ?? ""}
-          onChange={(e) =>
-            setNewProduct({ ...newProduct, price: e.target.value })
-          }
-        />
+
         <Input
           list="main-categories"
           placeholder="التصنيف الرئيسي"
@@ -148,16 +156,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
             setNewProduct({ ...newProduct, description: e.target.value })
           }
         />
-        <Input
-          type="number"
-          placeholder="الكمية المتوفرة"
-          value={newProduct.quantity ?? ""}
-          onChange={(e) =>
-            setNewProduct({ ...newProduct, quantity: e.target.value })
-          }
-        />
 
-        {/* ✅ إدخال صور متعددة */}
+        {/* صور */}
         <div className="space-y-2">
           <div className="flex gap-2">
             <Input
@@ -169,14 +169,14 @@ const ProductForm: React.FC<ProductFormProps> = ({
               إضافة
             </Button>
           </div>
-          <ul className="text-sm text-gray-700 space-y-1">
+          <ul className="text-sm space-y-1">
             {(newProduct.images || []).map((img: string, idx: number) => (
               <li key={idx} className="flex justify-between items-center">
                 <span className="truncate max-w-xs">{img}</span>
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => handleRemoveImage(idx)}
+                  onClick={() => handleRemoveItem(idx)}
                 >
                   حذف
                 </Button>

@@ -13,7 +13,6 @@ router.post("/", verifyToken, async (req, res) => {
     if (!userFromDb) {
       return res.status(404).json({ message: "المستخدم غير موجود" });
     }
-
     const newOrder = new Order({
       ...req.body,
       user: {
@@ -24,6 +23,7 @@ router.post("/", verifyToken, async (req, res) => {
     });
 
     // ✅ التحقق أولًا قبل أي خصم
+    // ✅ التحقق وأخذ اللون والمقاس
     for (const item of newOrder.items) {
       const product = await Product.findById(item.productId);
 
@@ -34,6 +34,20 @@ router.post("/", verifyToken, async (req, res) => {
       if (product.quantity < item.quantity) {
         return res.status(400).json({
           message: `الكمية المطلوبة للمنتج "${product.name}" غير متوفرة. فقط ${product.quantity} متوفر.`,
+        });
+      }
+
+      // هنا ممكن تتحقق إذا اللون أو المقاس موجود في المنتج
+
+      if (item.color && !product.colors.includes(item.color)) {
+        return res.status(400).json({
+          message: `اللون ${item.color} غير متوفر لهذا المنتج.`,
+        });
+      }
+
+      if (item.measure && !product.measures.includes(item.measure)) {
+        return res.status(400).json({
+          message: `المقاس ${item.measure} غير متوفر لهذا المنتج.`,
         });
       }
     }
@@ -62,6 +76,7 @@ router.get("/", verifyToken, isAdmin, async (req, res) => {
     const orders = await Order.find()
       .sort({ createdAt: -1 })
       .populate("items.productId");
+
     res.status(200).json(orders);
   } catch (err) {
     res.status(500).json({ error: err.message });

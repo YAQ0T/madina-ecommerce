@@ -16,8 +16,11 @@ const orderSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "Product",
       },
+      name: String, // ممكن تحب تخزن الاسم عشان ما تضطر تعمل populate
       quantity: Number,
       price: Number,
+      color: String, // ✅ اللون المختار
+      measure: String, // ✅ المقاس المختار
     },
   ],
   total: Number,

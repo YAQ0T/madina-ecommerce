@@ -56,7 +56,7 @@ const Navbar: React.FC = () => {
                 <Link to="/login">تسجيل الدخول</Link>
               </Button>
               <Button asChild variant="ghost">
-                <Link to="/register">تسجيل</Link>
+                <Link to="/register">انشاء حساب</Link>
               </Button>
             </>
           )}
@@ -110,7 +110,7 @@ const Navbar: React.FC = () => {
                 className="block py-2 text-gray-800 font-medium hover:text-black"
                 onClick={() => setMenuOpen(false)}
               >
-                تسجيل
+                انشاء حساب
               </Link>
             </>
           )}

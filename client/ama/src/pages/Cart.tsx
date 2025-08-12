@@ -54,6 +54,8 @@ const Cart: React.FC = () => {
           name: item.name,
           quantity: item.quantity,
           price: item.price,
+          color: item.selectedColor || null, // ✅ إرسال اللون
+          measure: item.selectedMeasure || null, // ✅ إرسال المقاس
         })),
       };
 
@@ -117,10 +119,12 @@ const Cart: React.FC = () => {
 
         {/* 💻 لسطح المكتب */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="min-w-full border text-right ">
+          <table className="min-w-full border text-right">
             <thead className="bg-gray-100 dark:bg-black dark:text-white">
               <tr>
                 <th className="py-2 px-4 border">المنتج</th>
+                <th className="py-2 px-4 border">اللون</th>
+                <th className="py-2 px-4 border">المقاس</th>
                 <th className="py-2 px-4 border">السعر</th>
                 <th className="py-2 px-4 border">الكمية</th>
                 <th className="py-2 px-4 border">الإجمالي</th>
@@ -129,15 +133,28 @@ const Cart: React.FC = () => {
             </thead>
             <tbody>
               {cart.map((item) => (
-                <tr key={item._id}>
+                <tr
+                  key={`${item._id}-${item.selectedColor}-${item.selectedMeasure}`}
+                >
                   <td className="py-2 px-4 border">{item.name}</td>
+                  <td className="py-2 px-4 border">
+                    {item.selectedColor || "-"}
+                  </td>
+                  <td className="py-2 px-4 border">
+                    {item.selectedMeasure || "-"}
+                  </td>
                   <td className="py-2 px-4 border">₪{item.price}</td>
                   <td className="py-2 px-4 border">
                     <div className="flex items-center gap-2">
                       <button
                         className="px-2 py-1 border rounded"
                         onClick={() =>
-                          updateQuantity(item._id, item.quantity - 1)
+                          updateQuantity(
+                            item._id,
+                            item.quantity - 1,
+                            item.selectedColor,
+                            item.selectedMeasure
+                          )
                         }
                         disabled={item.quantity <= 1}
                       >
@@ -146,13 +163,25 @@ const Cart: React.FC = () => {
 
                       <QuantityInput
                         quantity={item.quantity}
-                        onChange={(newQty) => updateQuantity(item._id, newQty)}
+                        onChange={(newQty) =>
+                          updateQuantity(
+                            item._id,
+                            newQty,
+                            item.selectedColor,
+                            item.selectedMeasure
+                          )
+                        }
                       />
 
                       <button
                         className="px-2 py-1 border rounded"
                         onClick={() =>
-                          updateQuantity(item._id, item.quantity + 1)
+                          updateQuantity(
+                            item._id,
+                            item.quantity + 1,
+                            item.selectedColor,
+                            item.selectedMeasure
+                          )
                         }
                       >
                         +
@@ -166,7 +195,13 @@ const Cart: React.FC = () => {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => removeFromCart(item._id)}
+                      onClick={() =>
+                        removeFromCart(
+                          item._id,
+                          item.selectedColor,
+                          item.selectedMeasure
+                        )
+                      }
                     >
                       إزالة
                     </Button>
@@ -180,14 +215,28 @@ const Cart: React.FC = () => {
         {/* 📱 للموبايل */}
         <div className="grid gap-4 md:hidden">
           {cart.map((item) => (
-            <div key={item._id} className="border rounded-lg p-4 text-right">
-              <h3 className="text-lg font-semibold mb-2">{item.name}</h3>
+            <div
+              key={`${item._id}-${item.selectedColor}-${item.selectedMeasure}`}
+              className="border rounded-lg p-4 text-right"
+            >
+              <h3 className="text-lg font-semibold mb-1">{item.name}</h3>
+              <p className="text-sm text-gray-500">
+                اللون: {item.selectedColor || "-"} | المقاس:{" "}
+                {item.selectedMeasure || "-"}
+              </p>
               <p className="text-gray-600 mb-1">السعر: ₪{item.price}</p>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-gray-600">الكمية:</span>
                 <QuantityInput
                   quantity={item.quantity}
-                  onChange={(newQty) => updateQuantity(item._id, newQty)}
+                  onChange={(newQty) =>
+                    updateQuantity(
+                      item._id,
+                      newQty,
+                      item.selectedColor,
+                      item.selectedMeasure
+                    )
+                  }
                 />
               </div>
               <p className="text-gray-700 font-semibold mb-3">
@@ -196,7 +245,13 @@ const Cart: React.FC = () => {
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={() => removeFromCart(item._id)}
+                onClick={() =>
+                  removeFromCart(
+                    item._id,
+                    item.selectedColor,
+                    item.selectedMeasure
+                  )
+                }
               >
                 إزالة
               </Button>
