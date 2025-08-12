@@ -32,7 +32,7 @@ const OrderDetailsContent: React.FC<{ order: any }> = ({ order }) => {
           {order.items.map((item: any, i: number) => (
             <li key={i}>
               {item.productId
-                ? `${item.productId.name} × ${item.quantity}`
+                ? `(${item.productId.name} × ${item.quantity}), (Color: ${item.color}, Measure: ${item.measure})`
                 : `منتج محذوف × ${item.quantity}`}
             </li>
           ))}

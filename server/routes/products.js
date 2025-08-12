@@ -15,6 +15,10 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
       description,
       images,
       quantity,
+      discount,
+      tags,
+      measures,
+      colors,
     } = req.body;
 
     if (!name || !price || !mainCategory || !subCategory || !images?.length) {
@@ -31,7 +35,11 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
       subCategory,
       description,
       images,
-      quantity, // ✅ أضف هذا
+      quantity: quantity ?? 1, // إذا ما أرسل قيمة، نحط الافتراضي
+      discount: discount ?? 0,
+      tags: Array.isArray(tags) ? tags : [],
+      measures: Array.isArray(measures) ? measures : [],
+      colors: Array.isArray(colors) ? colors : [],
     });
 
     const saved = await newProduct.save();
@@ -74,6 +82,10 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
       description,
       images,
       quantity,
+      discount,
+      tags,
+      measures,
+      colors,
     } = req.body;
 
     const updateData = {
@@ -85,6 +97,10 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
       ...(description && { description }),
       ...(Array.isArray(images) && images.length > 0 && { images }),
       ...(typeof quantity === "number" && { quantity }),
+      ...(typeof discount === "number" && { discount }),
+      ...(Array.isArray(tags) && { tags }),
+      ...(Array.isArray(measures) && { measures }),
+      ...(Array.isArray(colors) && { colors }),
     };
 
     const updated = await Product.findByIdAndUpdate(req.params.id, updateData, {

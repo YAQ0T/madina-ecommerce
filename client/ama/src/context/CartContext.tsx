@@ -7,6 +7,8 @@ export type Product = {
   name: string;
   price: number;
   image: string;
+  selectedColor?: string; // ✅ اللون المختار
+  selectedMeasure?: string; // ✅ المقاس المختار
 };
 
 type CartItem = Product & { quantity: number };
@@ -14,9 +16,18 @@ type CartItem = Product & { quantity: number };
 type CartContextType = {
   cart: CartItem[];
   addToCart: (product: Product) => void;
-  removeFromCart: (productId: string) => void;
+  removeFromCart: (
+    productId: string,
+    selectedColor?: string,
+    selectedMeasure?: string
+  ) => void;
   clearCart: () => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  updateQuantity: (
+    productId: string,
+    quantity: number,
+    selectedColor?: string,
+    selectedMeasure?: string
+  ) => void;
 };
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -26,10 +37,17 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const addToCart = (product: Product) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item._id === product._id);
+      const existing = prev.find(
+        (item) =>
+          item._id === product._id &&
+          item.selectedColor === product.selectedColor &&
+          item.selectedMeasure === product.selectedMeasure
+      );
       if (existing) {
         return prev.map((item) =>
-          item._id === product._id
+          item._id === product._id &&
+          item.selectedColor === product.selectedColor &&
+          item.selectedMeasure === product.selectedMeasure
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
@@ -39,16 +57,38 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item._id !== productId));
+  const removeFromCart = (
+    productId: string,
+    selectedColor?: string,
+    selectedMeasure?: string
+  ) => {
+    setCart((prev) =>
+      prev.filter(
+        (item) =>
+          !(
+            item._id === productId &&
+            item.selectedColor === selectedColor &&
+            item.selectedMeasure === selectedMeasure
+          )
+      )
+    );
   };
 
   const clearCart = () => setCart([]);
 
-  const updateQuantity = (productId: string, quantity: number) => {
+  const updateQuantity = (
+    productId: string,
+    quantity: number,
+    selectedColor?: string,
+    selectedMeasure?: string
+  ) => {
     setCart((prev) =>
       prev.map((item) =>
-        item._id === productId ? { ...item, quantity } : item
+        item._id === productId &&
+        item.selectedColor === selectedColor &&
+        item.selectedMeasure === selectedMeasure
+          ? { ...item, quantity }
+          : item
       )
     );
   };

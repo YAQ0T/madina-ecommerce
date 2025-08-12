@@ -26,7 +26,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
   token,
 }) => {
   const [newImage, setNewImage] = useState("");
+  const [newTag, setNewTag] = useState("");
+  const [newMeasure, setNewMeasure] = useState("");
+  const [newColor, setNewColor] = useState("");
 
+  // إضافة صورة
   const handleAddImage = () => {
     if (newImage.trim()) {
       setNewProduct({
@@ -37,12 +41,47 @@ const ProductForm: React.FC<ProductFormProps> = ({
     }
   };
 
-  const handleRemoveImage = (index: number) => {
-    const updatedImages = [...newProduct.images];
-    updatedImages.splice(index, 1);
-    setNewProduct({ ...newProduct, images: updatedImages });
+  // إضافة وسم
+  const handleAddTag = () => {
+    if (newTag.trim()) {
+      setNewProduct({
+        ...newProduct,
+        tags: [...(newProduct.tags || []), newTag],
+      });
+      setNewTag("");
+    }
   };
 
+  // إضافة مقاس
+  const handleAddMeasure = () => {
+    if (newMeasure.trim()) {
+      setNewProduct({
+        ...newProduct,
+        measures: [...(newProduct.measures || []), newMeasure],
+      });
+      setNewMeasure("");
+    }
+  };
+
+  // إضافة لون
+  const handleAddColor = () => {
+    if (newColor.trim()) {
+      setNewProduct({
+        ...newProduct,
+        colors: [...(newProduct.colors || []), newColor],
+      });
+      setNewColor("");
+    }
+  };
+
+  // حذف عنصر من مصفوفة
+  const handleRemoveItem = (field: string, index: number) => {
+    const updated = [...(newProduct[field] || [])];
+    updated.splice(index, 1);
+    setNewProduct({ ...newProduct, [field]: updated });
+  };
+
+  // إرسال المنتج
   const handleSubmit = async () => {
     try {
       const res = await axios.post(
@@ -50,7 +89,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
         {
           ...newProduct,
           price: parseFloat(newProduct.price),
-          quantity: parseInt(newProduct.quantity), // ✅ لازم تكون بهذا الشكل
+          quantity: parseInt(newProduct.quantity),
+          discount: parseFloat(newProduct.discount) || 0,
         },
         {
           headers: {
@@ -61,7 +101,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
       setProductsState([...productsState, res.data]);
 
-      // ✅ إعادة تعيين الحقول بعد الحفظ
+      // إعادة تعيين الحقول
       setNewProduct({
         name: "",
         price: "",
@@ -69,7 +109,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
         subCategory: "",
         description: "",
         images: [],
-        quantity: "", // تأكد أنها reset
+        quantity: "",
+        discount: "",
+        tags: [],
+        measures: [],
+        colors: [],
       });
     } catch (err) {
       console.error("❌ Error adding product", err);
@@ -97,7 +141,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="grid gap-4 py-4 text-right">
+      <div className="max-h-[70vh] overflow-y-auto grid gap-4 py-4 text-right">
         <Input
           placeholder="اسم المنتج"
           value={newProduct.name ?? ""}
@@ -111,6 +155,14 @@ const ProductForm: React.FC<ProductFormProps> = ({
           value={newProduct.price ?? ""}
           onChange={(e) =>
             setNewProduct({ ...newProduct, price: e.target.value })
+          }
+        />
+        <Input
+          type="number"
+          placeholder="الخصم %"
+          value={newProduct.discount ?? ""}
+          onChange={(e) =>
+            setNewProduct({ ...newProduct, discount: e.target.value })
           }
         />
         <Input
@@ -157,7 +209,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           }
         />
 
-        {/* ✅ إدخال صور متعددة */}
+        {/* صور */}
         <div className="space-y-2">
           <div className="flex gap-2">
             <Input
@@ -169,14 +221,98 @@ const ProductForm: React.FC<ProductFormProps> = ({
               إضافة
             </Button>
           </div>
-          <ul className="text-sm text-gray-700 space-y-1">
+          <ul className="text-sm space-y-1">
             {(newProduct.images || []).map((img: string, idx: number) => (
               <li key={idx} className="flex justify-between items-center">
                 <span className="truncate max-w-xs">{img}</span>
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => handleRemoveImage(idx)}
+                  onClick={() => handleRemoveItem("images", idx)}
+                >
+                  حذف
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* وسوم */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              placeholder="وسم جديد"
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+            />
+            <Button type="button" onClick={handleAddTag}>
+              إضافة
+            </Button>
+          </div>
+          <ul className="text-sm space-y-1">
+            {(newProduct.tags || []).map((tag: string, idx: number) => (
+              <li key={idx} className="flex justify-between items-center">
+                <span>{tag}</span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleRemoveItem("tags", idx)}
+                >
+                  حذف
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* مقاسات */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              placeholder="مقاس جديد"
+              value={newMeasure}
+              onChange={(e) => setNewMeasure(e.target.value)}
+            />
+            <Button type="button" onClick={handleAddMeasure}>
+              إضافة
+            </Button>
+          </div>
+          <ul className="text-sm space-y-1">
+            {(newProduct.measures || []).map((m: string, idx: number) => (
+              <li key={idx} className="flex justify-between items-center">
+                <span>{m}</span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleRemoveItem("measures", idx)}
+                >
+                  حذف
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* ألوان */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              placeholder="لون جديد"
+              value={newColor}
+              onChange={(e) => setNewColor(e.target.value)}
+            />
+            <Button type="button" onClick={handleAddColor}>
+              إضافة
+            </Button>
+          </div>
+          <ul className="text-sm space-y-1">
+            {(newProduct.colors || []).map((c: string, idx: number) => (
+              <li key={idx} className="flex justify-between items-center">
+                <span>{c}</span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleRemoveItem("colors", idx)}
                 >
                   حذف
                 </Button>

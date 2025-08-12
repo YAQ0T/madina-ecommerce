@@ -38,7 +38,6 @@ const ProductTable: React.FC<ProductTableProps> = ({
       alert("فشل في حذف المنتج");
     }
   };
-
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-right border">
@@ -47,9 +46,13 @@ const ProductTable: React.FC<ProductTableProps> = ({
             <th className="border px-4 py-2">#</th>
             <th className="border px-4 py-2">الاسم</th>
             <th className="border px-4 py-2">السعر</th>
+            <th className="border px-4 py-2">الخصم</th>
             <th className="border px-4 py-2">الكمية</th>
             <th className="border px-4 py-2">التصنيف الرئيسي</th>
             <th className="border px-4 py-2">التصنيف الفرعي</th>
+            <th className="border px-4 py-2">الألوان</th>
+            <th className="border px-4 py-2">المقاسات</th>
+            <th className="border px-4 py-2">الوسوم</th>
             <th className="border px-4 py-2">الإجراءات</th>
           </tr>
         </thead>
@@ -67,9 +70,22 @@ const ProductTable: React.FC<ProductTableProps> = ({
                 <td className="border px-4 py-2">{idx + 1}</td>
                 <td className="border px-4 py-2">{product.name}</td>
                 <td className="border px-4 py-2">₪{product.price}</td>
+                <td className="border px-4 py-2">
+                  {product.discount ? `${product.discount}%` : "لا يوجد"}
+                </td>
                 <td className="border px-4 py-2">{product.quantity}</td>
                 <td className="border px-4 py-2">{product.mainCategory}</td>
                 <td className="border px-4 py-2">{product.subCategory}</td>
+                <td className="border px-4 py-2">
+                  {(product.colors || []).join(", ")}
+                </td>
+                <td className="border px-4 py-2">
+                  {(product.measures || []).join(", ")}
+                </td>
+                <td className="border px-4 py-2">
+                  {(product.tags || []).join(", ")}
+                </td>
+
                 <td className="border px-4 py-2 space-x-2 space-x-reverse">
                   <Button
                     variant="outline"

@@ -18,6 +18,22 @@ const productSchema = new mongoose.Schema(
       required: true,
       default: 1,
     },
+    discount: {
+      type: Number,
+      default: 0, // خصم بنسبة مئوية أو قيمة
+    },
+    tags: {
+      type: [String],
+      default: [], // مصفوفة وسوم
+    },
+    measures: {
+      type: [String],
+      default: [], // مقاسات المنتج
+    },
+    colors: {
+      type: [String],
+      default: [], // ألوان المنتج
+    },
   },
   { timestamps: true }
 );
