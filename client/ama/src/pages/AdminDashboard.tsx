@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -18,6 +18,21 @@ import OrderTable from "@/components/admin/OrderTable";
 import OrderDetailsDialog from "@/components/admin/OrderDetailsDialog";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 
+type ProductItem = {
+  _id: string;
+  name: string;
+  description?: string;
+  images: string[];
+  mainCategory?: string;
+  subCategory?: string;
+  // تأتي من with-stats
+  minPrice?: number;
+  totalStock?: number;
+  // نوفّر حقول متوافقة مع الجداول القديمة
+  price?: number;
+  quantity?: number;
+};
+
 const AdminDashboard: React.FC = () => {
   const { user, loading, token } = useAuth();
   const navigate = useNavigate();
@@ -27,16 +42,15 @@ const AdminDashboard: React.FC = () => {
   // المنتجات
   const [newProduct, setNewProduct] = useState({
     name: "",
-    price: "",
     mainCategory: "",
     subCategory: "",
     description: "",
-    images: [],
-    quantity: "",
+    images: [] as string[],
+    // ⛔️ لا نحتاج price/quantity هنا لأنها أصبحت على مستوى Variant
   });
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [productsState, setProductsState] = useState<any[]>([]);
+  const [productsState, setProductsState] = useState<ProductItem[]>([]);
   const [productFilter, setProductFilter] = useState("all");
   const [selectedMainCategory, setSelectedMainCategory] =
     useState<string>("all");
@@ -48,52 +62,6 @@ const AdminDashboard: React.FC = () => {
   const [filter, setFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
-  // تجميع التصنيفات
-  const categoryMap = productsState.reduce((acc, product) => {
-    if (!acc[product.mainCategory]) {
-      acc[product.mainCategory] = new Set();
-    }
-    acc[product.mainCategory].add(product.subCategory);
-    return acc;
-  }, {} as Record<string, Set<string>>);
-  const filteredUsers = users.filter((u) =>
-    userRoleFilter === "all" ? true : u.role === userRoleFilter
-  );
-  const handleDeleteUser = async (userId: string, userName: string) => {
-    const confirmDelete = confirm(
-      `هل أنت متأكد من حذف المستخدم "${userName}"؟`
-    );
-    if (!confirmDelete) return;
-
-    try {
-      await axios.delete(
-        `${import.meta.env.VITE_API_URL}/api/users/${userId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      setUsers((prev) => prev.filter((u) => u._id !== userId));
-    } catch (err) {
-      console.error("❌ Error deleting user", err);
-      alert("فشل في حذف المستخدم");
-    }
-  };
-
-  useEffect(() => {
-    if (!token) return;
-    axios
-      .get(`${import.meta.env.VITE_API_URL}/api/users`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      .then((res) => setUsers(res.data))
-      .catch((err) => console.error("❌ Failed to fetch users", err));
-  }, [token]);
-
   // تحقق من صلاحيات الأدمن
   useEffect(() => {
     if (!loading && (!user || user.role !== "admin")) {
@@ -103,17 +71,44 @@ const AdminDashboard: React.FC = () => {
     }
   }, [user, loading, navigate]);
 
-  // جلب المنتجات
+  // جلب المستخدمين
   useEffect(() => {
     if (!token) return;
     axios
-      .get(`${import.meta.env.VITE_API_URL}/api/products`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      .get(`${import.meta.env.VITE_API_URL}/api/users`, {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .then((res) => setProductsState(res.data))
-      .catch((err) => console.error("❌ Failed to fetch products", err));
+      .then((res) => setUsers(res.data))
+      .catch((err) => console.error("❌ Failed to fetch users", err));
+  }, [token]);
+
+  // جلب المنتجات + الإحصاءات (minPrice/totalStock) من مسار واحد
+  const fetchProductsWithStats = async () => {
+    if (!token) return;
+    try {
+      // نجيب عدد كبير مرة واحدة للوحة الأدمن
+      const url = `${
+        import.meta.env.VITE_API_URL
+      }/api/products/with-stats?page=1&limit=2000`;
+      const res = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const { items } = res.data || { items: [] };
+      const mapped: ProductItem[] = (items || []).map((p: ProductItem) => ({
+        ...p,
+        price: p.minPrice || 0,
+        quantity: p.totalStock || 0,
+      }));
+      setProductsState(mapped);
+    } catch (err) {
+      console.error("❌ Failed to fetch products with stats", err);
+      setProductsState([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchProductsWithStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   // جلب الطلبات
@@ -121,9 +116,7 @@ const AdminDashboard: React.FC = () => {
     if (!token) return;
     axios
       .get(`${import.meta.env.VITE_API_URL}/api/orders`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => setOrders(res.data))
       .catch((err) => console.error("Order Fetch Error:", err));
@@ -134,19 +127,56 @@ const AdminDashboard: React.FC = () => {
       await axios.put(
         `${import.meta.env.VITE_API_URL}/api/orders/${orderId}`,
         { status: newStatus },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
       setOrders((prev) =>
         prev.map((o) => (o._id === orderId ? { ...o, status: newStatus } : o))
       );
     } catch (err) {
       console.error("Failed to update status", err);
     }
+  };
+
+  // تجميع التصنيفات
+  const categoryMap = useMemo(() => {
+    return productsState.reduce((acc, product) => {
+      if (!acc[product.mainCategory || ""]) {
+        acc[product.mainCategory || ""] = new Set<string>();
+      }
+      if (product.subCategory) {
+        acc[product.mainCategory || ""].add(product.subCategory);
+      }
+      return acc;
+    }, {} as Record<string, Set<string>>);
+  }, [productsState]);
+
+  const filteredUsers = users.filter((u) =>
+    userRoleFilter === "all" ? true : u.role === userRoleFilter
+  );
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    const confirmDelete = confirm(
+      `هل أنت متأكد من حذف المستخدم "${userName}"؟`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await axios.delete(
+        `${import.meta.env.VITE_API_URL}/api/users/${userId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setUsers((prev) => prev.filter((u) => u._id !== userId));
+    } catch (err) {
+      console.error("❌ Error deleting user", err);
+      alert("فشل في حذف المستخدم");
+    }
+  };
+
+  // بعد إضافة/تعديل منتج نعيد الجلب سريعًا
+  const handleAfterProductChange = () => {
+    fetchProductsWithStats();
   };
 
   if (checkingAuth) {
@@ -198,6 +228,7 @@ const AdminDashboard: React.FC = () => {
                         productsState={productsState}
                         setProductsState={setProductsState}
                         token={token}
+                        onSuccess={handleAfterProductChange}
                       />
                     )}
                   </DialogContent>
@@ -215,11 +246,13 @@ const AdminDashboard: React.FC = () => {
                       setProductsState={setProductsState}
                       token={token}
                       products={productsState}
+                      onSuccess={handleAfterProductChange}
                     />
                   )}
                 </Dialog>
               </div>
             </div>
+
             {token && (
               <ProductTable
                 productsState={productsState}
@@ -230,6 +263,7 @@ const AdminDashboard: React.FC = () => {
                   setEditingProduct(product);
                   setIsEditModalOpen(true);
                 }}
+                onRefreshProducts={handleAfterProductChange} // 👈 مهمة لتحديث minPrice/totalStock بعد تعديل المتغيّرات
               />
             )}
           </TabsContent>
@@ -257,7 +291,6 @@ const AdminDashboard: React.FC = () => {
               >
                 🚚 في الطريق
               </Button>
-
               <Button
                 variant={filter === "delivered" ? "default" : "outline"}
                 onClick={() => setFilter("delivered")}
@@ -289,6 +322,7 @@ const AdminDashboard: React.FC = () => {
             )}
           </TabsContent>
 
+          {/* ✅ تبويب المستخدمين */}
           <TabsContent value="users">
             <h2 className="text-xl font-semibold mb-4">جميع المستخدمين</h2>
             <div className="flex justify-end gap-2 mb-4">

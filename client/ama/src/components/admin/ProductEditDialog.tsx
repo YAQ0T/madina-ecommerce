@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/components/admin/ProductEditDialog.tsx
+import React, { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -18,6 +19,7 @@ interface ProductEditDialogProps {
   setProductsState: (products: any[]) => void;
   products: any[];
   token: string;
+  onSuccess?: () => void; // لإعادة الجلب بعد النجاح (اختياري)
 }
 
 const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
@@ -27,36 +29,54 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
   setProductsState,
   products,
   token,
+  onSuccess,
 }) => {
   const [newImage, setNewImage] = useState("");
-  const [newTag, setNewTag] = useState("");
-  const [newMeasure, setNewMeasure] = useState("");
-  const [newColor, setNewColor] = useState("");
+
+  const mainCategories = useMemo(
+    () => [...new Set(products.map((p) => p.mainCategory))].filter(Boolean),
+    [products]
+  );
+
+  const uniqueSubCategories = useMemo(() => {
+    const list = products
+      .filter((p) => p.mainCategory === editingProduct?.mainCategory)
+      .map((p) => p.subCategory)
+      .filter(Boolean);
+    return [...new Set(list)];
+  }, [products, editingProduct?.mainCategory]);
 
   if (!editingProduct) return null;
 
   const handleSave = async () => {
     try {
+      const payload = {
+        name: editingProduct.name?.trim(),
+        mainCategory: editingProduct.mainCategory?.trim(),
+        subCategory: editingProduct.subCategory?.trim(),
+        description: editingProduct.description?.trim(),
+        images: Array.isArray(editingProduct.images)
+          ? editingProduct.images
+          : [],
+      };
+
       const res = await axios.put(
         `${import.meta.env.VITE_API_URL}/api/products/${editingProduct._id}`,
-        {
-          ...editingProduct,
-          price: parseFloat(editingProduct.price),
-          quantity: parseInt(editingProduct.quantity),
-          discount: parseFloat(editingProduct.discount) || 0,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      const updatedProducts = products.map((p) =>
-        p._id === res.data._id ? res.data : p
-      );
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        const updatedProducts = products.map((p) =>
+          p._id === res.data._id
+            ? { ...res.data, price: p.price, quantity: p.quantity }
+            : p
+        );
+        setProductsState(updatedProducts);
+      }
 
-      setProductsState(updatedProducts);
       setEditingProduct(null);
       onClose();
     } catch (err) {
@@ -69,32 +89,16 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
     if (newImage.trim()) {
       setEditingProduct({
         ...editingProduct,
-        images: [...(editingProduct.images || []), newImage],
+        images: [...(editingProduct.images || []), newImage.trim()],
       });
       setNewImage("");
     }
   };
 
   const handleRemoveImage = (index: number) => {
-    const updatedImages = [...editingProduct.images];
+    const updatedImages = [...(editingProduct.images || [])];
     updatedImages.splice(index, 1);
     setEditingProduct({ ...editingProduct, images: updatedImages });
-  };
-  const handleAddToArray = (field: string, value: string) => {
-    if (value.trim()) {
-      setEditingProduct({
-        ...editingProduct,
-        [field]: [...(editingProduct[field] || []), value],
-      });
-      if (field === "tags") setNewTag("");
-      if (field === "measures") setNewMeasure("");
-      if (field === "colors") setNewColor("");
-    }
-  };
-  const handleRemoveFromArray = (field: string, index: number) => {
-    const updated = [...editingProduct[field]];
-    updated.splice(index, 1);
-    setEditingProduct({ ...editingProduct, [field]: updated });
   };
 
   return (
@@ -109,22 +113,16 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
       <div className="max-h-[70vh] overflow-y-auto grid gap-4 py-4 text-right">
         <Input
           placeholder="اسم المنتج"
-          value={editingProduct.name}
+          value={editingProduct.name ?? ""}
           onChange={(e) =>
             setEditingProduct({ ...editingProduct, name: e.target.value })
           }
         />
+
         <Input
-          type="number"
-          placeholder="السعر"
-          value={editingProduct.price}
-          onChange={(e) =>
-            setEditingProduct({ ...editingProduct, price: e.target.value })
-          }
-        />
-        <Input
+          list="main-categories-edit"
           placeholder="التصنيف الرئيسي"
-          value={editingProduct.mainCategory}
+          value={editingProduct.mainCategory ?? ""}
           onChange={(e) =>
             setEditingProduct({
               ...editingProduct,
@@ -132,9 +130,32 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
             })
           }
         />
+        <datalist id="main-categories-edit">
+          {mainCategories.map((cat, idx) => (
+            <option key={idx} value={cat} />
+          ))}
+        </datalist>
+
+        <Input
+          list="sub-categories-edit"
+          placeholder="التصنيف الفرعي"
+          value={editingProduct.subCategory ?? ""}
+          onChange={(e) =>
+            setEditingProduct({
+              ...editingProduct,
+              subCategory: e.target.value,
+            })
+          }
+        />
+        <datalist id="sub-categories-edit">
+          {uniqueSubCategories.map((sub, idx) => (
+            <option key={idx} value={sub} />
+          ))}
+        </datalist>
+
         <Textarea
           placeholder="وصف المنتج"
-          value={editingProduct.description}
+          value={editingProduct.description ?? ""}
           onChange={(e) =>
             setEditingProduct({
               ...editingProduct,
@@ -142,19 +163,8 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
             })
           }
         />
-        <Input
-          type="number"
-          placeholder="الكمية"
-          value={editingProduct.quantity}
-          onChange={(e) =>
-            setEditingProduct({
-              ...editingProduct,
-              quantity: e.target.value,
-            })
-          }
-        />
 
-        {/* ✅ تعديل الصور المتعددة */}
+        {/* صور */}
         <div className="space-y-2">
           <div className="flex gap-2">
             <Input
@@ -175,111 +185,6 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
                   variant="destructive"
                   size="sm"
                   onClick={() => handleRemoveImage(idx)}
-                >
-                  حذف
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </div>
-        {/* Discount */}
-        <Input
-          type="number"
-          placeholder="الخصم (%)"
-          value={editingProduct.discount ?? ""}
-          onChange={(e) =>
-            setEditingProduct({
-              ...editingProduct,
-              discount: e.target.value,
-            })
-          }
-        />
-
-        {/* Tags */}
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <Input
-              placeholder="أضف وسم جديد"
-              value={newTag}
-              onChange={(e) => setNewTag(e.target.value)}
-            />
-            <Button
-              type="button"
-              onClick={() => handleAddToArray("tags", newTag)}
-            >
-              إضافة
-            </Button>
-          </div>
-          <ul className="text-sm text-gray-700 space-y-1">
-            {(editingProduct.tags || []).map((tag: string, idx: number) => (
-              <li key={idx} className="flex justify-between items-center">
-                <span>{tag}</span>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleRemoveFromArray("tags", idx)}
-                >
-                  حذف
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Measures */}
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <Input
-              placeholder="أضف مقاس جديد"
-              value={newMeasure}
-              onChange={(e) => setNewMeasure(e.target.value)}
-            />
-            <Button
-              type="button"
-              onClick={() => handleAddToArray("measures", newMeasure)}
-            >
-              إضافة
-            </Button>
-          </div>
-          <ul className="text-sm text-gray-700 space-y-1">
-            {(editingProduct.measures || []).map((m: string, idx: number) => (
-              <li key={idx} className="flex justify-between items-center">
-                <span>{m}</span>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleRemoveFromArray("measures", idx)}
-                >
-                  حذف
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Colors */}
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <Input
-              placeholder="أضف لون جديد"
-              value={newColor}
-              onChange={(e) => setNewColor(e.target.value)}
-            />
-            <Button
-              type="button"
-              onClick={() => handleAddToArray("colors", newColor)}
-            >
-              إضافة
-            </Button>
-          </div>
-          <ul className="text-sm text-gray-700 space-y-1">
-            {(editingProduct.colors || []).map((c: string, idx: number) => (
-              <li key={idx} className="flex justify-between items-center">
-                <span>{c}</span>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleRemoveFromArray("colors", idx)}
                 >
                   حذف
                 </Button>

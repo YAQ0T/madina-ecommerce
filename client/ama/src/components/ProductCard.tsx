@@ -1,7 +1,9 @@
+// src/components/ProductCard.tsx
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import clsx from "clsx";
 
 interface Props {
@@ -9,26 +11,186 @@ interface Props {
     _id: string;
     name: string;
     description: string;
-    price: number;
+    price: number; // أقل سعر (جاي من with-stats)
     images?: string[];
     subCategory?: string;
+    // الحقول القديمة تبقى للـ fallback فقط
     measures?: string[];
     colors?: string[];
   };
 }
 
+type Variant = {
+  _id: string;
+  product: string;
+  measure: string;
+  measureSlug: string;
+  color: { name: string; code?: string; images?: string[] };
+  colorSlug: string;
+  price: { amount: number; compareAt?: number };
+  stock: { inStock: number; sku: string };
+};
+
+const slugify = (s: string) =>
+  (s || "").toString().trim().toLowerCase().replace(/\s+/g, "-");
+
+const isHexColor = (c: string) => /^#([0-9A-F]{3}){1,2}$/i.test(c);
+
 const ProductCard: React.FC<Props> = ({ product }) => {
   const { addToCart } = useCart();
-  const [showAdded, setShowAdded] = useState(false);
-  const [currentImage, setCurrentImage] = useState(0);
-  const [selectedMeasure, setSelectedMeasure] = useState("");
-  const [selectedColor, setSelectedColor] = useState("");
 
+  // صور الكارد
+  const [currentImage, setCurrentImage] = useState(0);
   const images = product.images?.length
     ? product.images
     : ["https://i.imgur.com/PU1aG4t.jpeg"];
 
+  // متغيّرات المنتج
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [vLoading, setVLoading] = useState(true);
+
+  // اختيارات المستخدم (نخزن كـ slugs لتطابق دقيق)
+  const [selectedMeasure, setSelectedMeasure] = useState("");
+  const [selectedColor, setSelectedColor] = useState("");
+
+  // إشعار الإضافة
+  const [showAdded, setShowAdded] = useState(false);
+
+  // جلب المتغيّرات
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      try {
+        setVLoading(true);
+        const { data } = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/variants`,
+          { params: { product: product._id, limit: 500 } }
+        );
+        if (ignore) return;
+        const vs: Variant[] = Array.isArray(data) ? data : [];
+        setVariants(vs);
+
+        // تعيين افتراضيات ذكية: أول متغيّر
+        if (vs.length > 0) {
+          setSelectedMeasure(vs[0].measureSlug || "");
+          setSelectedColor(vs[0].colorSlug || "");
+        }
+      } catch {
+        setVariants([]);
+      } finally {
+        if (!ignore) setVLoading(false);
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [product._id]);
+
+  // اشتقاق المقاسات من الـ variants
+  const measuresFromVariants = useMemo(() => {
+    const map = new Map<string, string>(); // slug -> label
+    for (const v of variants) {
+      if (v.measureSlug && v.measure) map.set(v.measureSlug, v.measure);
+    }
+    return Array.from(map.entries()).map(([slug, label]) => ({ slug, label }));
+  }, [variants]);
+
+  // كل الألوان المعرّفة عبر كل المتغيّرات (لعرضها دائمًا لكن مع تعطيل غير المتاح)
+  const allColorsFromVariants = useMemo(() => {
+    const map = new Map<
+      string,
+      { slug: string; name: string; code?: string }
+    >();
+    for (const v of variants) {
+      if (v.colorSlug) {
+        map.set(v.colorSlug, {
+          slug: v.colorSlug,
+          name: v.color?.name || v.colorSlug,
+          code: v.color?.code,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [variants]);
+
+  // خريطة توفّر الألوان حسب المقاس: measureSlug -> Set(colorSlug)
+  const colorsByMeasure = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const v of variants) {
+      if (!v.measureSlug || !v.colorSlug) continue;
+      if (!m.has(v.measureSlug)) m.set(v.measureSlug, new Set());
+      m.get(v.measureSlug)!.add(v.colorSlug);
+    }
+    return m;
+  }, [variants]);
+
+  // قائمة الألوان المتاحة للمقاس المختار
+  const availableColorSlugsForSelectedMeasure = useMemo(() => {
+    if (!selectedMeasure) return new Set<string>();
+    return colorsByMeasure.get(selectedMeasure) || new Set<string>();
+  }, [colorsByMeasure, selectedMeasure]);
+
+  // المتغيّر المطابق للاختيار
+  const currentVariant = useMemo(() => {
+    if (!variants.length || !selectedMeasure || !selectedColor) return null;
+    return (
+      variants.find(
+        (v) =>
+          v.measureSlug === selectedMeasure && v.colorSlug === selectedColor
+      ) || null
+    );
+  }, [variants, selectedMeasure, selectedColor]);
+
+  // عند تغيير المقاس: لو اللون الحالي غير متاح، اختَر أول لون متاح تلقائيًا
+  useEffect(() => {
+    if (variants.length === 0) return;
+    if (!selectedMeasure) return;
+
+    const allowed = colorsByMeasure.get(selectedMeasure);
+    if (!allowed || allowed.size === 0) {
+      setSelectedColor("");
+      return;
+    }
+    if (!selectedColor || !allowed.has(selectedColor)) {
+      // اختَر أول لون متاح لهذا المقاس
+      const first = Array.from(allowed)[0];
+      setSelectedColor(first);
+    }
+  }, [selectedMeasure, colorsByMeasure, variants.length]); // لا تضف selectedColor هنا
+
+  // السعر المعروض: سعر المتغيّر المختار أو أقل سعر المنتج (من with-stats)
+  const displayPrice =
+    typeof currentVariant?.price?.amount === "number"
+      ? currentVariant.price.amount
+      : product.price ?? 0;
+
   const handleAddToCart = () => {
+    // لو عندنا Variants: تأكد إنه تم اختيار متغيّر كامل
+    if (variants.length > 0) {
+      if (!currentVariant) {
+        alert("يرجى اختيار المقاس واللون المتاحين قبل الإضافة للسلة");
+        return;
+      }
+      if ((currentVariant.stock?.inStock ?? 0) <= 0) {
+        alert("المتغيّر المختار غير متوفر");
+        return;
+      }
+      const itemForCart = {
+        ...product,
+        image: images?.[0] || "https://i.imgur.com/PU1aG4t.jpeg",
+        selectedVariantId: currentVariant._id,
+        selectedSku: currentVariant.stock?.sku,
+        selectedMeasure: currentVariant.measure,
+        selectedColor: currentVariant.color?.name,
+        price: currentVariant.price?.amount ?? product.price ?? 0,
+      };
+      addToCart(itemForCart);
+      setShowAdded(true);
+      setTimeout(() => setShowAdded(false), 1500);
+      return;
+    }
+
+    // Fallback للسلوك القديم إن ما فيه Variants
     if (product.measures?.length && !selectedMeasure) {
       alert("يرجى اختيار المقاس قبل الإضافة للسلة");
       return;
@@ -37,7 +199,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       alert("يرجى اختيار اللون قبل الإضافة للسلة");
       return;
     }
-
     const productForCart = {
       ...product,
       image: product.images?.[0] || "https://i.imgur.com/PU1aG4t.jpeg",
@@ -49,13 +210,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     setTimeout(() => setShowAdded(false), 1500);
   };
 
-  const nextImage = () => {
-    setCurrentImage((prev) => (prev + 1) % images.length);
-  };
-
-  const prevImage = () => {
+  const nextImage = () => setCurrentImage((prev) => (prev + 1) % images.length);
+  const prevImage = () =>
     setCurrentImage((prev) => (prev - 1 + images.length) % images.length);
-  };
 
   return (
     <div className="group border rounded-lg p-4 text-right hover:shadow relative flex flex-col justify-between h-full">
@@ -105,49 +262,98 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         <p className="text-sm text-gray-500 mb-2">{product.subCategory}</p>
       )}
 
-      {/* ✅ اختيار المقاس */}
-      {product.measures && product.measures.length > 0 && (
+      {/* ✅ اختيار المقاس (من الـ Variants أو fallback) */}
+      {(measuresFromVariants.length > 0 || product.measures?.length) && (
         <div className="mb-2">
           <span className="text-sm font-medium">المقاسات: </span>
           <select
             value={selectedMeasure}
-            onChange={(e) => setSelectedMeasure(e.target.value)}
+            onChange={(e) =>
+              setSelectedMeasure(
+                measuresFromVariants.length > 0
+                  ? e.target.value // slug
+                  : slugify(e.target.value) // fallback
+              )
+            }
             className="border rounded px-2 py-1 text-sm"
           >
-            <option value="">اختر المقاس</option>
-            {product.measures.map((measure, i) => (
-              <option key={i} value={measure}>
-                {measure}
-              </option>
-            ))}
+            <option value="">{vLoading ? "تحميل..." : "اختر المقاس"}</option>
+            {measuresFromVariants.length > 0
+              ? measuresFromVariants.map((m) => (
+                  <option key={m.slug} value={m.slug}>
+                    {m.label}
+                  </option>
+                ))
+              : (product.measures || []).map((m, i) => (
+                  <option key={i} value={m}>
+                    {m}
+                  </option>
+                ))}
           </select>
         </div>
       )}
 
       {/* ✅ اختيار اللون */}
-      {product.colors && product.colors.length > 0 && (
+      {(allColorsFromVariants.length > 0 || product.colors?.length) && (
         <div className="mb-2">
           <span className="text-sm font-medium">الألوان: </span>
-          <div className="flex gap-2 mt-1">
-            {product.colors.map((color, i) => (
-              <button
-                key={i}
-                onClick={() => setSelectedColor(color)}
-                className={clsx(
-                  "w-6 h-6 rounded-full border-2",
-                  selectedColor === color
-                    ? "border-black scale-110"
-                    : "border-gray-300"
-                )}
-                style={{ backgroundColor: color }}
-              ></button>
-            ))}
-          </div>
+
+          {/* من الـ Variants: نعرض كل الألوان، ونُعطّل غير المتاح للمقاس المختار */}
+          {allColorsFromVariants.length > 0 ? (
+            <div className="flex gap-2 mt-1 flex-wrap">
+              {allColorsFromVariants.map((c) => {
+                const isAvailable =
+                  selectedMeasure &&
+                  availableColorSlugsForSelectedMeasure.has(c.slug);
+
+                return (
+                  <button
+                    key={c.slug}
+                    title={c.name}
+                    onClick={() => isAvailable && setSelectedColor(c.slug)}
+                    disabled={!isAvailable}
+                    className={clsx(
+                      "w-6 h-6 rounded-full border-2 transition",
+                      selectedColor === c.slug && isAvailable
+                        ? "border-black scale-110"
+                        : "border-gray-300",
+                      !isAvailable && "opacity-40 cursor-not-allowed"
+                    )}
+                    style={
+                      c.code && isHexColor(c.code)
+                        ? { backgroundColor: c.code }
+                        : undefined
+                    }
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            // Fallback: لا توجد variants — لا يمكن الربط بين المقاس واللون، لذا لا تعطيل منطقي هنا
+            <div className="flex gap-2 mt-1">
+              {(product.colors || []).map((color, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedColor(slugify(color))}
+                  className={clsx(
+                    "w-6 h-6 rounded-full border-2",
+                    selectedColor === slugify(color)
+                      ? "border-black scale-110"
+                      : "border-gray-300"
+                  )}
+                  style={
+                    isHexColor(color) ? { backgroundColor: color } : undefined
+                  }
+                  title={color}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* ✅ السعر */}
-      <p className="font-bold mb-2">₪{product.price}</p>
+      <p className="font-bold mb-2">₪{displayPrice}</p>
 
       {/* ✅ الأزرار */}
       <div className="mt-auto">
