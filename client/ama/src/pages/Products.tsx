@@ -11,42 +11,95 @@ import axios from "axios";
 type ProductItem = {
   _id: string;
   name: string;
-  description: string; // غير اختياري
-  images: string[]; // غير اختياري
+  description: string;
+  images: string[];
   mainCategory?: string;
   subCategory?: string;
-
-  // قيم قادمة من السيرفر
   minPrice?: number;
   totalStock?: number;
-
-  // قيَم نهائية نمررها لـ ProductCard
-  price: number; // غير اختياري
-  quantity: number; // غير اختياري
+  price: number;
+  quantity: number;
 };
+
+type FacetItem = { name: string; slug: string };
+type Facets = { measures: FacetItem[]; colors: FacetItem[] };
 
 const Products: React.FC = () => {
   const [selectedMainCategory, setSelectedMainCategory] = useState("الكل");
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+
+  const [selectedColorSlug, setSelectedColorSlug] = useState("");
+  const [selectedMeasureSlug, setSelectedMeasureSlug] = useState("");
+
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
 
-  const location = useLocation();
+  const [facets, setFacets] = useState<Facets>({ measures: [], colors: [] });
 
-  // الترقيم (السيرفر سيرجع صفحة واحدة بالفعل)
+  const location = useLocation();
   const [currentPage, setCurrentPage] = useState(1);
 
-  // قراءة باراميتر category من الـ URL
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const category = params.get("category");
     if (category) setSelectedMainCategory(category);
   }, [location.search]);
 
-  // جلب المنتجات + الإحصاءات (minPrice/totalStock) من السيرفر
+  // جلب الـ Facets
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams();
+        if (selectedMainCategory && selectedMainCategory !== "الكل") {
+          params.set("mainCategory", selectedMainCategory);
+        }
+        if (selectedSubCategory) params.set("subCategory", selectedSubCategory);
+        if (searchTerm) params.set("q", searchTerm);
+
+        const url = `${
+          import.meta.env.VITE_API_URL
+        }/api/products/facets?${params.toString()}`;
+
+        const { data } = await axios.get(url);
+        if (ignore) return;
+
+        const f: Facets = {
+          measures: Array.isArray(data?.measures)
+            ? data.measures.filter((m: any) => m?.slug && m?.name)
+            : [],
+          colors: Array.isArray(data?.colors)
+            ? data.colors.filter((c: any) => c?.slug && c?.name)
+            : [],
+        };
+        setFacets(f);
+
+        if (
+          f.colors.length &&
+          !f.colors.some((c) => c.slug === selectedColorSlug)
+        ) {
+          setSelectedColorSlug("");
+        }
+        if (
+          f.measures.length &&
+          !f.measures.some((m) => m.slug === selectedMeasureSlug)
+        ) {
+          setSelectedMeasureSlug("");
+        }
+      } catch (err) {
+        console.error("❌ Failed to fetch facets", err);
+        setFacets({ measures: [], colors: [] });
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [selectedMainCategory, selectedSubCategory, searchTerm]);
+
+  // جلب المنتجات
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -62,6 +115,11 @@ const Products: React.FC = () => {
       if (searchTerm) params.set("q", searchTerm);
       if (maxPrice) params.set("maxPrice", maxPrice);
 
+      const tags: string[] = [];
+      if (selectedColorSlug) tags.push(`color:${selectedColorSlug}`);
+      if (selectedMeasureSlug) tags.push(`measure:${selectedMeasureSlug}`);
+      if (tags.length) params.set("tags", tags.join(","));
+
       try {
         const url = `${
           import.meta.env.VITE_API_URL
@@ -74,7 +132,6 @@ const Products: React.FC = () => {
           totalPages: 1,
         };
 
-        // توحيد الحقول مع ProductCard بقيم افتراضية آمنة
         const mapped: ProductItem[] = (items || []).map((p: any) => ({
           _id: p._id,
           name: p.name ?? "",
@@ -107,6 +164,8 @@ const Products: React.FC = () => {
     selectedSubCategory,
     searchTerm,
     maxPrice,
+    selectedColorSlug,
+    selectedMeasureSlug,
   ]);
 
   const handleCategorySelect = (main: string, sub: string = "") => {
@@ -115,7 +174,6 @@ const Products: React.FC = () => {
     setCurrentPage(1);
   };
 
-  // تجميع الفئات
   const categoryGroups = useMemo(() => {
     return products.reduce((acc, product) => {
       const { mainCategory, subCategory } = product;
@@ -169,7 +227,7 @@ const Products: React.FC = () => {
           </aside>
 
           <section className="flex-1">
-            <div className="flex flex-col sm:flex-row gap-2 mb-6">
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
               <Input
                 type="text"
                 placeholder="ابحث باسم المنتج..."
@@ -190,20 +248,66 @@ const Products: React.FC = () => {
               />
             </div>
 
+            {/* فلاتر اللون/المقاس */}
+            <div className="flex flex-col sm:flex-row gap-2 mb-6">
+              <select
+                className="border rounded px-3 py-2"
+                value={selectedColorSlug}
+                onChange={(e) => {
+                  setSelectedColorSlug(e.target.value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="">كل الألوان</option>
+                {facets.colors.map((c) => (
+                  <option key={c.slug} value={c.slug}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                className="border rounded px-3 py-2"
+                value={selectedMeasureSlug}
+                onChange={(e) => {
+                  setSelectedMeasureSlug(e.target.value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="">كل المقاسات</option>
+                {facets.measures.map((m) => (
+                  <option key={m.slug} value={m.slug}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+
+              {(selectedColorSlug || selectedMeasureSlug) && (
+                <button
+                  onClick={() => {
+                    setSelectedColorSlug("");
+                    setSelectedMeasureSlug("");
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200"
+                >
+                  مسح فلاتر اللون/المقاس
+                </button>
+              )}
+            </div>
+
             {products.length === 0 ? (
               <p className="text-center text-gray-600 text-lg">
                 لا يوجد منتجات مطابقة للبحث
               </p>
             ) : (
               <>
-                {/* الصفحة الحالية جاهزة من السيرفر */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 items-start">
                   {products.map((product) => (
                     <ProductCard key={product._id} product={product} />
                   ))}
                 </div>
 
-                {/* الترقيم */}
                 <div className="flex justify-center mt-6 gap-2">
                   {Array.from({ length: totalPages }, (_, i) => (
                     <button

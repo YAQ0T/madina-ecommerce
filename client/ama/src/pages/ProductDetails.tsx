@@ -1,4 +1,3 @@
-// src/pages/ProductDetails.tsx
 import { useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
@@ -15,9 +14,22 @@ type Variant = {
   measureSlug: string;
   color: { name: string; code?: string; images?: string[] };
   colorSlug: string;
-  price: { amount: number; compareAt?: number };
+  price: {
+    amount: number;
+    compareAt?: number;
+    discount?: {
+      type?: "percent" | "amount";
+      value?: number;
+      startAt?: string;
+      endAt?: string;
+    };
+  };
   stock: { inStock: number; sku: string };
   tags: string[];
+  // محسوبة من /api/variants
+  finalAmount?: number;
+  isDiscountActive?: boolean;
+  displayCompareAt?: number | null;
 };
 
 const ProductDetails: React.FC = () => {
@@ -31,27 +43,31 @@ const ProductDetails: React.FC = () => {
   // حالة السلايدر
   const [currentImage, setCurrentImage] = useState(0);
 
-  // اختيارات المستخدم (نخزّن الـ slug)
+  // اختيارات المستخدم (slugs)
   const [measure, setMeasure] = useState<string>("");
   const [color, setColor] = useState<string>("");
 
-  // جلب المنتج + المتغيّرات
+  // جلب المنتج + المتغيّرات (نستغني عن withVariants=1 ونستخدم /api/variants لضمان الحقول المحسوبة)
   useEffect(() => {
     let ignore = false;
     (async () => {
       try {
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/products/${id}?withVariants=1`
+        // المنتج وحده
+        const prodRes = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/products/${id}`
         );
         if (ignore) return;
+        setProduct(prodRes.data);
 
-        setProduct(res.data);
-        const vs: Variant[] = Array.isArray(res.data?.variants)
-          ? res.data.variants
-          : [];
+        // المتغيرات مع الحقول المحسوبة
+        const varsRes = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/variants`,
+          { params: { product: id, limit: 500 } }
+        );
+        const vs: Variant[] = Array.isArray(varsRes.data) ? varsRes.data : [];
         setVariants(vs);
 
-        // تعيين افتراضات ذكية: أول variant
+        // افتراضات: أول variant
         if (vs.length > 0) {
           setMeasure(vs[0].measureSlug || "");
           setColor(vs[0].colorSlug || "");
@@ -144,7 +160,6 @@ const ProductDetails: React.FC = () => {
     if (!color || !allowed.has(color)) {
       setColor(Array.from(allowed)[0]); // أول لون متاح
     }
-    // لا تضف color في التبعيات حتى لا ندخل حلقة
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [measure, colorsByMeasure]);
 
@@ -160,8 +175,18 @@ const ProductDetails: React.FC = () => {
   const prevImage = () =>
     setCurrentImage((p) => (p - 1 + images.length) % images.length);
 
-  const price = currentVariant?.price?.amount;
+  const finalAmount = currentVariant?.finalAmount;
+  const compareAt = currentVariant?.displayCompareAt ?? null;
   const inStock = currentVariant?.stock?.inStock ?? 0;
+
+  // نسبة الخصم
+  const discountPercent =
+    typeof finalAmount === "number" &&
+    typeof compareAt === "number" &&
+    compareAt > 0 &&
+    finalAmount < compareAt
+      ? Math.round(((compareAt - finalAmount) / compareAt) * 100)
+      : null;
 
   if (!product) {
     return <p className="text-center mt-10">جاري تحميل تفاصيل المنتج...</p>;
@@ -204,6 +229,12 @@ const ProductDetails: React.FC = () => {
                 >
                   ▶
                 </button>
+
+                {discountPercent !== null && (
+                  <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
+                    -{discountPercent}%
+                  </span>
+                )}
               </>
             )}
           </div>
@@ -231,7 +262,7 @@ const ProductDetails: React.FC = () => {
               </div>
             )}
 
-            {/* اختيار اللون — يظهر كل الألوان لكن يُعطّل غير المتاح للمقاس الحالي */}
+            {/* اختيار اللون — نعرض كل الألوان لكن نُعطّل غير المتاح للمقاس الحالي */}
             {allColors.length > 0 && (
               <div className="mb-4">
                 <label className="block mb-1">اللون</label>
@@ -253,9 +284,27 @@ const ProductDetails: React.FC = () => {
               </div>
             )}
 
-            <p className="text-xl font-semibold mb-2">
-              {typeof price === "number" ? <>₪{price}</> : "اختر مقاسًا ولونًا"}
-            </p>
+            {/* السعر مع سعر مقارن وقت الخصم */}
+            <div className="mb-2">
+              {typeof compareAt === "number" &&
+              typeof finalAmount === "number" &&
+              compareAt > finalAmount ? (
+                <div className="flex items-baseline gap-2">
+                  <span className="text-gray-500 line-through">
+                    ₪{compareAt}
+                  </span>
+                  <span className="text-xl font-semibold">₪{finalAmount}</span>
+                </div>
+              ) : (
+                <p className="text-xl font-semibold">
+                  {typeof finalAmount === "number" ? (
+                    <>₪{finalAmount}</>
+                  ) : (
+                    "اختر مقاسًا ولونًا"
+                  )}
+                </p>
+              )}
+            </div>
 
             {currentVariant && (
               <p className="text-sm text-gray-600 mb-6">
@@ -276,7 +325,10 @@ const ProductDetails: React.FC = () => {
                   selectedSku: currentVariant.stock.sku,
                   selectedMeasure: currentVariant.measure,
                   selectedColor: currentVariant.color?.name,
-                  price: currentVariant.price?.amount,
+                  price:
+                    typeof currentVariant.finalAmount === "number"
+                      ? currentVariant.finalAmount
+                      : currentVariant.price?.amount,
                 });
               }}
             >

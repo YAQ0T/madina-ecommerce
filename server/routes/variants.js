@@ -1,26 +1,44 @@
+// routes/variants.js
 const express = require("express");
 const router = express.Router();
 
-// ⚠️ تأكد من اسم الملف/الموديل بحرف V كبير
 const Variant = require("../models/Variant");
 const Product = require("../models/Product");
-
 const { verifyToken, isAdmin } = require("../middleware/authMiddleware");
 
-// دالة مساعدة: إعادة بناء واجهات المنتج (المقاسات/الألوان) بعد أي تغيير بالمتغيرات
+// دالة مساعدة لحساب finalAmount (توازي منطق الموديل)
+function isDiscountActive(discount = {}) {
+  if (!discount || !discount.value) return false;
+  const now = new Date();
+  if (discount.startAt && now < discount.startAt) return false;
+  if (discount.endAt && now > discount.endAt) return false;
+  return true;
+}
+function computeFinalAmount(price = {}) {
+  const amount = typeof price.amount === "number" ? price.amount : 0;
+  if (!amount) return 0;
+  const discount = price.discount || {};
+  if (!isDiscountActive(discount)) return amount;
+  return discount.type === "percent"
+    ? Math.max(0, amount - (amount * discount.value) / 100)
+    : Math.max(0, amount - discount.value);
+}
+
+// إعادة بناء واجهات المنتج (measures/colors)
 async function recomputeProductFacets(productId) {
   const variants = await Variant.find({ product: productId }).lean();
   const measures = [...new Set(variants.map((v) => v.measure).filter(Boolean))];
   const colors = [
     ...new Set(variants.map((v) => v.color?.name).filter(Boolean)),
   ];
-
-  await Product.updateOne({ _id: productId }, { $set: { measures, colors } });
+  // اختياري: لو سكيمة Product فيها هالحقول
+  await Product.updateOne(
+    { _id: productId },
+    { $set: { measures, colors } }
+  ).catch(() => {});
 }
 
-// =======================
-// إنشاء متغير واحد (أدمن فقط)
-// =======================
+// إنشاء متغير
 router.post("/", verifyToken, isAdmin, async (req, res) => {
   try {
     const { product, measure, color, price, stock, tags } = req.body;
@@ -41,23 +59,21 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
       tags,
     });
 
-    // إعادة بناء قوائم المقاسات/الألوان للمنتج
     await recomputeProductFacets(created.product);
 
-    res.status(201).json(created);
+    const ret = created.toJSON();
+    return res.status(201).json(ret);
   } catch (err) {
     if (err?.code === 11000) {
       return res.status(409).json({
         error: "تعارض فريد: SKU أو (measure+color) موجود مسبقًا لنفس المنتج",
       });
     }
-    res.status(400).json({ error: err.message || "فشل إنشاء المتغير" });
+    return res.status(400).json({ error: err.message || "فشل إنشاء المتغير" });
   }
 });
 
-// =======================
-// إنشاء مجموعة متغيرات (Bulk) — أدمن
-// =======================
+// إنشاء مجموعة متغيرات (Bulk)
 router.post("/bulk", verifyToken, isAdmin, async (req, res) => {
   try {
     const { variants } = req.body;
@@ -67,22 +83,19 @@ router.post("/bulk", verifyToken, isAdmin, async (req, res) => {
 
     const created = await Variant.insertMany(variants, { ordered: false });
 
-    // إعادة بناء واجهات المنتجات المتأثرة مرة واحدة لكل منتج
     const productIds = [...new Set(created.map((v) => String(v.product)))];
     await Promise.all(productIds.map((id) => recomputeProductFacets(id)));
 
-    res.status(201).json({ createdCount: created.length, items: created });
+    const items = created.map((d) => d.toJSON());
+    return res.status(201).json({ createdCount: items.length, items });
   } catch (err) {
-    // قد يحوي أخطاء متعددة في bulk، لكن نعيد الرسالة العامة
-    res
+    return res
       .status(400)
       .json({ error: err.message || "فشل إنشاء المتغيرات (bulk)" });
   }
 });
 
-// =======================
-// جلب متغيرات مع فِلترة
-// =======================
+// جلب متغيرات مع فلترة (يدعم tags)
 router.get("/", async (req, res) => {
   try {
     const {
@@ -100,7 +113,7 @@ router.get("/", async (req, res) => {
     if (product) filter.product = product;
     if (measureSlug) filter.measureSlug = String(measureSlug).toLowerCase();
     if (colorSlug) filter.colorSlug = String(colorSlug).toLowerCase();
-    if (measure) filter.measure = measure; // بديل لو لم يُرسل slug
+    if (measure) filter.measure = measure;
     if (color) filter["color.name"] = color;
 
     if (tags) {
@@ -118,15 +131,22 @@ router.get("/", async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    res.json(items);
+    const withComputed = items.map((it) => {
+      const finalAmount = computeFinalAmount(it.price);
+      const active = isDiscountActive(it.price?.discount);
+      const displayCompareAt = active
+        ? it.price?.compareAt ?? it.price?.amount
+        : null;
+      return { ...it, finalAmount, isDiscountActive: active, displayCompareAt };
+    });
+
+    return res.json(withComputed);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
-// =======================
 // جلب متغير واحد بالـ SKU أو بالتركيبة
-// =======================
 router.get("/one", async (req, res) => {
   try {
     const { sku, product, measure, color } = req.query;
@@ -147,49 +167,93 @@ router.get("/one", async (req, res) => {
     }
 
     if (!v) return res.status(404).json({ error: "المتغير غير موجود" });
-    res.json(v);
+
+    const finalAmount = computeFinalAmount(v.price);
+    const active = isDiscountActive(v.price?.discount);
+    const displayCompareAt = active
+      ? v.price?.compareAt ?? v.price?.amount
+      : null;
+
+    return res.json({
+      ...v,
+      finalAmount,
+      isDiscountActive: active,
+      displayCompareAt,
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
-// =======================
-// تعديل متغير (أدمن فقط)
-// =======================
+// ✅ ضبط خصم لمتغير محدد (أدمن)
+router.post("/:id/discount", verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { type = "percent", value = 0, startAt, endAt } = req.body || {};
+
+    if (!["percent", "amount"].includes(type)) {
+      return res.status(400).json({ error: "نوع الخصم غير صالح" });
+    }
+    if (typeof value !== "number" || value < 0) {
+      return res.status(400).json({ error: "قيمة الخصم غير صالحة" });
+    }
+
+    const discount = { type, value };
+    if (startAt) discount.startAt = new Date(startAt);
+    if (endAt) discount.endAt = new Date(endAt);
+
+    // نغطي compareAt إن كانت فارغة
+    const updated = await Variant.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          "price.discount": discount,
+        },
+        $setOnInsert: {},
+      },
+      { new: true, runValidators: true, context: "query" }
+    );
+
+    if (!updated) return res.status(404).json({ error: "المتغير غير موجود" });
+
+    // لو compareAt فارغة، نضبطها على amount (يغطيه الـ pre hooks غالبًا، لكن نؤمّنه هنا)
+    if (updated.price && updated.price.compareAt == null) {
+      updated.price.compareAt = updated.price.amount;
+      await updated.save();
+    }
+
+    return res.json(updated.toJSON()); // فيه finalAmount/isDiscountActive/displayCompareAt
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "فشل ضبط الخصم" });
+  }
+});
+
+// تعديل متغير
 router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
-    // نستخدم $set حتى لا نستبدل كائنات متداخلة بالكامل بالخطأ
     const payload = req.body || {};
 
     const updated = await Variant.findByIdAndUpdate(
       req.params.id,
       { $set: payload },
-      {
-        new: true,
-        runValidators: true,
-        context: "query", // مهم لبعض الفاليديشن والهوكس
-      }
+      { new: true, runValidators: true, context: "query" }
     );
 
     if (!updated) return res.status(404).json({ error: "المتغير غير موجود" });
 
-    // إعادة بناء واجهات المنتج بعد التعديل
     await recomputeProductFacets(updated.product);
 
-    res.json(updated);
+    return res.json(updated.toJSON());
   } catch (err) {
     if (err?.code === 11000) {
       return res.status(409).json({
         error: "تعارض فريد: SKU أو (measure+color) موجود مسبقًا لنفس المنتج",
       });
     }
-    res.status(400).json({ error: err.message || "فشل تعديل المتغير" });
+    return res.status(400).json({ error: err.message || "فشل تعديل المتغير" });
   }
 });
 
-// =======================
-// حذف متغير (أدمن فقط)
-// =======================
+// حذف متغير
 router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     const deleted = await Variant.findByIdAndDelete(req.params.id);
@@ -197,15 +261,13 @@ router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
 
     await recomputeProductFacets(deleted.product);
 
-    res.json({ ok: true });
+    return res.json({ ok: true });
   } catch (err) {
-    res.status(400).json({ error: "فشل حذف المتغير" });
+    return res.status(400).json({ error: "فشل حذف المتغير" });
   }
 });
 
-// =======================
-// خصم مخزون ذري عند الدفع
-// =======================
+// خصم مخزون ذري
 router.post("/:id/decrement-stock", verifyToken, async (req, res) => {
   try {
     const { qty = 1 } = req.body;
@@ -213,11 +275,12 @@ router.post("/:id/decrement-stock", verifyToken, async (req, res) => {
       { _id: req.params.id, "stock.inStock": { $gte: qty } },
       { $inc: { "stock.inStock": -qty } }
     );
-    if (!upd.modifiedCount)
+    if (!upd.modifiedCount) {
       return res.status(409).json({ error: "الكمية غير كافية" });
-    res.json({ ok: true });
+    }
+    return res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
