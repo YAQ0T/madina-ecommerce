@@ -1,9 +1,36 @@
 // routes/products.js
 const express = require("express");
 const router = express.Router();
-const Product = require("../models/Product"); // انتبه لاسم الملف lowercase لو غيّرته
+const Product = require("../models/Product");
 const Variant = require("../models/Variant");
 const { verifyToken, isAdmin } = require("../middleware/authMiddleware");
+
+// ------- أدوات مساعدة -------
+const slugify = (s) =>
+  (s || "").toString().trim().toLowerCase().replace(/\s+/g, "-");
+
+function buildWantedTags(query = {}) {
+  const wanted = [];
+
+  if (query.tags) {
+    const arr = String(query.tags)
+      .split(",")
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    wanted.push(...arr);
+  }
+
+  if (query.colorSlug)
+    wanted.push(`color:${String(query.colorSlug).toLowerCase()}`);
+  if (query.measureSlug)
+    wanted.push(`measure:${String(query.measureSlug).toLowerCase()}`);
+
+  if (query.color) wanted.push(`color:${slugify(query.color)}`);
+  if (query.measure) wanted.push(`measure:${slugify(query.measure)}`);
+
+  return Array.from(new Set(wanted));
+}
+// ----------------------------
 
 // ✅ إنشاء منتج (أدمن فقط)
 router.post("/", verifyToken, isAdmin, async (req, res) => {
@@ -38,6 +65,8 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ✅ /with-stats — مع حساب finalAmount ضمن نافذة الخصم
 router.get("/with-stats", async (req, res) => {
   try {
     const {
@@ -50,6 +79,7 @@ router.get("/with-stats", async (req, res) => {
       sort = "new",
     } = req.query;
 
+    const wantedTags = buildWantedTags(req.query);
     const $match = {};
     if (mainCategory) $match.mainCategory = mainCategory;
     if (subCategory) $match.subCategory = subCategory;
@@ -59,15 +89,15 @@ router.get("/with-stats", async (req, res) => {
     const lim = Math.max(parseInt(limit, 10) || 9, 1);
     const skip = (pageNum - 1) * lim;
 
-    // ترتيب
     let $sortStage = { createdAt: -1 };
     if (sort === "priceAsc") $sortStage = { minPrice: 1, createdAt: -1 };
     if (sort === "priceDesc") $sortStage = { minPrice: -1, createdAt: -1 };
 
+    const now = new Date();
+
     const pipeline = [
       { $match },
 
-      // نجلب المتغيرات كلها للمنتج
       {
         $lookup: {
           from: "variants",
@@ -77,19 +107,104 @@ router.get("/with-stats", async (req, res) => {
         },
       },
 
-      // حوّل السعر إلى double بأمان (بدون $isNumber)
+      { $addFields: { _wantedTags: wantedTags } },
+
       {
         $addFields: {
-          _prices: {
+          vars: {
+            $cond: [
+              { $gt: [{ $size: "$_wantedTags" }, 0] },
+              {
+                $filter: {
+                  input: "$vars",
+                  as: "v",
+                  cond: { $setIsSubset: ["$_wantedTags", "$$v.tags"] },
+                },
+              },
+              "$vars",
+            ],
+          },
+        },
+      },
+
+      ...(wantedTags.length
+        ? [{ $match: { "vars.0": { $exists: true } } }]
+        : []),
+
+      // احسب finalAmount لكل variant حسب نافذة الخصم
+      {
+        $addFields: {
+          _finalPrices: {
             $map: {
               input: "$vars",
               as: "v",
               in: {
-                $convert: {
-                  input: "$$v.price.amount",
-                  to: "double",
-                  onError: null,
-                  onNull: null,
+                $let: {
+                  vars: {
+                    amount: { $ifNull: ["$$v.price.amount", 0] },
+                    dType: "$$v.price.discount.type",
+                    dValue: { $ifNull: ["$$v.price.discount.value", 0] },
+                    dStart: "$$v.price.discount.startAt",
+                    dEnd: "$$v.price.discount.endAt",
+                  },
+                  in: {
+                    $let: {
+                      vars: {
+                        isActive: {
+                          $and: [
+                            { $gt: ["$$dValue", 0] },
+                            {
+                              $or: [
+                                { $eq: ["$$dStart", null] },
+                                { $lte: ["$$dStart", now] },
+                              ],
+                            },
+                            {
+                              $or: [
+                                { $eq: ["$$dEnd", null] },
+                                { $gte: ["$$dEnd", now] },
+                              ],
+                            },
+                          ],
+                        },
+                      },
+                      in: {
+                        $cond: [
+                          "$$isActive",
+                          {
+                            $cond: [
+                              { $eq: ["$$dType", "amount"] },
+                              {
+                                $max: [
+                                  0,
+                                  { $subtract: ["$$amount", "$$dValue"] },
+                                ],
+                              },
+                              {
+                                $max: [
+                                  0,
+                                  {
+                                    $subtract: [
+                                      "$$amount",
+                                      {
+                                        $divide: [
+                                          {
+                                            $multiply: ["$$amount", "$$dValue"],
+                                          },
+                                          100,
+                                        ],
+                                      },
+                                    ],
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                          "$$amount",
+                        ],
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -103,25 +218,25 @@ router.get("/with-stats", async (req, res) => {
           },
         },
       },
-      // صفِّر القيم غير الصالحة
+
       {
         $addFields: {
-          _pricesClean: {
+          _finalPricesClean: {
             $filter: {
-              input: "$_prices",
+              input: "$_finalPrices",
               as: "p",
-              cond: { $ne: ["$$p", null] },
+              cond: { $and: [{ $ne: ["$$p", null] }, { $gte: ["$$p", 0] }] },
             },
           },
         },
       },
-      // احسب minPrice و totalStock
+
       {
         $addFields: {
           minPrice: {
             $cond: [
-              { $gt: [{ $size: "$_pricesClean" }, 0] },
-              { $min: "$_pricesClean" },
+              { $gt: [{ $size: "$_finalPricesClean" }, 0] },
+              { $min: "$_finalPricesClean" },
               0,
             ],
           },
@@ -174,19 +289,58 @@ router.get("/with-stats", async (req, res) => {
     res.status(500).json({ error: "Server error in /with-stats" });
   }
 });
-// ✅ جلب كل المنتجات (مع فلاتر اختيارية)
+
+// ✅ Facets عامة (name/slug)
+router.get("/facets", async (req, res) => {
+  try {
+    const { mainCategory, subCategory, q } = req.query;
+
+    const productMatch = {};
+    if (mainCategory) productMatch.mainCategory = mainCategory;
+    if (subCategory) productMatch.subCategory = subCategory;
+    if (q) productMatch.$text = { $search: q };
+
+    const pipeline = [
+      { $match: productMatch },
+      {
+        $lookup: {
+          from: "variants",
+          localField: "_id",
+          foreignField: "product",
+          as: "vars",
+        },
+      },
+      { $unwind: "$vars" },
+      {
+        $group: {
+          _id: null,
+          measures: {
+            $addToSet: { name: "$vars.measure", slug: "$vars.measureSlug" },
+          },
+          colors: {
+            $addToSet: { name: "$vars.color.name", slug: "$vars.colorSlug" },
+          },
+        },
+      },
+      { $project: { _id: 0 } },
+    ];
+
+    const [facets] = await Product.aggregate(pipeline);
+    res.json(facets || { measures: [], colors: [] });
+  } catch (err) {
+    console.error("facets error:", err);
+    res.status(500).json({ error: "Server error in /facets" });
+  }
+});
+
+// ✅ جلب كل المنتجات (عام)
 router.get("/", async (req, res) => {
   try {
     const { mainCategory, subCategory, q, limit = 50, page = 1 } = req.query;
     const filter = {};
-
     if (mainCategory) filter.mainCategory = mainCategory;
     if (subCategory) filter.subCategory = subCategory;
-
-    // بحث نصي بسيط بالاسم/الوصف (يتطلب فهرس نصي في السكيمة)
-    if (q) {
-      filter.$text = { $search: q };
-    }
+    if (q) filter.$text = { $search: q };
 
     const skip = (Number(page) - 1) * Number(limit);
     const products = await Product.find(filter)
@@ -200,7 +354,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ جلب منتج واحد — مع خيار تضمين المتغيرات ?withVariants=1
+// ✅ منتج واحد (withVariants اختياري)
 router.get("/:id", async (req, res) => {
   try {
     const withVariants = req.query.withVariants === "1";
@@ -217,7 +371,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// ✅ إرجاع Facets (المقاسات/الألوان المتاحة) لمنتج معيّن
+// ✅ Facets لمنتج معيّن
 router.get("/:id/facets", async (req, res) => {
   try {
     const productId = req.params.id;
@@ -231,28 +385,19 @@ router.get("/:id/facets", async (req, res) => {
       {
         $group: {
           _id: null,
-          measures: { $addToSet: "$measure" },
-          measureSlugs: { $addToSet: "$measureSlug" },
-          colors: { $addToSet: "$color.name" },
-          colorSlugs: { $addToSet: "$colorSlug" },
+          measures: { $addToSet: { name: "$measure", slug: "$measureSlug" } },
+          colors: { $addToSet: { name: "$color.name", slug: "$colorSlug" } },
         },
       },
       { $project: { _id: 0 } },
     ]);
-    res.json(
-      facets[0] || {
-        measures: [],
-        measureSlugs: [],
-        colors: [],
-        colorSlugs: [],
-      }
-    );
+    res.json(facets[0] || { measures: [], colors: [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ تعديل منتج (أدمن فقط)
+// ✅ تعديل/حذف منتج (أدمن)
 router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     const { name, category, mainCategory, subCategory, description, images } =
@@ -278,14 +423,11 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
-// ✅ حذف منتج (أدمن فقط)
-// ملاحظة: احذف أيضًا الـ Variants المرتبطة (اختياري حسب سياسة البيانات لديك)
 router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     const deleted = await Product.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ error: "المنتج غير موجود" });
 
-    // خيار: احذف المتغيرات التابعة
     await Variant.deleteMany({ product: deleted._id });
 
     res.status(200).json({ message: "تم حذف المنتج ومتغيراته" });

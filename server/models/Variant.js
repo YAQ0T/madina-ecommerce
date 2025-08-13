@@ -1,3 +1,4 @@
+// models/Variant.js
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
@@ -20,25 +21,25 @@ const VariantSchema = new Schema(
       index: true,
     },
 
-    // filterable dimensions
-    measure: { type: String, required: true, trim: true }, // e.g., "M" or "42"
-    measureSlug: { type: String, index: true }, // e.g., "m" or "42"
+    // الأبعاد القابلة للفلترة
+    measure: { type: String, required: true, trim: true },
+    measureSlug: { type: String, index: true },
     color: {
-      name: { type: String, required: true, trim: true }, // e.g., "Black"
-      code: { type: String, trim: true }, // e.g., "#000000"
+      name: { type: String, required: true, trim: true },
+      code: { type: String, trim: true },
       images: { type: [String], default: [] },
     },
-    colorSlug: { type: String, index: true }, // e.g., "black"
+    colorSlug: { type: String, index: true },
 
-    // pricing
+    // التسعير (amount = السعر الأساسي الثابت)
     price: {
       currency: { type: String, default: "USD" },
-      amount: { type: Number, required: true, min: 0 },
-      compareAt: { type: Number, min: 0 },
+      amount: { type: Number, required: true, min: 0 }, // الأساسي
+      compareAt: { type: Number, min: 0 }, // يُملأ تلقائيًا إن لم يُرسل
       discount: { type: DiscountSchema, default: () => ({}) },
     },
 
-    // stock
+    // المخزون
     stock: {
       inStock: { type: Number, min: 0, default: 0 },
       sku: {
@@ -50,13 +51,13 @@ const VariantSchema = new Schema(
       },
     },
 
-    // flexible filter tags (dimension:value)
+    // وسوم مرنة (dimension:value)
     tags: { type: [String], default: [], index: true },
   },
   { timestamps: true }
 );
 
-// unique per product + measure + color
+// فهارس
 VariantSchema.index(
   { product: 1, measureSlug: 1, colorSlug: 1 },
   { unique: true }
@@ -67,7 +68,28 @@ VariantSchema.index({ "stock.inStock": 1 });
 const slugify = (s) =>
   (s || "").toString().trim().toLowerCase().replace(/\s+/g, "-");
 
-// ensure slugs & tags on create/save
+// منطق الخصم
+function isDiscountActive(discount = {}) {
+  if (!discount || !discount.value) return false;
+  const now = new Date();
+  if (discount.startAt && now < discount.startAt) return false;
+  if (discount.endAt && now > discount.endAt) return false;
+  return true;
+}
+
+function computeFinalAmount(price = {}) {
+  const amount = typeof price.amount === "number" ? price.amount : 0;
+  if (!amount) return 0;
+
+  const discount = price.discount || {};
+  if (!isDiscountActive(discount)) return amount;
+
+  return discount.type === "percent"
+    ? Math.max(0, amount - (amount * discount.value) / 100)
+    : Math.max(0, amount - discount.value);
+}
+
+// حفظ: توليد السلوغات/الوسوم وملء compareAt
 VariantSchema.pre("save", function (next) {
   this.measureSlug = slugify(this.measure);
   this.colorSlug = slugify(this.color?.name);
@@ -79,49 +101,104 @@ VariantSchema.pre("save", function (next) {
     tagSet.add(`color_code:${String(this.color.code).toLowerCase()}`);
   this.tags = Array.from(tagSet);
 
+  // إن لم تُرسل compareAt نغطيها بالسعر الأساسي
+  if (this.price && this.price.compareAt == null) {
+    this.price.compareAt = this.price.amount;
+  }
   next();
 });
 
-// ensure slugs & tags on update (findOneAndUpdate / findByIdAndUpdate)
-VariantSchema.pre("findOneAndUpdate", function (next) {
+// تحديث: دعم dot notation + إعادة بناء الوسوم + تغطية compareAt
+VariantSchema.pre("findOneAndUpdate", async function (next) {
   const update = this.getUpdate() || {};
-  const $set = update.$set || update; // support both styles
+  const $set = update.$set ?? {};
 
-  // if measure or color.name changed, rebuild slugs
-  if ($set.measure != null) {
-    $set.measureSlug = slugify($set.measure);
+  const hasMeasureUpdate = Object.prototype.hasOwnProperty.call(
+    $set,
+    "measure"
+  );
+  const hasColorNameUpdate =
+    ($set.color && Object.prototype.hasOwnProperty.call($set.color, "name")) ||
+    Object.prototype.hasOwnProperty.call($set, "color.name");
+  const hasColorCodeUpdate =
+    ($set.color && Object.prototype.hasOwnProperty.call($set.color, "code")) ||
+    Object.prototype.hasOwnProperty.call($set, "color.code");
+
+  if (hasMeasureUpdate) $set.measureSlug = slugify($set.measure);
+  if (hasColorNameUpdate) {
+    const newName = ($set.color && $set.color.name) ?? $set["color.name"];
+    if (newName != null) {
+      $set.colorSlug = slugify(newName);
+      if (!$set.color) $set.color = {};
+      if ($set["color.name"] != null && $set.color.name == null) {
+        $set.color.name = newName;
+      }
+    }
   }
-  if ($set.color?.name != null) {
-    $set.colorSlug = slugify($set.color.name);
+
+  if ($set.price?.amount != null && $set.price?.compareAt == null) {
+    $set.price.compareAt = $set.price.amount;
   }
 
-  // rebuild tags
-  const tags = new Set($set.tags || update.tags || []);
-  if ($set.measureSlug) tags.add(`measure:${$set.measureSlug}`);
-  if ($set.colorSlug) tags.add(`color:${$set.colorSlug}`);
-  if ($set.color?.code)
-    tags.add(`color_code:${String($set.color.code).toLowerCase()}`);
+  const tagsProvided = Array.isArray($set.tags) || Array.isArray(update.tags);
+  const needTagsRebuild =
+    hasMeasureUpdate ||
+    hasColorNameUpdate ||
+    hasColorCodeUpdate ||
+    tagsProvided;
 
-  // persist back
-  if (update.$set) update.$set = { ...$set, tags: Array.from(tags) };
-  else this.setUpdate({ ...$set, tags: Array.from(tags) });
+  if (needTagsRebuild) {
+    const current = await this.model.findOne(this.getQuery()).lean();
+
+    const finalMeasureSlug = $set.measureSlug ?? current?.measureSlug ?? null;
+    const finalColorSlug = $set.colorSlug ?? current?.colorSlug ?? null;
+    const finalColorCode =
+      ($set.color && $set.color.code) ??
+      $set["color.code"] ??
+      current?.color?.code ??
+      null;
+
+    const base =
+      (tagsProvided ? $set.tags || update.tags || [] : current?.tags || []) ||
+      [];
+
+    const filtered = base.filter(
+      (t) =>
+        !/^measure:/.test(t) && !/^color:/.test(t) && !/^color_code:/.test(t)
+    );
+
+    if (finalMeasureSlug) filtered.push(`measure:${finalMeasureSlug}`);
+    if (finalColorSlug) filtered.push(`color:${finalColorSlug}`);
+    if (finalColorCode)
+      filtered.push(`color_code:${String(finalColorCode).toLowerCase()}`);
+
+    $set.tags = Array.from(new Set(filtered));
+  }
+
+  if (update.$set) update.$set = { ...update.$set, ...$set };
+  else this.setUpdate({ ...update, $set });
 
   next();
 });
 
-// final price helper
+// ميثود/حقل محسوب للسعر النهائي وحالة الخصم + compareAt للعرض
 VariantSchema.methods.finalAmount = function () {
-  const { amount, discount } = this.price || {};
-  if (!amount || !discount?.value) return amount || 0;
-
-  const now = new Date();
-  if (discount.startAt && now < discount.startAt) return amount;
-  if (discount.endAt && now > discount.endAt) return amount;
-
-  return discount.type === "percent"
-    ? Math.max(0, amount - (amount * discount.value) / 100)
-    : Math.max(0, amount - discount.value);
+  return computeFinalAmount(this.price);
 };
+
+VariantSchema.set("toJSON", {
+  virtuals: true,
+  transform: function (doc, ret) {
+    const active = isDiscountActive(ret.price?.discount);
+    ret.isDiscountActive = active;
+    ret.finalAmount = computeFinalAmount(ret.price);
+    // نعرض compareAt فقط عندما يكون الخصم فعال
+    ret.displayCompareAt = active
+      ? ret.price?.compareAt ?? ret.price?.amount
+      : null;
+    return ret;
+  },
+});
 
 module.exports =
   mongoose.models.Variant || mongoose.model("Variant", VariantSchema);

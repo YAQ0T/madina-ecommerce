@@ -4,6 +4,23 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
 
+type Price = {
+  amount: number;
+  compareAt?: number;
+  currency?: string;
+  discount?: {
+    type?: "percent" | "amount";
+    value?: number;
+    startAt?: string; // ISO
+    endAt?: string; // ISO
+  };
+};
+
+type Stock = {
+  inStock: number;
+  sku: string;
+};
+
 type Variant = {
   _id?: string;
   product: string;
@@ -11,9 +28,13 @@ type Variant = {
   measureSlug?: string;
   color: { name: string; code?: string; images?: string[] };
   colorSlug?: string;
-  price: { amount: number; compareAt?: number; currency?: string };
-  stock: { inStock: number; sku: string };
+  price: Price;
+  stock: Stock;
   tags?: string[];
+  // حقول محسوبة من API
+  finalAmount?: number;
+  isDiscountActive?: boolean;
+  displayCompareAt?: number | null;
 };
 
 interface Props {
@@ -44,6 +65,16 @@ const VariantManagerDialog: React.FC<Props> = ({
   const [isEditingId, setIsEditingId] = useState<string | null>(null);
   const [newColorImage, setNewColorImage] = useState("");
 
+  // حقول إدارة الخصم (للمتغير المحدد ضمن الجدول)
+  const [discountTargetId, setDiscountTargetId] = useState<string | null>(null);
+  const [discountType, setDiscountType] = useState<"percent" | "amount">(
+    "percent"
+  );
+  const [discountValue, setDiscountValue] = useState<number>(0);
+  const [discountStart, setDiscountStart] = useState<string>(""); // datetime-local
+  const [discountEnd, setDiscountEnd] = useState<string>(""); // datetime-local
+  const [applyingDiscount, setApplyingDiscount] = useState<boolean>(false);
+
   const headers = useMemo(
     () => ({ Authorization: `Bearer ${token}` }),
     [token]
@@ -56,6 +87,7 @@ const VariantManagerDialog: React.FC<Props> = ({
         `${import.meta.env.VITE_API_URL}/api/variants`,
         { params: { product: product._id, limit: 500 }, headers }
       );
+      // API يرجّع finalAmount, isDiscountActive, displayCompareAt
       setVariants(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("❌ Failed to fetch variants", e);
@@ -104,7 +136,7 @@ const VariantManagerDialog: React.FC<Props> = ({
       );
       setVariants((prev) => [data, ...prev]);
       resetForm();
-      onChanged?.(); // حتى تتحدث الإحصاءات في الجدول
+      onChanged?.(); // حتى تتحدث الإحصاءات في الجداول الأخرى
     } catch (e: any) {
       console.error("❌ Failed to create variant", e);
       alert(
@@ -171,6 +203,106 @@ const VariantManagerDialog: React.FC<Props> = ({
     });
   };
 
+  // تهيئة نموذج الخصم عند النقر على "خصم"
+  const openDiscountEditor = (v: Variant) => {
+    setDiscountTargetId(v._id!);
+    const d = v.price?.discount || {};
+    setDiscountType((d.type as "percent" | "amount") || "percent");
+    setDiscountValue(typeof d.value === "number" ? d.value : 0);
+
+    // نحول ISO -> datetime-local إن وجد
+    const toLocalDT = (iso?: string) => {
+      if (!iso) return "";
+      // قصّ الثواني والـ Z ليتوافق مع input[type=datetime-local]
+      const d = new Date(iso);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      const mm = pad(d.getMonth() + 1);
+      const dd = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const mi = pad(d.getMinutes());
+      return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+    };
+
+    setDiscountStart(d.startAt ? toLocalDT(d.startAt) : "");
+    setDiscountEnd(d.endAt ? toLocalDT(d.endAt) : "");
+  };
+
+  const closeDiscountEditor = () => {
+    setDiscountTargetId(null);
+    setDiscountType("percent");
+    setDiscountValue(0);
+    setDiscountStart("");
+    setDiscountEnd("");
+  };
+
+  // تطبيق/تحديث الخصم
+  const applyDiscount = async () => {
+    if (!discountTargetId) return;
+    try {
+      setApplyingDiscount(true);
+
+      // datetime-local -> ISO
+      const toISO = (local: string) => {
+        if (!local) return undefined;
+        // يُعتبر الوقت المدخل محليًا؛ نحوله لـ Date ثم ISO
+        const date = new Date(local);
+        return date.toISOString();
+      };
+
+      const payload: any = {
+        type: discountType,
+        value: Number(discountValue || 0),
+      };
+      const sISO = toISO(discountStart);
+      const eISO = toISO(discountEnd);
+      if (sISO) payload.startAt = sISO;
+      if (eISO) payload.endAt = eISO;
+
+      const { data } = await axios.post(
+        `${
+          import.meta.env.VITE_API_URL
+        }/api/variants/${discountTargetId}/discount`,
+        payload,
+        { headers }
+      );
+
+      // تحديث الصف في الجدول
+      setVariants((prev) =>
+        prev.map((v) => (v._id === discountTargetId ? data : v))
+      );
+      closeDiscountEditor();
+      onChanged?.();
+    } catch (e: any) {
+      console.error("❌ Failed to apply discount", e);
+      alert(e?.response?.data?.error || "فشل ضبط الخصم");
+    } finally {
+      setApplyingDiscount(false);
+    }
+  };
+
+  // إلغاء الخصم (نجعله 0 ونزيل المواعيد)
+  const clearDiscount = async (id: string) => {
+    const ok = confirm("إلغاء الخصم لهذا المتغيّر؟");
+    if (!ok) return;
+    try {
+      setApplyingDiscount(true);
+      const { data } = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/variants/${id}/discount`,
+        { type: "percent", value: 0 }, // نوع افتراضي وقيمة صفر
+        { headers }
+      );
+      setVariants((prev) => prev.map((v) => (v._id === id ? data : v)));
+      if (discountTargetId === id) closeDiscountEditor();
+      onChanged?.();
+    } catch (e: any) {
+      console.error("❌ Failed to clear discount", e);
+      alert(e?.response?.data?.error || "فشل إلغاء الخصم");
+    } finally {
+      setApplyingDiscount(false);
+    }
+  };
+
   return (
     <div className="text-right">
       <h2 className="text-xl font-bold mb-2">
@@ -185,8 +317,10 @@ const VariantManagerDialog: React.FC<Props> = ({
               <th className="px-3 py-2 border">SKU</th>
               <th className="px-3 py-2 border">المقاس</th>
               <th className="px-3 py-2 border">اللون</th>
-              <th className="px-3 py-2 border">السعر</th>
-              <th className="px-3 py-2 border">مقارن</th>
+              <th className="px-3 py-2 border">السعر الأساسي</th>
+              <th className="px-3 py-2 border">سعر مقارن</th>
+              <th className="px-3 py-2 border">السعر الحالي</th>
+              <th className="px-3 py-2 border">حالة الخصم</th>
               <th className="px-3 py-2 border">المخزون</th>
               <th className="px-3 py-2 border">صور اللون</th>
               <th className="px-3 py-2 border">إجراءات</th>
@@ -195,13 +329,16 @@ const VariantManagerDialog: React.FC<Props> = ({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} className="px-3 py-4 text-center">
+                <td colSpan={10} className="px-3 py-4 text-center">
                   تحميل…
                 </td>
               </tr>
             ) : variants.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-4 text-center text-gray-500">
+                <td
+                  colSpan={10}
+                  className="px-3 py-4 text-center text-gray-500"
+                >
                   لا توجد متغيّرات بعد
                 </td>
               </tr>
@@ -216,13 +353,44 @@ const VariantManagerDialog: React.FC<Props> = ({
                   </td>
                   <td className="px-3 py-2 border">₪{v.price?.amount ?? 0}</td>
                   <td className="px-3 py-2 border">
-                    {v.price?.compareAt ?? "-"}
+                    {v.displayCompareAt != null
+                      ? `₪${v.displayCompareAt}`
+                      : v.price?.compareAt ?? "-"}
+                  </td>
+                  <td className="px-3 py-2 border">
+                    {typeof v.finalAmount === "number"
+                      ? `₪${v.finalAmount}`
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-2 border">
+                    {v.isDiscountActive ? (
+                      <span className="text-green-600">نشط</span>
+                    ) : (
+                      <span className="text-gray-500">غير نشط</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 border">{v.stock?.inStock ?? 0}</td>
                   <td className="px-3 py-2 border">
                     {(v.color?.images || []).length}
                   </td>
-                  <td className="px-3 py-2 border flex gap-2 justify-end">
+                  <td className="px-3 py-2 border flex flex-wrap gap-2 justify-end">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => openDiscountEditor(v)}
+                    >
+                      خصم
+                    </Button>
+                    {v.isDiscountActive ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => clearDiscount(v._id!)}
+                        disabled={applyingDiscount}
+                      >
+                        إلغاء الخصم
+                      </Button>
+                    ) : null}
                     <Button
                       variant="outline"
                       size="sm"
@@ -244,6 +412,68 @@ const VariantManagerDialog: React.FC<Props> = ({
           </tbody>
         </table>
       </div>
+
+      {/* محرّر الخصم */}
+      {discountTargetId && (
+        <div className="border rounded p-3 mb-4">
+          <h3 className="font-semibold mb-2">إعداد خصم للمتغيّر المحدد</h3>
+          <div className="grid md:grid-cols-2 gap-3">
+            <div className="flex items-center gap-2">
+              <label className="min-w-24">نوع الخصم</label>
+              <select
+                className="border rounded px-3 py-2 w-full"
+                value={discountType}
+                onChange={(e) =>
+                  setDiscountType(e.target.value as "percent" | "amount")
+                }
+              >
+                <option value="percent">نسبة %</option>
+                <option value="amount">مبلغ ثابت</option>
+              </select>
+            </div>
+
+            <Input
+              type="number"
+              placeholder={
+                discountType === "percent" ? "القيمة (%)" : "القيمة (₪)"
+              }
+              value={discountValue}
+              onChange={(e) => setDiscountValue(Number(e.target.value || 0))}
+            />
+
+            <div className="flex items-center gap-2">
+              <label className="min-w-24">يبدأ في</label>
+              <Input
+                type="datetime-local"
+                value={discountStart}
+                onChange={(e) => setDiscountStart(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="min-w-24">ينتهي في</label>
+              <Input
+                type="datetime-local"
+                value={discountEnd}
+                onChange={(e) => setDiscountEnd(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="mt-3 flex justify-end gap-2">
+            <Button variant="outline" onClick={closeDiscountEditor}>
+              إلغاء
+            </Button>
+            <Button onClick={applyDiscount} disabled={applyingDiscount}>
+              {applyingDiscount ? "جارِ التطبيق…" : "تطبيق الخصم"}
+            </Button>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            تلميح: لخصم مدته 24 ساعة، اختر وقت البداية الآن، ووقت النهاية +24
+            ساعة.
+          </p>
+        </div>
+      )}
 
       {/* النموذج (إضافة/تعديل) */}
       <div className="grid md:grid-cols-2 gap-3">
@@ -275,7 +505,7 @@ const VariantManagerDialog: React.FC<Props> = ({
         />
         <Input
           type="number"
-          placeholder="السعر"
+          placeholder="السعر الأساسي"
           value={form.price.amount}
           onChange={(e) =>
             setForm({

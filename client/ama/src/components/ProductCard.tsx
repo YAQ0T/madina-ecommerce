@@ -1,4 +1,3 @@
-// src/components/ProductCard.tsx
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { useCart } from "@/context/CartContext";
@@ -11,7 +10,7 @@ interface Props {
     _id: string;
     name: string;
     description: string;
-    price: number; // أقل سعر (جاي من with-stats)
+    price: number; // أقل سعر محسوب من with-stats (finalAmount الأدنى)
     images?: string[];
     subCategory?: string;
     // الحقول القديمة تبقى للـ fallback فقط
@@ -27,8 +26,22 @@ type Variant = {
   measureSlug: string;
   color: { name: string; code?: string; images?: string[] };
   colorSlug: string;
-  price: { amount: number; compareAt?: number };
+  price: {
+    amount: number;
+    compareAt?: number;
+    discount?: {
+      type?: "percent" | "amount";
+      value?: number;
+      startAt?: string;
+      endAt?: string;
+    };
+  };
   stock: { inStock: number; sku: string };
+  tags?: string[];
+  // حقول محسوبة من API/variants
+  finalAmount?: number;
+  isDiscountActive?: boolean;
+  displayCompareAt?: number | null;
 };
 
 const slugify = (s: string) =>
@@ -49,14 +62,14 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const [variants, setVariants] = useState<Variant[]>([]);
   const [vLoading, setVLoading] = useState(true);
 
-  // اختيارات المستخدم (نخزن كـ slugs لتطابق دقيق)
+  // اختيارات المستخدم (slugs)
   const [selectedMeasure, setSelectedMeasure] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
 
   // إشعار الإضافة
   const [showAdded, setShowAdded] = useState(false);
 
-  // جلب المتغيّرات
+  // جلب المتغيّرات (من /api/variants لضمان الحقول المحسوبة)
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -95,7 +108,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     return Array.from(map.entries()).map(([slug, label]) => ({ slug, label }));
   }, [variants]);
 
-  // كل الألوان المعرّفة عبر كل المتغيّرات (لعرضها دائمًا لكن مع تعطيل غير المتاح)
+  // كل الألوان المعرفة عبر كل المتغيرات (لعرضها دائمًا لكن مع تعطيل غير المتاح)
   const allColorsFromVariants = useMemo(() => {
     const map = new Map<
       string,
@@ -152,27 +165,35 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       return;
     }
     if (!selectedColor || !allowed.has(selectedColor)) {
-      // اختَر أول لون متاح لهذا المقاس
       const first = Array.from(allowed)[0];
       setSelectedColor(first);
     }
   }, [selectedMeasure, colorsByMeasure, variants.length]); // لا تضف selectedColor هنا
 
-  // السعر المعروض: سعر المتغيّر المختار أو أقل سعر المنتج (من with-stats)
+  // السعر المعروض: finalAmount إن توفر للمتغيّر المختار، وإلا أقل سعر للمنتج (من with-stats)
+  const variantFinal = currentVariant?.finalAmount;
+  const variantCompare = currentVariant?.displayCompareAt ?? null;
   const displayPrice =
-    typeof currentVariant?.price?.amount === "number"
-      ? currentVariant.price.amount
-      : product.price ?? 0;
+    typeof variantFinal === "number" ? variantFinal : product.price ?? 0;
+
+  // نسبة الخصم (إن أمكن حسابها)
+  const discountPercent =
+    typeof variantFinal === "number" &&
+    typeof variantCompare === "number" &&
+    variantCompare > 0 &&
+    variantFinal < variantCompare
+      ? Math.round(((variantCompare - variantFinal) / variantCompare) * 100)
+      : null;
 
   const handleAddToCart = () => {
-    // لو عندنا Variants: تأكد إنه تم اختيار متغيّر كامل
+    // لو عندنا Variants: تأكد من اختيار متغيّر صالح
     if (variants.length > 0) {
       if (!currentVariant) {
         alert("يرجى اختيار المقاس واللون المتاحين قبل الإضافة للسلة");
         return;
       }
       if ((currentVariant.stock?.inStock ?? 0) <= 0) {
-        alert("المتغيّر المختار غير متوفر");
+        alert("المتغير المختار غير متوفر");
         return;
       }
       const itemForCart = {
@@ -182,7 +203,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         selectedSku: currentVariant.stock?.sku,
         selectedMeasure: currentVariant.measure,
         selectedColor: currentVariant.color?.name,
-        price: currentVariant.price?.amount ?? product.price ?? 0,
+        price:
+          typeof currentVariant.finalAmount === "number"
+            ? currentVariant.finalAmount
+            : currentVariant.price?.amount ?? product.price ?? 0,
       };
       addToCart(itemForCart);
       setShowAdded(true);
@@ -190,7 +214,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       return;
     }
 
-    // Fallback للسلوك القديم إن ما فيه Variants
+    // Fallback للسلوك القديم إن لا توجد Variants
     if (product.measures?.length && !selectedMeasure) {
       alert("يرجى اختيار المقاس قبل الإضافة للسلة");
       return;
@@ -204,6 +228,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       image: product.images?.[0] || "https://i.imgur.com/PU1aG4t.jpeg",
       selectedMeasure,
       selectedColor,
+      price: product.price ?? 0,
     };
     addToCart(productForCart);
     setShowAdded(true);
@@ -252,6 +277,13 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </button>
           </>
         )}
+
+        {/* بادج خصم إن وُجد */}
+        {discountPercent !== null && (
+          <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
+            -{discountPercent}%
+          </span>
+        )}
       </div>
 
       {/* ✅ العنوان */}
@@ -298,7 +330,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         <div className="mb-2">
           <span className="text-sm font-medium">الألوان: </span>
 
-          {/* من الـ Variants: نعرض كل الألوان، ونُعطّل غير المتاح للمقاس المختار */}
           {allColorsFromVariants.length > 0 ? (
             <div className="flex gap-2 mt-1 flex-wrap">
               {allColorsFromVariants.map((c) => {
@@ -329,7 +360,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               })}
             </div>
           ) : (
-            // Fallback: لا توجد variants — لا يمكن الربط بين المقاس واللون، لذا لا تعطيل منطقي هنا
             <div className="flex gap-2 mt-1">
               {(product.colors || []).map((color, i) => (
                 <button
@@ -352,8 +382,19 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         </div>
       )}
 
-      {/* ✅ السعر */}
-      <p className="font-bold mb-2">₪{displayPrice}</p>
+      {/* ✅ السعر (مع عرض سعر مقارن أثناء الخصم) */}
+      <div className="mb-2">
+        {typeof variantCompare === "number" && variantCompare > displayPrice ? (
+          <div className="flex items-baseline gap-2">
+            <span className="text-gray-500 line-through">
+              ₪{variantCompare}
+            </span>
+            <span className="font-bold text-lg">₪{displayPrice}</span>
+          </div>
+        ) : (
+          <p className="font-bold mb-0">₪{displayPrice}</p>
+        )}
+      </div>
 
       {/* ✅ الأزرار */}
       <div className="mt-auto">
