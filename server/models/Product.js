@@ -9,10 +9,16 @@ const ProductSchema = new Schema(
     mainCategory: { type: String, required: true, trim: true },
     subCategory: { type: String, required: true, trim: true },
     images: { type: [String], default: [] },
+
+    // 👇 الفلاغ الجديد
+    ownershipType: {
+      type: String,
+      enum: ["ours", "local"], // ours = على اسمنا ، local = نشتريه محلي
+      default: "ours",
+    },
   },
   { timestamps: true }
 );
 
-// 👇 هذا السطر يمنع إعادة التعريف إذا الملف استُورد أكثر من مرة
 module.exports =
   mongoose.models.Product || mongoose.model("Product", ProductSchema);

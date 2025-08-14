@@ -30,13 +30,56 @@ function buildWantedTags(query = {}) {
 
   return Array.from(new Set(wanted));
 }
+
+/**
+ * ✅ تطبيع/قراءة فلترة الملكية من الاستعلام:
+ * - ownership=ours|local
+ * - أو isLocal=true|false (مرونة للخلفية)
+ */
+function readOwnershipFilterFromQuery(query = {}) {
+  // ownership=ours|local
+  if (query.ownership && ["ours", "local"].includes(String(query.ownership))) {
+    return { ownershipType: String(query.ownership) };
+  }
+
+  // isLocal=true|false  => local/ours
+  if (typeof query.isLocal !== "undefined") {
+    const val = String(query.isLocal).toLowerCase();
+    if (["true", "1", "yes"].includes(val)) return { ownershipType: "local" };
+    if (["false", "0", "no"].includes(val)) return { ownershipType: "ours" };
+  }
+
+  return {};
+}
+
+/**
+ * ✅ التحقق من قيمة ownershipType القادمة من الـ body
+ */
+function normalizeOwnershipFromBody(body = {}) {
+  const { ownershipType } = body || {};
+  if (!ownershipType) return {};
+  const v = String(ownershipType);
+  if (!["ours", "local"].includes(v)) {
+    throw new Error(
+      "قيمة ownershipType غير صحيحة. القيم المسموح بها: ours | local"
+    );
+  }
+  return { ownershipType: v };
+}
 // ----------------------------
 
 // ✅ إنشاء منتج (أدمن فقط)
 router.post("/", verifyToken, isAdmin, async (req, res) => {
   try {
-    const { name, category, mainCategory, subCategory, description, images } =
-      req.body;
+    const {
+      name,
+      category,
+      mainCategory,
+      subCategory,
+      description,
+      images,
+      // اختياري: ownershipType
+    } = req.body;
 
     if (
       !name ||
@@ -51,6 +94,13 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
       });
     }
 
+    let ownershipPatch = {};
+    try {
+      ownershipPatch = normalizeOwnershipFromBody(req.body); // { ownershipType } إذا صحيح
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
+
     const product = await Product.create({
       name,
       category,
@@ -58,6 +108,7 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
       subCategory,
       description,
       images,
+      ...ownershipPatch, // إن وُجد
     });
 
     res.status(201).json(product);
@@ -66,7 +117,7 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
-// ✅ /with-stats — مع حساب finalAmount ضمن نافذة الخصم
+// ✅ /with-stats — مع حساب finalAmount ضمن نافذة الخصم + دعم فلترة الملكية
 router.get("/with-stats", async (req, res) => {
   try {
     const {
@@ -80,10 +131,15 @@ router.get("/with-stats", async (req, res) => {
     } = req.query;
 
     const wantedTags = buildWantedTags(req.query);
+
+    // فلترة الملكية من الاستعلام
+    const ownershipFilter = readOwnershipFilterFromQuery(req.query);
+
     const $match = {};
     if (mainCategory) $match.mainCategory = mainCategory;
     if (subCategory) $match.subCategory = subCategory;
     if (q) $match.$text = { $search: q };
+    Object.assign($match, ownershipFilter);
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const lim = Math.max(parseInt(limit, 10) || 9, 1);
@@ -265,6 +321,7 @@ router.get("/with-stats", async (req, res) => {
                 createdAt: 1,
                 minPrice: 1,
                 totalStock: 1,
+                ownershipType: 1, // 👈 نرجعه للواجهة
               },
             },
           ],
@@ -290,7 +347,7 @@ router.get("/with-stats", async (req, res) => {
   }
 });
 
-// ✅ Facets عامة (name/slug)
+// ✅ Facets عامة (name/slug) — لا تحتاج تعديل لأنها تعمل على الـ variants
 router.get("/facets", async (req, res) => {
   try {
     const { mainCategory, subCategory, q } = req.query;
@@ -333,7 +390,7 @@ router.get("/facets", async (req, res) => {
   }
 });
 
-// ✅ جلب كل المنتجات (عام)
+// ✅ جلب كل المنتجات (عام) + دعم فلترة الملكية
 router.get("/", async (req, res) => {
   try {
     const { mainCategory, subCategory, q, limit = 50, page = 1 } = req.query;
@@ -341,6 +398,9 @@ router.get("/", async (req, res) => {
     if (mainCategory) filter.mainCategory = mainCategory;
     if (subCategory) filter.subCategory = subCategory;
     if (q) filter.$text = { $search: q };
+
+    // فلترة الملكية
+    Object.assign(filter, readOwnershipFilterFromQuery(req.query));
 
     const skip = (Number(page) - 1) * Number(limit);
     const products = await Product.find(filter)
@@ -354,7 +414,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ منتج واحد (withVariants اختياري)
+// ✅ منتج واحد (withVariants اختياري) — نرجع ownershipType أيضاً
 router.get("/:id", async (req, res) => {
   try {
     const withVariants = req.query.withVariants === "1";
@@ -371,7 +431,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// ✅ Facets لمنتج معيّن
+// ✅ Facets لمنتج معيّن — لا تحتاج تعديل
 router.get("/:id/facets", async (req, res) => {
   try {
     const productId = req.params.id;
@@ -397,11 +457,18 @@ router.get("/:id/facets", async (req, res) => {
   }
 });
 
-// ✅ تعديل/حذف منتج (أدمن)
+// ✅ تعديل/حذف منتج (أدمن) + دعم تحديث الملكية
 router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
-    const { name, category, mainCategory, subCategory, description, images } =
-      req.body;
+    const {
+      name,
+      category,
+      mainCategory,
+      subCategory,
+      description,
+      images,
+      ownershipType, // اختياري
+    } = req.body;
 
     const updateData = {
       ...(name && { name }),
@@ -411,6 +478,16 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
       ...(description && { description }),
       ...(Array.isArray(images) && images.length > 0 && { images }),
     };
+
+    if (typeof ownershipType !== "undefined") {
+      if (!["ours", "local"].includes(String(ownershipType))) {
+        return res.status(400).json({
+          error:
+            "قيمة ownershipType غير صحيحة. القيم المسموح بها: ours | local",
+        });
+      }
+      updateData.ownershipType = String(ownershipType);
+    }
 
     const updated = await Product.findByIdAndUpdate(req.params.id, updateData, {
       new: true,

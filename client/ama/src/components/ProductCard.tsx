@@ -409,7 +409,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       </div>
 
       {showAdded && (
-        <div className="absolute top-2 left-2 bg-black text-white text-sm px-3 py-1 rounded shadow animate-bounce">
+        <div className="absolute top-2 left-2 bg-black text-white text-sm px-3 py-1 rounded shadow animate-bounce z-10">
           ✅ تمت الإضافة!
         </div>
       )}
