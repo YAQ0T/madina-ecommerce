@@ -1,9 +1,11 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 
+type OrderStatus = "pending" | "on_the_way" | "delivered" | "cancelled";
+
 interface OrderStatusButtonsProps {
   orderId: string;
-  updateStatus: (orderId: string, newStatus: string) => void;
+  updateStatus: (orderId: string, newStatus: OrderStatus) => Promise<void>;
 }
 
 const OrderStatusButtons: React.FC<OrderStatusButtonsProps> = ({
