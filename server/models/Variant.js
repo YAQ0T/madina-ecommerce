@@ -1,4 +1,3 @@
-// models/Variant.js
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
@@ -31,7 +30,7 @@ const VariantSchema = new Schema(
     },
     colorSlug: { type: String, index: true },
 
-    // التسعير (amount = السعر الأساسي الثابت)
+    // التسعير
     price: {
       currency: { type: String, default: "USD" },
       amount: { type: Number, required: true, min: 0 }, // الأساسي
@@ -181,18 +180,17 @@ VariantSchema.pre("findOneAndUpdate", async function (next) {
   next();
 });
 
-// ميثود/حقل محسوب للسعر النهائي وحالة الخصم + compareAt للعرض
+// ميثود/حقول محسوبة
 VariantSchema.methods.finalAmount = function () {
   return computeFinalAmount(this.price);
 };
 
 VariantSchema.set("toJSON", {
   virtuals: true,
-  transform: function (doc, ret) {
+  transform: function (_doc, ret) {
     const active = isDiscountActive(ret.price?.discount);
     ret.isDiscountActive = active;
     ret.finalAmount = computeFinalAmount(ret.price);
-    // نعرض compareAt فقط عندما يكون الخصم فعال
     ret.displayCompareAt = active
       ? ret.price?.compareAt ?? ret.price?.amount
       : null;

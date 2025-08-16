@@ -10,7 +10,7 @@ const ProductSchema = new Schema(
     subCategory: { type: String, required: true, trim: true },
     images: { type: [String], default: [] },
 
-    // 👇 الفلاغ الجديد
+    // فلتر الملكية
     ownershipType: {
       type: String,
       enum: ["ours", "local"], // ours = على اسمنا ، local = نشتريه محلي
@@ -19,6 +19,9 @@ const ProductSchema = new Schema(
   },
   { timestamps: true }
 );
+
+// فهرس نصي للبحث العام
+ProductSchema.index({ name: "text", description: "text" });
 
 module.exports =
   mongoose.models.Product || mongoose.model("Product", ProductSchema);

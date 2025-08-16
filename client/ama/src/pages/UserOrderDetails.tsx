@@ -35,6 +35,7 @@ const UserOrderDetails: React.FC = () => {
         alert("لم يتم العثور على تفاصيل الطلب أو ليس لديك الصلاحية");
       });
   }, [orderId, user, token, navigate]);
+  console.log("order", order);
 
   return (
     <>

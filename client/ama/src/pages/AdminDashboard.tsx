@@ -93,6 +93,26 @@ const AdminDashboard: React.FC = () => {
       .catch((err) => console.error("❌ Failed to fetch users", err));
   }, [token]);
 
+  // دالة جلب الطلبات (نستخدمها في عدة أماكن)
+  const fetchOrders = async () => {
+    if (!token) return;
+    try {
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/orders`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setOrders(res.data);
+    } catch (err) {
+      console.error("Order Fetch Error:", err);
+    }
+  };
+
+  // جلب الطلبات أول مرة
+  useEffect(() => {
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   // جلب المنتجات + الإحصاءات (minPrice/totalStock) من مسار واحد
   const fetchProductsWithStats = async () => {
     if (!token) return;
@@ -133,29 +153,35 @@ const AdminDashboard: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, ownershipFilter]);
 
-  // جلب الطلبات
-  useEffect(() => {
-    if (!token) return;
-    axios
-      .get(`${import.meta.env.VITE_API_URL}/api/orders`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => setOrders(res.data))
-      .catch((err) => console.error("Order Fetch Error:", err));
-  }, [token]);
-
-  const updateStatus = async (orderId: string, newStatus: string) => {
+  // ✅ تعديل حالة الطلب — المسار الصحيح PATCH /api/orders/:id/status
+  const updateStatus = async (
+    orderId: string,
+    newStatus: "pending" | "on_the_way" | "delivered" | "cancelled"
+  ) => {
     try {
-      await axios.put(
-        `${import.meta.env.VITE_API_URL}/api/orders/${orderId}`,
+      if (!orderId) throw new Error("orderId مفقود");
+      await axios.patch(
+        `${import.meta.env.VITE_API_URL}/api/orders/${orderId}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
+      // حدّث محليًا بسرعة
       setOrders((prev) =>
         prev.map((o) => (o._id === orderId ? { ...o, status: newStatus } : o))
       );
-    } catch (err) {
-      console.error("Failed to update status", err);
+
+      // وأعد الجلب للتأكد من التزامن
+      fetchOrders();
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+      console.error("Failed to update status", status, data || err);
+      alert(
+        data?.message
+          ? `فشل تحديث الحالة: ${data.message}`
+          : `فشل تحديث الحالة (HTTP ${status || "?"})`
+      );
     }
   };
 

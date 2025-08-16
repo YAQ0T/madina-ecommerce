@@ -1,38 +1,51 @@
 const mongoose = require("mongoose");
 
-const orderSchema = new mongoose.Schema({
-  user: {
-    _id: {
+const OrderItemSchema = new mongoose.Schema(
+  {
+    productId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Product",
       required: true,
     },
-    name: String,
-    phone: String,
-  },
-  items: [
-    {
-      productId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Product",
-      },
-      name: String, // ممكن تحب تخزن الاسم عشان ما تضطر تعمل populate
-      quantity: Number,
-      price: Number,
-      color: String, // ✅ اللون المختار
-      measure: String, // ✅ المقاس المختار
+    variantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Variant",
+      required: true,
     },
-  ],
-  total: Number,
-  address: String,
-  status: {
-    type: String,
-    default: "pending", // or "delivered", "cancelled"
+    name: { type: String, required: true },
+    quantity: { type: Number, min: 1, required: true },
+    price: { type: Number, min: 0, required: true }, // سعر الوحدة النهائي وقت الشراء
+    color: { type: String },
+    measure: { type: String },
+    sku: { type: String },
+    image: { type: String },
   },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+  { _id: false }
+);
 
-module.exports = mongoose.model("Order", orderSchema);
+const OrderSchema = new mongoose.Schema(
+  {
+    user: {
+      _id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+      name: String,
+      phone: String,
+      email: String,
+    },
+    items: { type: [OrderItemSchema], required: true },
+    total: { type: Number, min: 0, required: true },
+    address: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ["pending", "on_the_way", "delivered", "cancelled"],
+      default: "pending",
+      index: true,
+    },
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.models.Order || mongoose.model("Order", OrderSchema);
