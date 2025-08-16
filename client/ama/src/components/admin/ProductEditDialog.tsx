@@ -46,10 +46,22 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
     return [...new Set(list)];
   }, [products, editingProduct?.mainCategory]);
 
+  // خيارات نوع الملكية
+  const ownershipOptions = [
+    { value: "ours", label: "على اسمنا" },
+    { value: "local", label: "شراء محلي" },
+  ] as const;
+
   if (!editingProduct) return null;
 
   const handleSave = async () => {
     try {
+      const ownershipType = ["ours", "local"].includes(
+        String(editingProduct.ownershipType)
+      )
+        ? String(editingProduct.ownershipType)
+        : "ours";
+
       const payload = {
         name: editingProduct.name?.trim(),
         mainCategory: editingProduct.mainCategory?.trim(),
@@ -58,6 +70,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         images: Array.isArray(editingProduct.images)
           ? editingProduct.images
           : [],
+        ownershipType, // 👈 إرسال نوع الملكية
       };
 
       const res = await axios.put(
@@ -152,6 +165,30 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
             <option key={idx} value={sub} />
           ))}
         </datalist>
+
+        {/* نوع الملكية */}
+        <div className="grid gap-2">
+          <label className="text-sm font-medium">نوع الملكية</label>
+          <select
+            className="border rounded-md p-2 bg-background"
+            value={editingProduct.ownershipType ?? "ours"}
+            onChange={(e) =>
+              setEditingProduct({
+                ...editingProduct,
+                ownershipType: e.target.value,
+              })
+            }
+          >
+            {ownershipOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            اختر ما إذا كان المنتج على اسمنا أو يتم شراؤه محليًا.
+          </p>
+        </div>
 
         <Textarea
           placeholder="وصف المنتج"

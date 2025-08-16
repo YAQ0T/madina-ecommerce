@@ -27,13 +27,41 @@ const OrderDetailsContent: React.FC<{ order: any }> = ({ order }) => {
       </p>
 
       <div>
-        <strong>المنتجات:</strong>
-        <ul className="list-disc pr-5">
+        <strong className="block mb-2 text-lg">المنتجات:</strong>
+        <ul className="space-y-3">
           {order.items.map((item: any, i: number) => (
-            <li key={i}>
-              {item.productId
-                ? `(${item.productId.name} × ${item.quantity}), (Color: ${item.color}, Measure: ${item.measure})`
-                : `منتج محذوف × ${item.quantity}`}
+            <li
+              key={i}
+              className="p-3 rounded-lg border border-gray-200 bg-gray-50 shadow-sm"
+            >
+              {item.productId ? (
+                <div>
+                  <p className="font-semibold text-gray-800">{item.name}</p>
+                  <p className="text-sm text-gray-600">
+                    الكمية: <span className="font-medium">{item.quantity}</span>
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    اللون:{" "}
+                    <span
+                      className="inline-block w-4 h-4 rounded-full border mr-1 align-middle"
+                      style={{
+                        backgroundColor: item.color || "#ccc",
+                      }}
+                    ></span>
+                    {item.color || "غير محدد"}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    المقاس:{" "}
+                    <span className="font-medium">
+                      {item.measure || "غير محدد"}
+                    </span>
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-red-500">
+                  منتج محذوف × {item.quantity}
+                </p>
+              )}
             </li>
           ))}
         </ul>

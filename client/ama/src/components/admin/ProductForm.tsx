@@ -44,6 +44,12 @@ const ProductForm: React.FC<ProductFormProps> = ({
     return [...new Set(list)];
   }, [productsState, newProduct.mainCategory]);
 
+  // خيارات نوع الملكية
+  const ownershipOptions = [
+    { value: "ours", label: "على اسمنا" },
+    { value: "local", label: "شراء محلي" },
+  ] as const;
+
   // إضافة صورة
   const handleAddImage = () => {
     if (newImage.trim()) {
@@ -62,15 +68,22 @@ const ProductForm: React.FC<ProductFormProps> = ({
     setNewProduct({ ...newProduct, images: updated });
   };
 
-  // إرسال المنتج (بدون price/quantity/discount/tags/measures/colors)
+  // إرسال المنتج (يتضمن ownershipType)
   const handleSubmit = async () => {
     try {
+      const ownershipType = ["ours", "local"].includes(
+        String(newProduct.ownershipType)
+      )
+        ? String(newProduct.ownershipType)
+        : "ours";
+
       const payload = {
         name: newProduct.name?.trim(),
         mainCategory: newProduct.mainCategory?.trim(),
         subCategory: newProduct.subCategory?.trim(),
         description: newProduct.description?.trim(),
         images: Array.isArray(newProduct.images) ? newProduct.images : [],
+        ownershipType, // 👈 إضافة نوع الملكية
       };
 
       const res = await axios.post(
@@ -96,6 +109,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         subCategory: "",
         description: "",
         images: [],
+        ownershipType: "ours", // 👈 نرجعها للوضع الافتراضي
       });
     } catch (err) {
       console.error("❌ Error adding product", err);
@@ -148,6 +162,27 @@ const ProductForm: React.FC<ProductFormProps> = ({
             <option key={idx} value={sub} />
           ))}
         </datalist>
+
+        {/* نوع الملكية */}
+        <div className="grid gap-2">
+          <label className="text-sm font-medium">نوع الملكية</label>
+          <select
+            className="border rounded-md p-2 bg-background"
+            value={newProduct.ownershipType ?? "ours"}
+            onChange={(e) =>
+              setNewProduct({ ...newProduct, ownershipType: e.target.value })
+            }
+          >
+            {ownershipOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            اختر ما إذا كان المنتج على اسمنا أو يتم شراؤه محليًا.
+          </p>
+        </div>
 
         <Textarea
           placeholder="وصف المنتج"

@@ -1,4 +1,3 @@
-// src/components/admin/OrderDetailsDialog.tsx
 import React from "react";
 import {
   Dialog,
@@ -16,7 +15,7 @@ interface OrderDetailsDialogProps {
   selectedOrder: any;
   setSelectedOrder: (order: any | null) => void;
   setOrders: (orders: any[]) => void;
-  orders: any[]; // ✅ أضفنا هذا السطر
+  orders: any[];
   token: string;
 }
 
@@ -24,7 +23,7 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
   selectedOrder,
   setSelectedOrder,
   setOrders,
-  orders, // ✅ استخدمناه هون
+  orders,
   token,
 }) => {
   if (!selectedOrder) return null;
@@ -57,18 +56,23 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>تفاصيل الطلب</DialogTitle>
-          <DialogDescription>لتعديل تفاصيل الطلب رقم</DialogDescription>
+          <DialogDescription>
+            لمراجعة وتعديل تفاصيل الطلب رقم{" "}
+            <span className="font-semibold">{selectedOrder?._id}</span>
+          </DialogDescription>
         </DialogHeader>
 
+        {/* يعرض: المنتجات مع اللون/المقاس/الكمية/السعر بناءً على المكوّن المشترك */}
         <OrderDetailsContent order={selectedOrder} />
 
-        <Button size="sm" variant="destructive" onClick={handleDelete}>
-          🗑️ حذف نهائي
-        </Button>
-
-        <DialogFooter>
-          <Button onClick={() => setSelectedOrder(null)}>إغلاق</Button>
-        </DialogFooter>
+        <div className="flex items-center justify-between mt-4">
+          <Button size="sm" variant="destructive" onClick={handleDelete}>
+            🗑️ حذف نهائي
+          </Button>
+          <DialogFooter>
+            <Button onClick={() => setSelectedOrder(null)}>إغلاق</Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

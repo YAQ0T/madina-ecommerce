@@ -7,6 +7,8 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import QuantityInput from "@/components/common/QuantityInput";
 
+const currency = (n: number) => `₪${Number(n || 0).toFixed(2)}`;
+
 const Cart: React.FC = () => {
   const { cart, removeFromCart, clearCart, updateQuantity } = useCart();
   const { user, token } = useAuth();
@@ -54,8 +56,12 @@ const Cart: React.FC = () => {
           name: item.name,
           quantity: item.quantity,
           price: item.price,
-          color: item.selectedColor || null, // ✅ إرسال اللون
-          measure: item.selectedMeasure || null, // ✅ إرسال المقاس
+          color: item.selectedColor || null,
+          measure: item.selectedMeasure || null,
+          // إن كان عندك sku داخل عنصر السلة (مثلاً من اختيار المتغير) نرسله، وإلا يتجاهله السيرفر
+          sku: (item as any).sku || undefined,
+          // اختياري: لو عندك صورة مختارة للمتغير
+          image: (item as any).image || item.image || undefined,
         })),
       };
 
@@ -143,7 +149,7 @@ const Cart: React.FC = () => {
                   <td className="py-2 px-4 border">
                     {item.selectedMeasure || "-"}
                   </td>
-                  <td className="py-2 px-4 border">₪{item.price}</td>
+                  <td className="py-2 px-4 border">{currency(item.price)}</td>
                   <td className="py-2 px-4 border">
                     <div className="flex items-center gap-2">
                       <button
@@ -189,7 +195,7 @@ const Cart: React.FC = () => {
                     </div>
                   </td>
                   <td className="py-2 px-4 border">
-                    ₪{item.price * item.quantity}
+                    {currency(item.price * item.quantity)}
                   </td>
                   <td className="py-2 px-4 border">
                     <Button
@@ -224,7 +230,9 @@ const Cart: React.FC = () => {
                 اللون: {item.selectedColor || "-"} | المقاس:{" "}
                 {item.selectedMeasure || "-"}
               </p>
-              <p className="text-gray-600 mb-1">السعر: ₪{item.price}</p>
+              <p className="text-gray-600 mb-1">
+                السعر: {currency(item.price)}
+              </p>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-gray-600">الكمية:</span>
                 <QuantityInput
@@ -240,7 +248,7 @@ const Cart: React.FC = () => {
                 />
               </div>
               <p className="text-gray-700 font-semibold mb-3">
-                الإجمالي: ₪{item.price * item.quantity}
+                الإجمالي: {currency(item.price * item.quantity)}
               </p>
               <Button
                 variant="destructive"
@@ -262,7 +270,8 @@ const Cart: React.FC = () => {
         {/* 💳 الإجمالي وزر الإرسال */}
         <div className="mt-6 flex justify-between items-center flex-col md:flex-row gap-4">
           <p className="text-xl font-semibold">
-            المجموع الكلي: <span className="text-green-600">₪{total}</span>
+            المجموع الكلي:{" "}
+            <span className="text-green-600">{currency(total)}</span>
           </p>
           <Button onClick={handleOrder}>تأكيد الطلب</Button>
         </div>

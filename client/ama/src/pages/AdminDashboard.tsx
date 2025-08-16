@@ -1,3 +1,4 @@
+// src/pages/AdminDashboard.tsx
 import React, { useState, useEffect, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -25,12 +26,14 @@ type ProductItem = {
   images: string[];
   mainCategory?: string;
   subCategory?: string;
+  ownershipType?: "ours" | "local";
   // تأتي من with-stats
   minPrice?: number;
   totalStock?: number;
   // نوفّر حقول متوافقة مع الجداول القديمة
   price?: number;
   quantity?: number;
+  createdAt?: string;
 };
 
 const AdminDashboard: React.FC = () => {
@@ -46,6 +49,7 @@ const AdminDashboard: React.FC = () => {
     subCategory: "",
     description: "",
     images: [] as string[],
+    ownershipType: "ours" as "ours" | "local", // ✅ افتراضي
     // ⛔️ لا نحتاج price/quantity هنا لأنها أصبحت على مستوى Variant
   });
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
@@ -54,6 +58,13 @@ const AdminDashboard: React.FC = () => {
   const [productFilter, setProductFilter] = useState("all");
   const [selectedMainCategory, setSelectedMainCategory] =
     useState<string>("all");
+
+  // ✅ فلترة نوع الملكية
+  const [ownershipFilter, setOwnershipFilter] = useState<
+    "all" | "ours" | "local"
+  >("all");
+
+  // المستخدمون
   const [users, setUsers] = useState<any[]>([]);
   const [userRoleFilter, setUserRoleFilter] = useState("all");
 
@@ -82,22 +93,52 @@ const AdminDashboard: React.FC = () => {
       .catch((err) => console.error("❌ Failed to fetch users", err));
   }, [token]);
 
+  // دالة جلب الطلبات (نستخدمها في عدة أماكن)
+  const fetchOrders = async () => {
+    if (!token) return;
+    try {
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/orders`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setOrders(res.data);
+    } catch (err) {
+      console.error("Order Fetch Error:", err);
+    }
+  };
+
+  // جلب الطلبات أول مرة
+  useEffect(() => {
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   // جلب المنتجات + الإحصاءات (minPrice/totalStock) من مسار واحد
   const fetchProductsWithStats = async () => {
     if (!token) return;
     try {
-      // نجيب عدد كبير مرة واحدة للوحة الأدمن
-      const url = `${
-        import.meta.env.VITE_API_URL
-      }/api/products/with-stats?page=1&limit=2000`;
+      const base = `${import.meta.env.VITE_API_URL}/api/products/with-stats`;
+      const params: Record<string, string | number> = {
+        page: 1,
+        limit: 2000,
+      };
+      // ✅ نمرر فلترة الملكية للـ API لو ليست "all"
+      if (ownershipFilter !== "all") {
+        params.ownership = ownershipFilter; // ours | local
+      }
+      const query = new URLSearchParams(
+        Object.entries(params).map(([k, v]) => [k, String(v)])
+      ).toString();
+      const url = `${base}?${query}`;
+
       const res = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const { items } = res.data || { items: [] };
       const mapped: ProductItem[] = (items || []).map((p: ProductItem) => ({
         ...p,
-        price: p.minPrice || 0,
-        quantity: p.totalStock || 0,
+        price: typeof p.minPrice === "number" ? p.minPrice : 0,
+        quantity: typeof p.totalStock === "number" ? p.totalStock : 0,
       }));
       setProductsState(mapped);
     } catch (err) {
@@ -106,49 +147,65 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // جلب أولي + إعادة جلب عند تغيير فلتر نوع الملكية
   useEffect(() => {
     fetchProductsWithStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, ownershipFilter]);
 
-  // جلب الطلبات
-  useEffect(() => {
-    if (!token) return;
-    axios
-      .get(`${import.meta.env.VITE_API_URL}/api/orders`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => setOrders(res.data))
-      .catch((err) => console.error("Order Fetch Error:", err));
-  }, [token]);
-
-  const updateStatus = async (orderId: string, newStatus: string) => {
+  // ✅ تعديل حالة الطلب — المسار الصحيح PATCH /api/orders/:id/status
+  const updateStatus = async (
+    orderId: string,
+    newStatus: "pending" | "on_the_way" | "delivered" | "cancelled"
+  ) => {
     try {
-      await axios.put(
-        `${import.meta.env.VITE_API_URL}/api/orders/${orderId}`,
+      if (!orderId) throw new Error("orderId مفقود");
+      await axios.patch(
+        `${import.meta.env.VITE_API_URL}/api/orders/${orderId}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
+      // حدّث محليًا بسرعة
       setOrders((prev) =>
         prev.map((o) => (o._id === orderId ? { ...o, status: newStatus } : o))
       );
-    } catch (err) {
-      console.error("Failed to update status", err);
+
+      // وأعد الجلب للتأكد من التزامن
+      fetchOrders();
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+      console.error("Failed to update status", status, data || err);
+      alert(
+        data?.message
+          ? `فشل تحديث الحالة: ${data.message}`
+          : `فشل تحديث الحالة (HTTP ${status || "?"})`
+      );
     }
   };
 
   // تجميع التصنيفات
   const categoryMap = useMemo(() => {
     return productsState.reduce((acc, product) => {
-      if (!acc[product.mainCategory || ""]) {
-        acc[product.mainCategory || ""] = new Set<string>();
+      const mainKey = product.mainCategory || "";
+      if (!acc[mainKey]) {
+        acc[mainKey] = new Set<string>();
       }
       if (product.subCategory) {
-        acc[product.mainCategory || ""].add(product.subCategory);
+        acc[mainKey].add(product.subCategory);
       }
       return acc;
     }, {} as Record<string, Set<string>>);
   }, [productsState]);
+
+  // ✅ فلترة محلية قبل تمريرها للجدول (حسب نوع الملكية)
+  const productsForTable = useMemo(() => {
+    if (ownershipFilter === "all") return productsState;
+    return productsState.filter(
+      (p) => (p.ownershipType || "ours") === ownershipFilter
+    );
+  }, [productsState, ownershipFilter]);
 
   const filteredUsers = users.filter((u) =>
     userRoleFilter === "all" ? true : u.role === userRoleFilter
@@ -214,6 +271,9 @@ const AdminDashboard: React.FC = () => {
                   productFilter={productFilter}
                   setProductFilter={setProductFilter}
                   categoryMap={categoryMap}
+                  // ✅ تمكين تصفية نوع الملكية
+                  ownershipFilter={ownershipFilter}
+                  setOwnershipFilter={setOwnershipFilter}
                 />
 
                 <Dialog>
@@ -255,7 +315,9 @@ const AdminDashboard: React.FC = () => {
 
             {token && (
               <ProductTable
-                productsState={productsState}
+                productsState={
+                  productsForTable // ✅ نمرر منتجات بعد فلترة نوع الملكية
+                }
                 setProductsState={setProductsState}
                 productFilter={productFilter}
                 token={token}

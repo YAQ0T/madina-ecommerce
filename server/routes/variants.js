@@ -1,9 +1,7 @@
-// routes/variants.js
 const express = require("express");
 const router = express.Router();
 
 const Variant = require("../models/Variant");
-const Product = require("../models/Product");
 const { verifyToken, isAdmin } = require("../middleware/authMiddleware");
 
 // دالة مساعدة لحساب finalAmount (توازي منطق الموديل)
@@ -24,18 +22,10 @@ function computeFinalAmount(price = {}) {
     : Math.max(0, amount - discount.value);
 }
 
-// إعادة بناء واجهات المنتج (measures/colors)
-async function recomputeProductFacets(productId) {
-  const variants = await Variant.find({ product: productId }).lean();
-  const measures = [...new Set(variants.map((v) => v.measure).filter(Boolean))];
-  const colors = [
-    ...new Set(variants.map((v) => v.color?.name).filter(Boolean)),
-  ];
-  // اختياري: لو سكيمة Product فيها هالحقول
-  await Product.updateOne(
-    { _id: productId },
-    { $set: { measures, colors } }
-  ).catch(() => {});
+// ✅ لم نعد نكتب facets داخل Product حتى لا نضيف حقول غير موجودة
+async function recomputeProductFacets(_productId) {
+  // No-op: نحافظ على الأداء بدون لمس Product
+  return true;
 }
 
 // إنشاء متغير
@@ -201,27 +191,20 @@ router.post("/:id/discount", verifyToken, isAdmin, async (req, res) => {
     if (startAt) discount.startAt = new Date(startAt);
     if (endAt) discount.endAt = new Date(endAt);
 
-    // نغطي compareAt إن كانت فارغة
     const updated = await Variant.findByIdAndUpdate(
       req.params.id,
-      {
-        $set: {
-          "price.discount": discount,
-        },
-        $setOnInsert: {},
-      },
+      { $set: { "price.discount": discount } },
       { new: true, runValidators: true, context: "query" }
     );
 
     if (!updated) return res.status(404).json({ error: "المتغير غير موجود" });
 
-    // لو compareAt فارغة، نضبطها على amount (يغطيه الـ pre hooks غالبًا، لكن نؤمّنه هنا)
     if (updated.price && updated.price.compareAt == null) {
       updated.price.compareAt = updated.price.amount;
       await updated.save();
     }
 
-    return res.json(updated.toJSON()); // فيه finalAmount/isDiscountActive/displayCompareAt
+    return res.json(updated.toJSON());
   } catch (err) {
     return res.status(400).json({ error: err.message || "فشل ضبط الخصم" });
   }
