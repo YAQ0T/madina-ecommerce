@@ -1,12 +1,15 @@
+// src/context/AuthContext.tsx
 import { createContext, useContext, useState, useEffect } from "react";
 import type { ReactNode } from "react";
+
+type Role = "admin" | "user" | "dealer"; // ✅ أضفنا dealer
 
 interface User {
   _id: string;
   name: string;
   email: string;
   phone: string;
-  role: "admin" | "user";
+  role: Role; // ✅ صار النوع يشمل dealer
 }
 
 interface AuthContextType {
@@ -29,14 +32,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const storedToken = localStorage.getItem("token");
 
     if (storedUser && storedToken) {
-      const payload = JSON.parse(atob(storedToken.split(".")[1]));
-      const exp = payload.exp * 1000; // نحولها من ثواني إلى ملي ثانية
-
-      if (Date.now() >= exp) {
-        logout(); // ⛔ التوكن منتهي، نسجل خروج المستخدم
-      } else {
-        setUser(JSON.parse(storedUser));
-        setToken(storedToken);
+      try {
+        const payload = JSON.parse(atob(storedToken.split(".")[1]));
+        const exp = payload.exp * 1000;
+        if (Date.now() >= exp) {
+          logout();
+        } else {
+          // ✅ تأكد أن `role` المخزّن يطابق النوع Role (admin|user|dealer)
+          const parsed: User = JSON.parse(storedUser);
+          setUser(parsed);
+          setToken(storedToken);
+        }
+      } catch {
+        logout();
       }
     }
 
