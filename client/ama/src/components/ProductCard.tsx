@@ -280,7 +280,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
         {/* بادج خصم إن وُجد */}
         {discountPercent !== null && (
-          <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
+          <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-10">
             -{discountPercent}%
           </span>
         )}

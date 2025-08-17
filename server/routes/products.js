@@ -1,9 +1,13 @@
+// server/routes/products.js
 const express = require("express");
 const router = express.Router();
-const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const Variant = require("../models/Variant");
-const { verifyToken, isAdmin } = require("../middleware/authMiddleware");
+const {
+  verifyToken,
+  isAdmin,
+  verifyTokenOptional,
+} = require("../middleware/authMiddleware");
 
 // ------- أدوات مساعدة -------
 const slugify = (s) =>
@@ -31,37 +35,44 @@ function buildWantedTags(query = {}) {
   return Array.from(new Set(wanted));
 }
 
-/** ✅ تطبيع/قراءة فلترة الملكية من الاستعلام */
-function readOwnershipFilterFromQuery(query = {}) {
+/**
+ * ✅ فلترة الملكية:
+ * - تُفعّل فقط عندما يكون المستخدم أدمن أو تاجر (canUseOwnership = true)
+ * - غير ذلك يتم تجاهل بارامتر ownership/isLocal
+ */
+function readOwnershipFilterFromQuery(query = {}, canUseOwnership = false) {
+  if (!canUseOwnership) return {};
+
+  // ownership=ours|local
   if (query.ownership && ["ours", "local"].includes(String(query.ownership))) {
     return { ownershipType: String(query.ownership) };
   }
+
+  // isLocal=true|false  => local/ours
   if (typeof query.isLocal !== "undefined") {
     const val = String(query.isLocal).toLowerCase();
     if (["true", "1", "yes"].includes(val)) return { ownershipType: "local" };
     if (["false", "0", "no"].includes(val)) return { ownershipType: "ours" };
   }
+
   return {};
 }
 
-/** ✅ التحقق من قيمة ownershipType القادمة من الـ body */
-function normalizeOwnershipFromBody(body = {}) {
-  const { ownershipType } = body || {};
-  if (!ownershipType) return {};
-  const v = String(ownershipType);
-  if (!["ours", "local"].includes(v)) {
-    throw new Error(
-      "قيمة ownershipType غير صحيحة. القيم المسموح بها: ours | local"
-    );
-  }
-  return { ownershipType: v };
-}
+// ⬇️ نفعّل قراءة التوكن اختياريًا لكل مسارات هذا الراوتر
+router.use(verifyTokenOptional);
 
 // ✅ إنشاء منتج (أدمن فقط)
 router.post("/", verifyToken, isAdmin, async (req, res) => {
   try {
-    const { name, category, mainCategory, subCategory, description, images } =
-      req.body;
+    const {
+      name,
+      category,
+      mainCategory,
+      subCategory,
+      description,
+      images,
+      // اختياري: ownershipType
+    } = req.body;
 
     if (
       !name ||
@@ -77,10 +88,16 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
     }
 
     let ownershipPatch = {};
-    try {
-      ownershipPatch = normalizeOwnershipFromBody(req.body);
-    } catch (e) {
-      return res.status(400).json({ error: e.message });
+    // التحقق من قيمة ownershipType من البودي (لو أرسلت)
+    const { ownershipType } = req.body || {};
+    if (typeof ownershipType !== "undefined") {
+      const v = String(ownershipType);
+      if (!["ours", "local"].includes(v)) {
+        return res.status(400).json({
+          error: "قيمة ownershipType غير صحيحة. القيم: ours | local",
+        });
+      }
+      ownershipPatch.ownershipType = v;
     }
 
     const product = await Product.create({
@@ -99,7 +116,7 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
-// ✅ /with-stats — مع finalAmount ضمن نافذة الخصم + فلترة الملكية
+// ✅ /with-stats — مع حساب finalAmount ضمن نافذة الخصم + دعم فلترة الملكية (أدمن/تاجر فقط)
 router.get("/with-stats", async (req, res) => {
   try {
     const {
@@ -113,7 +130,14 @@ router.get("/with-stats", async (req, res) => {
     } = req.query;
 
     const wantedTags = buildWantedTags(req.query);
-    const ownershipFilter = readOwnershipFilterFromQuery(req.query);
+
+    // فلترة الملكية من الاستعلام — فقط لو أدمن/تاجر
+    const role = req.user?.role;
+    const canUseOwnership = role === "admin" || role === "dealer";
+    const ownershipFilter = readOwnershipFilterFromQuery(
+      req.query,
+      canUseOwnership
+    );
 
     const $match = {};
     if (mainCategory) $match.mainCategory = mainCategory;
@@ -167,7 +191,7 @@ router.get("/with-stats", async (req, res) => {
         ? [{ $match: { "vars.0": { $exists: true } } }]
         : []),
 
-      // finalAmount لكل variant
+      // احسب finalAmount لكل variant حسب نافذة الخصم
       {
         $addFields: {
           _finalPrices: {
@@ -301,7 +325,7 @@ router.get("/with-stats", async (req, res) => {
                 createdAt: 1,
                 minPrice: 1,
                 totalStock: 1,
-                ownershipType: 1,
+                ownershipType: 1, // 👈 نرجعه للواجهة
               },
             },
           ],
@@ -327,12 +351,19 @@ router.get("/with-stats", async (req, res) => {
   }
 });
 
-// ✅ Facets عامة (name/slug)
+// ✅ Facets عامة (name/slug) — تدعم فلترة الملكية للأدمن/التاجر فقط
 router.get("/facets", async (req, res) => {
   try {
     const { mainCategory, subCategory, q } = req.query;
 
-    const productMatch = {};
+    const role = req.user?.role;
+    const canUseOwnership = role === "admin" || role === "dealer";
+    const ownershipFilter = readOwnershipFilterFromQuery(
+      req.query,
+      canUseOwnership
+    );
+
+    const productMatch = { ...ownershipFilter };
     if (mainCategory) productMatch.mainCategory = mainCategory;
     if (subCategory) productMatch.subCategory = subCategory;
     if (q) productMatch.$text = { $search: q };
@@ -370,16 +401,21 @@ router.get("/facets", async (req, res) => {
   }
 });
 
-// ✅ جلب كل المنتجات (عام) + فلترة الملكية
+// ✅ جلب كل المنتجات (عام) + دعم فلترة الملكية للأدمن/التاجر فقط
 router.get("/", async (req, res) => {
   try {
     const { mainCategory, subCategory, q, limit = 50, page = 1 } = req.query;
-    const filter = {};
+    const role = req.user?.role;
+    const canUseOwnership = role === "admin" || role === "dealer";
+    const ownershipFilter = readOwnershipFilterFromQuery(
+      req.query,
+      canUseOwnership
+    );
+
+    const filter = { ...ownershipFilter };
     if (mainCategory) filter.mainCategory = mainCategory;
     if (subCategory) filter.subCategory = subCategory;
     if (q) filter.$text = { $search: q };
-
-    Object.assign(filter, readOwnershipFilterFromQuery(req.query));
 
     const skip = (Number(page) - 1) * Number(limit);
     const products = await Product.find(filter)
@@ -393,7 +429,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ منتج واحد (withVariants اختياري)
+// ✅ منتج واحد (withVariants اختياري) — نرجع ownershipType أيضاً
 router.get("/:id", async (req, res) => {
   try {
     const withVariants = req.query.withVariants === "1";
@@ -410,12 +446,17 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// ✅ Facets لمنتج معيّن
+// ✅ Facets لمنتج معيّن — لا تحتاج تعديل
 router.get("/:id/facets", async (req, res) => {
   try {
     const productId = req.params.id;
     const facets = await Variant.aggregate([
-      { $match: { product: new mongoose.Types.ObjectId(productId) } },
+      {
+        $match: {
+          product:
+            Product.db.base.Types.ObjectId.createFromHexString(productId),
+        },
+      },
       {
         $group: {
           _id: null,
@@ -431,7 +472,7 @@ router.get("/:id/facets", async (req, res) => {
   }
 });
 
-// ✅ تعديل/حذف منتج (أدمن) + تحديث الملكية
+// ✅ تعديل/حذف منتج (أدمن) + دعم تحديث الملكية
 router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     const {
@@ -441,7 +482,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
       subCategory,
       description,
       images,
-      ownershipType,
+      ownershipType, // اختياري
     } = req.body;
 
     const updateData = {

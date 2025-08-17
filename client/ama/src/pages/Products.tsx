@@ -7,6 +7,7 @@ import ProductCard from "@/components/ProductCard";
 import CategorySidebar from "@/components/CategorySidebar";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
+import { useAuth } from "@/context/AuthContext";
 
 type ProductItem = {
   _id: string;
@@ -23,8 +24,12 @@ type ProductItem = {
 
 type FacetItem = { name: string; slug: string };
 type Facets = { measures: FacetItem[]; colors: FacetItem[] };
+type OwnershipFilter = "all" | "ours" | "local";
 
 const Products: React.FC = () => {
+  const { user, token } = useAuth();
+  const canUseOwnership = user?.role === "admin" || user?.role === "dealer"; // ✅ فقط الأدمن/التاجر
+
   const [selectedMainCategory, setSelectedMainCategory] = useState("الكل");
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -32,6 +37,9 @@ const Products: React.FC = () => {
 
   const [selectedColorSlug, setSelectedColorSlug] = useState("");
   const [selectedMeasureSlug, setSelectedMeasureSlug] = useState("");
+
+  const [ownershipFilter, setOwnershipFilter] =
+    useState<OwnershipFilter>("all");
 
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [totalPages, setTotalPages] = useState(1);
@@ -42,13 +50,21 @@ const Products: React.FC = () => {
   const location = useLocation();
   const [currentPage, setCurrentPage] = useState(1);
 
+  // لو صار المستخدم غير مخوّل، نرجّع الفلتر إلى "all"
+  useEffect(() => {
+    if (!canUseOwnership && ownershipFilter !== "all") {
+      setOwnershipFilter("all");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canUseOwnership]);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const category = params.get("category");
     if (category) setSelectedMainCategory(category);
   }, [location.search]);
 
-  // جلب الـ Facets
+  // جلب الـ Facets (مع فلتر الملكية للأدمن/التاجر فقط)
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -59,12 +75,19 @@ const Products: React.FC = () => {
         }
         if (selectedSubCategory) params.set("subCategory", selectedSubCategory);
         if (searchTerm) params.set("q", searchTerm);
+        if (canUseOwnership && ownershipFilter !== "all") {
+          params.set("ownership", ownershipFilter); // ✅ أرسل فقط لو مخوّل
+        }
 
         const url = `${
           import.meta.env.VITE_API_URL
         }/api/products/facets?${params.toString()}`;
 
-        const { data } = await axios.get(url);
+        const headers = token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined; // ✅ حتى يقرأ السيرفر الدور
+
+        const { data } = await axios.get(url, { headers });
         if (ignore) return;
 
         const f: Facets = {
@@ -97,9 +120,16 @@ const Products: React.FC = () => {
     return () => {
       ignore = true;
     };
-  }, [selectedMainCategory, selectedSubCategory, searchTerm]);
+  }, [
+    selectedMainCategory,
+    selectedSubCategory,
+    searchTerm,
+    ownershipFilter,
+    canUseOwnership, // ✅ تعيد الجلب لو تغيّرت صلاحية الدور
+    token, // ✅ نمرّر الهيدر لما يتوفّر
+  ]);
 
-  // جلب المنتجات
+  // جلب المنتجات (مع فلتر الملكية للأدمن/التاجر فقط)
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -115,6 +145,10 @@ const Products: React.FC = () => {
       if (searchTerm) params.set("q", searchTerm);
       if (maxPrice) params.set("maxPrice", maxPrice);
 
+      if (canUseOwnership && ownershipFilter !== "all") {
+        params.set("ownership", ownershipFilter); // ✅ ours | local فقط لو مخوّل
+      }
+
       const tags: string[] = [];
       if (selectedColorSlug) tags.push(`color:${selectedColorSlug}`);
       if (selectedMeasureSlug) tags.push(`measure:${selectedMeasureSlug}`);
@@ -124,7 +158,12 @@ const Products: React.FC = () => {
         const url = `${
           import.meta.env.VITE_API_URL
         }/api/products/with-stats?${params.toString()}`;
-        const res = await axios.get(url);
+
+        const headers = token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined; // ✅ تمرير التوكن (اختياري)
+
+        const res = await axios.get(url, { headers });
         if (ignore) return;
 
         const { items, totalPages: tp } = res.data || {
@@ -166,6 +205,9 @@ const Products: React.FC = () => {
     maxPrice,
     selectedColorSlug,
     selectedMeasureSlug,
+    ownershipFilter,
+    canUseOwnership, // ✅
+    token, // ✅
   ]);
 
   const handleCategorySelect = (main: string, sub: string = "") => {
@@ -227,6 +269,7 @@ const Products: React.FC = () => {
           </aside>
 
           <section className="flex-1">
+            {/* شريط الفلاتر العلوية */}
             <div className="flex flex-col sm:flex-row gap-2 mb-4">
               <Input
                 type="text"
@@ -246,6 +289,23 @@ const Products: React.FC = () => {
                   setCurrentPage(1);
                 }}
               />
+
+              {/* ✅ فلتر الملكية يظهر فقط للأدمن/التاجر */}
+              {canUseOwnership && (
+                <select
+                  className="border rounded px-3 py-2"
+                  value={ownershipFilter}
+                  onChange={(e) => {
+                    setOwnershipFilter(e.target.value as OwnershipFilter);
+                    setCurrentPage(1);
+                  }}
+                  title="مصدر المنتج"
+                >
+                  <option value="all">كل المصادر</option>
+                  <option value="ours">على اسمنا (ours)</option>
+                  <option value="local">محلي (local)</option>
+                </select>
+              )}
             </div>
 
             {/* فلاتر اللون/المقاس */}
