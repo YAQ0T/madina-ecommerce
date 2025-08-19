@@ -9,7 +9,13 @@ const Variant = require("../models/Variant");
 const User = require("../models/User");
 
 // ===== أدوات مساعدة آمنة =====
-const ALLOWED_STATUSES = ["pending", "on_the_way", "delivered", "cancelled"];
+const ALLOWED_STATUSES = [
+  "waiting_confirmation",
+  "pending",
+  "on_the_way",
+  "delivered",
+  "cancelled",
+];
 const isNonEmptyString = (v) => typeof v === "string" && v.trim().length > 0;
 const toCleanString = (v) => (isNonEmptyString(v) ? v.trim() : "");
 const toNumber = (v, d = 0) => (typeof v === "number" && !isNaN(v) ? v : d);
@@ -62,8 +68,10 @@ router.post("/", verifyToken, async (req, res) => {
     }
 
     // الحالة (اختيارية)
-    const rawStatus = toCleanString(body.status) || "pending";
-    const status = ALLOWED_STATUSES.includes(rawStatus) ? rawStatus : "pending";
+    const rawStatus = toCleanString(body.status) || "waiting_confirmation";
+    const status = ALLOWED_STATUSES.includes(rawStatus)
+      ? rawStatus
+      : "waiting_confirmation";
 
     // العناصر
     const items = Array.isArray(body.items) ? body.items : [];

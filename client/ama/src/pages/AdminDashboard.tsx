@@ -156,7 +156,12 @@ const AdminDashboard: React.FC = () => {
   // ✅ تعديل حالة الطلب — المسار الصحيح PATCH /api/orders/:id/status
   const updateStatus = async (
     orderId: string,
-    newStatus: "pending" | "on_the_way" | "delivered" | "cancelled"
+    newStatus:
+      | "waiting_confirmation"
+      | "pending"
+      | "on_the_way"
+      | "delivered"
+      | "cancelled"
   ) => {
     try {
       if (!orderId) throw new Error("orderId مفقود");
@@ -340,6 +345,14 @@ const AdminDashboard: React.FC = () => {
                 onClick={() => setFilter("all")}
               >
                 الكل
+              </Button>
+              <Button
+                variant={
+                  filter === "waiting_confirmation" ? "default" : "outline"
+                }
+                onClick={() => setFilter("waiting_confirmation")}
+              >
+                ⏱️ بانتظار التأكيد
               </Button>
               <Button
                 variant={filter === "pending" ? "default" : "outline"}

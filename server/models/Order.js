@@ -40,8 +40,14 @@ const OrderSchema = new mongoose.Schema(
     address: { type: String, required: true },
     status: {
       type: String,
-      enum: ["pending", "on_the_way", "delivered", "cancelled"],
-      default: "pending",
+      enum: [
+        "pending",
+        "waiting_confirmation",
+        "on_the_way",
+        "delivered",
+        "cancelled",
+      ],
+      default: "waiting_confirmation", // ✅ الافتراضية الجديدة
       index: true,
     },
   },

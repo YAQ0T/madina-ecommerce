@@ -2,7 +2,12 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import OrderStatusButtons from "./OrderStatusButtons";
 
-type OrderStatus = "pending" | "on_the_way" | "delivered" | "cancelled";
+type OrderStatus =
+  | "waiting_confirmation"
+  | "pending"
+  | "on_the_way"
+  | "delivered"
+  | "cancelled";
 
 interface OrderTableProps {
   orders: any[];
@@ -13,6 +18,8 @@ interface OrderTableProps {
 
 const statusLabel = (s: string) => {
   switch (s) {
+    case "waiting_confirmation":
+      return "⏱️ بانتظار التأكيد";
     case "pending":
       return "⏳ قيد الانتظار";
     case "on_the_way":

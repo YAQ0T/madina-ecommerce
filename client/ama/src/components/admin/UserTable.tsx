@@ -37,7 +37,11 @@ const UserTable: React.FC<UserTableProps> = ({
               <td className="border px-4 py-2">{user.email}</td>
               <td className="border px-4 py-2">{user.phone || "-"}</td>
               <td className="border px-4 py-2">
-                {user.role === "admin" ? "أدمن" : "مستخدم"}
+                {user.role === "admin"
+                  ? "أدمن"
+                  : user.role === "dealer"
+                  ? "تاجر"
+                  : "مستخدم عادي"}
               </td>
               <td className="border px-4 py-2">
                 {user._id !== currentAdminId && (

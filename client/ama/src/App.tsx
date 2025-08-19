@@ -12,24 +12,37 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserOrderDetails from "./pages/UserOrderDetails";
+import OfferDialog from "./components/common/OfferDialog";
+import { useEffect, useState } from "react";
 
 function App() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    // افتح الدايالوج أول ما يدخل المستخدم
+    setOpen(true);
+  }, []);
+
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/products" element={<Products />} />
-      <Route path="/about" element={<About />} />
-      <Route path="/contact" element={<Contact />} />
-      <Route path="/cart" element={<Cart />} />
-      <Route path="/account" element={<Account />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/products/:id" element={<ProductDetails />} />
-      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-      <Route path="/terms" element={<Terms />} />
-      <Route path="/admin" element={<AdminDashboard />} />
-      <Route path="/my-orders/:orderId" element={<UserOrderDetails />} />
-    </Routes>
+    <>
+      <OfferDialog open={open} onClose={() => setOpen(false)} />
+
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/products" element={<Products />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/account" element={<Account />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/products/:id" element={<ProductDetails />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/my-orders/:orderId" element={<UserOrderDetails />} />
+      </Routes>
+    </>
   );
 }
 

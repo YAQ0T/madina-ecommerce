@@ -8,6 +8,8 @@ import axios from "axios";
 
 const statusLabel = (s: string) => {
   switch (s) {
+    case "waiting_confirmation":
+      return "⏱️ بانتظار التأكيد";
     case "pending":
       return "⏳ قيد الانتظار";
     case "on_the_way":
@@ -64,7 +66,12 @@ const Account: React.FC = () => {
           <p className="text-lg">👤 الاسم: {user.name}</p>
           <p className="text-lg">📧 البريد الإلكتروني: {user.email}</p>
           <p className="text-lg">
-            🛡️ الصلاحية: {user.role === "admin" ? "أدمن" : "مستخدم عادي"}
+            🛡️ الصلاحية:{" "}
+            {user.role === "admin"
+              ? "أدمن"
+              : user.role === "dealer"
+              ? "تاجر"
+              : "مستخدم عادي"}
           </p>
           <Button
             variant="destructive"

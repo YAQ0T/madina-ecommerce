@@ -1,7 +1,12 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 
-type OrderStatus = "pending" | "on_the_way" | "delivered" | "cancelled";
+type OrderStatus =
+  | "waiting_confirmation"
+  | "pending"
+  | "on_the_way"
+  | "delivered"
+  | "cancelled";
 
 interface OrderStatusButtonsProps {
   orderId: string;
@@ -14,6 +19,14 @@ const OrderStatusButtons: React.FC<OrderStatusButtonsProps> = ({
 }) => {
   return (
     <div className="space-x-4 space-x-reverse space-y-2">
+      <Button
+        size="sm"
+        onClick={() => updateStatus(orderId, "waiting_confirmation")}
+        variant="outline"
+      >
+        ⏱️ بانتظار التأكيد
+      </Button>
+
       <Button
         size="sm"
         onClick={() => updateStatus(orderId, "on_the_way")}

@@ -1,16 +1,20 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import CartButton from "@/components/CartButton";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ThemeToggle from "@/components/ThemeToggle";
+import OfferBanner from "./common/OfferBanner";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-
+  const [showBanner, setShowBanner] = useState(true);
+  const bannerinfo = useRef(
+    "خصم اجمالي على كل الفواتير الاعلى من ١٠٠٠ شيقل بقيمه ٥٪"
+  );
   const links = [
     { name: "الرئيسية", path: "/" },
     { name: "المنتجات", path: "/products" },
@@ -18,9 +22,19 @@ const Navbar: React.FC = () => {
     { name: "تواصل معنا", path: "/contact" },
     { name: "حسابي", path: "/account" },
   ];
+  if (user && user.role === "admin") {
+    links.push({ name: "لوحة التحكم", path: "/admin" });
+  }
 
   return (
     <header className="border-b mb-6">
+      {showBanner && (
+        <OfferBanner
+          message={bannerinfo.current}
+          onClose={() => setShowBanner(false)}
+        />
+      )}
+
       <nav className="container mx-auto p-4 flex items-center justify-between">
         {/* الشعار */}
         {!user && <ThemeToggle />}
@@ -80,7 +94,6 @@ const Navbar: React.FC = () => {
           <CartButton />
         </div>
       </nav>
-
       {/* القائمة الجوالية */}
       {menuOpen && (
         <div className="lg:hidden bg-white shadow-lg border-t py-4 px-6 space-y-3 text-right z-50">
