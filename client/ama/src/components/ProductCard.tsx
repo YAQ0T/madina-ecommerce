@@ -299,15 +299,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       return;
     }
 
-    // Fallback للسلوك القديم إن لا توجد Variants
-    if (product.measures?.length && !selectedMeasure) {
-      alert("يرجى اختيار المقاس قبل الإضافة للسلة");
-      return;
-    }
-    if (product.colors?.length && !selectedColor) {
-      alert("يرجى اختيار اللون قبل الإضافة للسلة");
-      return;
-    }
     const productForCart = {
       ...product,
       image: displayedImages?.[0] || "https://i.imgur.com/PU1aG4t.jpeg",
@@ -429,7 +420,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       )}
 
       {/* ✅ اختيار المقاس (من الـ Variants أو fallback) */}
-      {(measuresFromVariants.length > 0 || product.measures?.length) && (
+      {measuresFromVariants.length > 0 && (
         <div className="mb-2">
           <span className="text-sm font-medium">المقاسات: </span>
           <select
@@ -444,27 +435,21 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             className="border rounded px-2 py-1 text-sm"
           >
             <option value="">{vLoading ? "تحميل..." : "اختر المقاس"}</option>
-            {measuresFromVariants.length > 0
-              ? measuresFromVariants.map((m) => (
-                  <option key={m.slug} value={m.slug}>
-                    {m.label}
-                  </option>
-                ))
-              : (product.measures || []).map((m, i) => (
-                  <option key={i} value={m}>
-                    {m}
-                  </option>
-                ))}
+            {measuresFromVariants.map((m) => (
+              <option key={m.slug} value={m.slug}>
+                {m.label}
+              </option>
+            ))}
           </select>
         </div>
       )}
 
       {/* ✅ اختيار اللون */}
-      {(allColorsFromVariants.length > 0 || product.colors?.length) && (
+      {allColorsFromVariants.length > 0 && (
         <div className="mb-2">
           <span className="text-sm font-medium">الألوان: </span>
 
-          {allColorsFromVariants.length > 0 ? (
+          {
             <div className="flex gap-2 mt-1 flex-wrap">
               {allColorsFromVariants.map((c) => {
                 const isAvailable =
@@ -497,29 +482,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                 );
               })}
             </div>
-          ) : (
-            <div className="flex gap-2 mt-1">
-              {(product.colors || []).map((color, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    setSelectedColor(slugify(color));
-                    setCurrentImage(0);
-                  }}
-                  className={clsx(
-                    "w-6 h-6 rounded-full border-2 transition",
-                    selectedColor === slugify(color)
-                      ? "border-black scale-110"
-                      : "border-gray-300"
-                  )}
-                  style={
-                    isHexColor(color) ? { backgroundColor: color } : undefined
-                  }
-                  title={color}
-                />
-              ))}
-            </div>
-          )}
+          }
         </div>
       )}
 
