@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { useCart } from "@/context/CartContext";
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import clsx from "clsx";
+import { useCart } from "@/context/CartContext";
 
 interface Props {
   product: {
@@ -13,9 +13,6 @@ interface Props {
     price: number; // أقل سعر محسوب من with-stats (finalAmount الأدنى)
     images?: string[];
     subCategory?: string;
-    // الحقول القديمة تبقى للـ fallback فقط
-    measures?: string[];
-    colors?: string[];
   };
 }
 
@@ -56,7 +53,6 @@ const formatTimeLeft = (ms: number) => {
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  // صيغة مختصرة تحافظ على السياق
   if (days > 0) return `${days}ي ${hours}س ${minutes}د`;
   if (hours > 0) return `${hours}س ${minutes}د ${seconds}ث`;
   return `${minutes}د ${seconds}ث`;
@@ -68,11 +64,8 @@ const clamp = (n: number, min = 0, max = 100) =>
 const ProductCard: React.FC<Props> = ({ product }) => {
   const { addToCart } = useCart();
 
-  // صور الكارد
+  // 🖼️ مؤشر الصورة الحالية
   const [currentImage, setCurrentImage] = useState(0);
-  const images = product.images?.length
-    ? product.images
-    : ["https://i.imgur.com/PU1aG4t.jpeg"];
 
   // متغيّرات المنتج
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -104,7 +97,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         const vs: Variant[] = Array.isArray(data) ? data : [];
         setVariants(vs);
 
-        // تعيين افتراضيات ذكية: أول متغيّر
+        // افتراض: أول متغيّر
         if (vs.length > 0) {
           setSelectedMeasure(vs[0].measureSlug || "");
           setSelectedColor(vs[0].colorSlug || "");
@@ -175,6 +168,18 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     );
   }, [variants, selectedMeasure, selectedColor]);
 
+  // ✅ الصور المعروضة بناءً على الاختيار الحالي
+  const displayedImages = useMemo(() => {
+    const variantColorImages =
+      currentVariant?.color?.images?.filter(Boolean) ?? [];
+    if (variantColorImages.length > 0) return variantColorImages;
+
+    const productImages = product.images?.filter(Boolean) ?? [];
+    if (productImages.length > 0) return productImages;
+
+    return ["https://i.imgur.com/PU1aG4t.jpeg"];
+  }, [currentVariant?.color?.images, product.images]);
+
   // عند تغيير المقاس: لو اللون الحالي غير متاح، اختَر أول لون متاح تلقائيًا
   useEffect(() => {
     if (variants.length === 0) return;
@@ -191,13 +196,18 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     }
   }, [selectedMeasure, colorsByMeasure, variants.length]); // لا تضف selectedColor هنا
 
-  // السعر المعروض: finalAmount إن توفر للمتغيّر المختار، وإلا أقل سعر للمنتج (من with-stats)
+  // ✅ كلما تغيّرت الصور نتيجة تغيير (المقاس/اللون)، أعد ضبط المؤشر للصفر
+  useEffect(() => {
+    setCurrentImage(0);
+  }, [displayedImages]);
+
+  // السعر المعروض
   const variantFinal = currentVariant?.finalAmount;
   const variantCompare = currentVariant?.displayCompareAt ?? null;
   const displayPrice =
     typeof variantFinal === "number" ? variantFinal : product.price ?? 0;
 
-  // نسبة الخصم (إن أمكن حسابها)
+  // نسبة الخصم
   const discountPercent =
     typeof variantFinal === "number" &&
     typeof variantCompare === "number" &&
@@ -206,9 +216,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       ? Math.round(((variantCompare - variantFinal) / variantCompare) * 100)
       : null;
 
-  // 🕒 تشغيل/تحديث شريط التقدم والوقت المتبقي — يظهر فقط عندما يكون الخصم نشطًا
+  // 🕒 شريط التقدم والوقت المتبقي
   useEffect(() => {
-    // إن لم يوجد خصم أو لا يوجد endAt فاخفِ المؤشر
     const d = currentVariant?.price?.discount;
     if (!d?.endAt) {
       setShowDiscountTimer(false);
@@ -219,7 +228,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
     const now = Date.now();
     const end = new Date(d.endAt).getTime();
-    // لو startAt غير محدد نعتبر بداية الخصم هي الآن - (مدة قصيرة) حتى لا يكسر الحساب
     const start = d.startAt ? new Date(d.startAt).getTime() : now;
 
     const hasRealDiscount =
@@ -237,10 +245,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       return;
     }
 
-    // مبدئيًا فعّل المؤشر
     setShowDiscountTimer(true);
 
-    // دالة تحديث كل ثانية
     const update = () => {
       const t = Date.now();
       const left = end - t;
@@ -249,7 +255,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       const duration = Math.max(1, end - start);
       const progress = ((t - start) / duration) * 100;
       setProgressPct(clamp(progress));
-      // لو انتهى، أخفِ المؤشر
       if (t >= end) {
         setShowDiscountTimer(false);
       }
@@ -278,7 +283,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       }
       const itemForCart = {
         ...product,
-        image: images?.[0] || "https://i.imgur.com/PU1aG4t.jpeg",
+        image: displayedImages?.[0] || "https://i.imgur.com/PU1aG4t.jpeg",
         selectedVariantId: currentVariant._id,
         selectedSku: currentVariant.stock?.sku,
         selectedMeasure: currentVariant.measure,
@@ -305,7 +310,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     }
     const productForCart = {
       ...product,
-      image: product.images?.[0] || "https://i.imgur.com/PU1aG4t.jpeg",
+      image: displayedImages?.[0] || "https://i.imgur.com/PU1aG4t.jpeg",
       selectedMeasure,
       selectedColor,
       price: product.price ?? 0,
@@ -315,17 +320,33 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     setTimeout(() => setShowAdded(false), 1500);
   };
 
-  const nextImage = () => setCurrentImage((prev) => (prev + 1) % images.length);
+  const nextImage = () =>
+    setCurrentImage((prev) => (prev + 1) % displayedImages.length);
   const prevImage = () =>
-    setCurrentImage((prev) => (prev - 1 + images.length) % images.length);
+    setCurrentImage(
+      (prev) => (prev - 1 + displayedImages.length) % displayedImages.length
+    );
+
+  // ✨ كلاسات مشتركة وأخرى استجابة (Responsive) لسلوك الأسهم:
+  const arrowBase =
+    "absolute top-1/2 -translate-y-1/2 z-20 rounded-full border border-white/40 shadow-lg " +
+    "transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white/50 " +
+    // موبايل: تظهر دائمًا بنعومة
+    "opacity-80 bg-black/20 backdrop-blur-sm active:scale-95 " +
+    // كمبيوتر: مخفية إلا عند الـ hover على الـ group
+    "md:opacity-0 md:bg-white/60 md:text-black md:group-hover:opacity-100";
+  const arrowSize =
+    // موبايل: مساحة لمس أكبر قليلًا
+    "w-10 h-10 md:w-9 md:h-9 flex items-center justify-center";
+  const arrowIcon = "pointer-events-none select-none"; // الأيقونة لا تستقبل تفاعل
 
   return (
     <div className="group border rounded-lg p-4 text-right hover:shadow relative flex flex-col justify-between h-full">
-      {/* ✅ الصورة */}
+      {/* ✅ الصورة — تتغيّر حسب المتغيّر */}
       <div className="relative w-full h-64 mb-3 overflow-hidden rounded">
-        {images.map((src, index) => (
+        {displayedImages.map((src, index) => (
           <img
-            key={index}
+            key={`${src}-${index}`}
             src={src}
             alt={product.name}
             width={400}
@@ -338,22 +359,55 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                 "opacity-0 -translate-x-full z-0": index < currentImage,
               }
             )}
+            loading="lazy"
           />
         ))}
 
-        {images.length > 1 && (
+        {displayedImages.length > 1 && (
           <>
+            {/* ◀ يسار */}
             <button
               onClick={prevImage}
-              className="absolute top-1/2 left-2 -translate-y-1/2 bg-white/50 hover:bg-white/80 text-black rounded-full px-3 py-1 shadow-lg border border-gray-300 transition-all duration-300 opacity-0 group-hover:opacity-100 z-20"
+              aria-label="الصورة السابقة"
+              className={clsx(
+                arrowBase,
+                arrowSize,
+                "left-2 text-white md:text-black"
+              )}
             >
-              ◀
+              {/* SVG أنيق وخفيف */}
+              <svg
+                className={arrowIcon}
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                width="20"
+                height="20"
+                fill="currentColor"
+              >
+                <path d="M12.707 15.707a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414l5-5a1 1 0 1 1 1.414 1.414L8.414 10l4.293 4.293a1 1 0 0 1 0 1.414z" />
+              </svg>
             </button>
+
+            {/* ▶ يمين */}
             <button
               onClick={nextImage}
-              className="absolute top-1/2 right-2 -translate-y-1/2 bg-white/50 hover:bg-white/80 text-black rounded-full px-3 py-1 shadow-lg border border-gray-300 transition-all duration-300 opacity-0 group-hover:opacity-100 z-20"
+              aria-label="الصورة التالية"
+              className={clsx(
+                arrowBase,
+                arrowSize,
+                "right-2 text-white md:text-black"
+              )}
             >
-              ▶
+              <svg
+                className={arrowIcon}
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                width="20"
+                height="20"
+                fill="currentColor"
+              >
+                <path d="M7.293 4.293a1 1 0 0 1 1.414 0l5 5a1 1 0 0 1 0 1.414l-5 5A1 1 0 1 1 7.293 14.293L11.586 10 7.293 5.707a1 1 0 0 1 0-1.414z" />
+              </svg>
             </button>
           </>
         )}
@@ -421,7 +475,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                   <button
                     key={c.slug}
                     title={c.name}
-                    onClick={() => isAvailable && setSelectedColor(c.slug)}
+                    onClick={() => {
+                      if (!isAvailable) return;
+                      setSelectedColor(c.slug);
+                      setCurrentImage(0);
+                    }}
                     disabled={!isAvailable}
                     className={clsx(
                       "w-6 h-6 rounded-full border-2 transition",
@@ -444,9 +502,12 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               {(product.colors || []).map((color, i) => (
                 <button
                   key={i}
-                  onClick={() => setSelectedColor(slugify(color))}
+                  onClick={() => {
+                    setSelectedColor(slugify(color));
+                    setCurrentImage(0);
+                  }}
                   className={clsx(
-                    "w-6 h-6 rounded-full border-2",
+                    "w-6 h-6 rounded-full border-2 transition",
                     selectedColor === slugify(color)
                       ? "border-black scale-110"
                       : "border-gray-300"
