@@ -27,8 +27,8 @@ app.use(
 );
 
 /* ---------- Core Middleware ---------- */
-app.use(express.json({ limit: "1mb" })); // زيادة الحد الأقصى لحجم الطلب
-app.set("trust proxy", 1); // مفيد عند الاستضافة خلف Proxy (مثل Vercel/Render)
+app.use(express.json({ limit: "1mb" }));
+app.set("trust proxy", 1);
 
 /* ---------- DB Connection ---------- */
 mongoose.set("strictQuery", true);
@@ -49,12 +49,21 @@ const authRoutes = require("./routes/auth");
 const contactRoute = require("./routes/contact");
 const userRoutes = require("./routes/user");
 
+/* 🆕 خصومات الشرائح (إدارة القواعد) */
+const discountRulesRoutes = require("./routes/discountRules");
+/* 🆕 معاينة/تطبيق الخصم قبل إنشاء الطلب */
+const discountsRoutes = require("./routes/discounts");
+
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/variants", variantsRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/contact", contactRoute);
 app.use("/api/users", userRoutes);
+
+/* 🆕 نربط راوترات الخصم */
+app.use("/api/discount-rules", discountRulesRoutes);
+app.use("/api/discounts", discountsRoutes);
 
 /* ---------- 404 ---------- */
 app.use((req, res, next) => {

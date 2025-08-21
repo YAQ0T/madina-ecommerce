@@ -1,3 +1,4 @@
+// src/pages/UserOrderDetails.tsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -35,7 +36,6 @@ const UserOrderDetails: React.FC = () => {
         alert("لم يتم العثور على تفاصيل الطلب أو ليس لديك الصلاحية");
       });
   }, [orderId, user, token, navigate]);
-  console.log("order", order);
 
   return (
     <>

@@ -1,3 +1,4 @@
+// src/pages/Account.tsx
 import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
@@ -29,7 +30,6 @@ const Account: React.FC = () => {
   const { user, logout, loading, token } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
-  // console.log("orders:", orders);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -60,7 +60,7 @@ const Account: React.FC = () => {
     <>
       <Navbar />
       <main className="container mx-auto p-6 text-right">
-        <h1 className="text-3س font-bold mb-6">حسابي</h1>
+        <h1 className="text-3xl font-bold mb-6">حسابي</h1>
 
         <div className="text-right space-y-4 mb-6">
           <p className="text-lg">👤 الاسم: {user.name}</p>
@@ -94,6 +94,8 @@ const Account: React.FC = () => {
                 <tr>
                   <th className="p-2 border">#</th>
                   <th className="p-2 border">عدد المنتجات</th>
+                  <th className="p-2 border">Subtotal</th>
+                  <th className="p-2 border">الخصم</th>
                   <th className="p-2 border">الإجمالي</th>
                   <th className="p-2 border">الحالة</th>
                   <th className="p-2 border">التاريخ</th>
@@ -101,25 +103,43 @@ const Account: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order, i) => (
-                  <tr key={order._id}>
-                    <td className="p-2 border">{i + 1}</td>
-                    <td className="p-2 border">{order?.items?.length || 0}</td>
-                    <td className="p-2 border">{currency(order.total)}</td>
-                    <td className="p-2 border">{statusLabel(order.status)}</td>
-                    <td className="p-2 border">
-                      {new Date(order.createdAt).toLocaleString("ar-EG")}
-                    </td>
-                    <td className="p-2 border">
-                      <Link
-                        to={`/my-orders/${order._id}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        عرض التفاصيل
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {orders.map((order, i) => {
+                  const discountAmount =
+                    Number(order?.discount?.amount || 0) > 0 &&
+                    order?.discount?.applied
+                      ? order.discount.amount
+                      : 0;
+
+                  return (
+                    <tr key={order._id}>
+                      <td className="p-2 border">{i + 1}</td>
+                      <td className="p-2 border">
+                        {order?.items?.length || 0}
+                      </td>
+                      <td className="p-2 border">
+                        {currency(order?.subtotal ?? 0)}
+                      </td>
+                      <td className="p-2 border">
+                        {discountAmount ? `-${currency(discountAmount)}` : "—"}
+                      </td>
+                      <td className="p-2 border">{currency(order.total)}</td>
+                      <td className="p-2 border">
+                        {statusLabel(order.status)}
+                      </td>
+                      <td className="p-2 border">
+                        {new Date(order.createdAt).toLocaleString("ar-EG")}
+                      </td>
+                      <td className="p-2 border">
+                        <Link
+                          to={`/my-orders/${order._id}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          عرض التفاصيل
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

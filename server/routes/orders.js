@@ -1,3 +1,4 @@
+// server/routes/orders.js
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
@@ -7,6 +8,7 @@ const Order = require("../models/Order");
 const Product = require("../models/Product");
 const Variant = require("../models/Variant");
 const User = require("../models/User");
+const DiscountRule = require("../models/DiscountRule"); // ✅
 
 // ===== أدوات مساعدة آمنة =====
 const ALLOWED_STATUSES = [
@@ -36,6 +38,28 @@ function computeFinalAmount(price = {}) {
   return discount.type === "percent"
     ? Math.max(0, amount - (amount * discount.value) / 100)
     : Math.max(0, amount - discount.value);
+}
+
+// ✅ دالة تجيب أفضل قاعدة خصم مطابقة لمجموع الطلب (subtotal)
+async function findBestDiscountRule(subtotal) {
+  const now = new Date();
+  // فعّالة + ضمن الفترة (إن وُجدت) + threshold <= subtotal
+  const rule = await DiscountRule.findOne({
+    isActive: true,
+    threshold: { $lte: subtotal },
+    $and: [
+      {
+        $or: [{ startAt: null }, { startAt: { $lte: now } }],
+      },
+      {
+        $or: [{ endAt: null }, { endAt: { $gte: now } }],
+      },
+    ],
+  })
+    .sort({ threshold: -1, priority: -1, createdAt: -1 }) // أعلى عتبة ثم أعلى أولوية
+    .lean();
+
+  return rule || null;
 }
 
 // ======================= إنشاء طلب =======================
@@ -81,7 +105,7 @@ router.post("/", verifyToken, async (req, res) => {
 
     // نبني عناصر الطلب بعد التحقق من المتغيرات/الأسعار
     const cleanItems = [];
-    let serverTotal = 0;
+    let serverSubtotal = 0;
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i] || {};
@@ -160,16 +184,51 @@ router.post("/", verifyToken, async (req, res) => {
             : null,
       });
 
-      serverTotal += finalPrice * quantity;
+      serverSubtotal += finalPrice * quantity;
     }
+
+    // ✅ نحسب الخصم الديناميكي (إن وجد)
+    let discountInfo = {
+      applied: false,
+      ruleId: null,
+      type: null,
+      value: 0,
+      amount: 0,
+      threshold: 0,
+      name: "",
+    };
+
+    const rule = await findBestDiscountRule(serverSubtotal);
+    if (rule) {
+      let amount = 0;
+      if (rule.type === "percent") {
+        amount = Math.max(0, (serverSubtotal * rule.value) / 100);
+      } else if (rule.type === "fixed") {
+        amount = Math.max(0, Math.min(rule.value, serverSubtotal));
+      }
+
+      discountInfo = {
+        applied: amount > 0,
+        ruleId: rule._id,
+        type: rule.type,
+        value: rule.value,
+        amount,
+        threshold: rule.threshold,
+        name: rule.name || "",
+      };
+    }
+
+    const finalTotal = Math.max(0, serverSubtotal - discountInfo.amount);
 
     // إنشاء الطلب
     const orderDoc = await Order.create({
       user: orderUser,
       address,
       status,
-      total: serverTotal,
       items: cleanItems,
+      subtotal: serverSubtotal, // ✅ قبل الخصم
+      discount: discountInfo, // ✅ تفاصيل الخصم
+      total: finalTotal, // ✅ بعد الخصم
     });
 
     // خصم المخزون ذرّيًا بعد الإنشاء

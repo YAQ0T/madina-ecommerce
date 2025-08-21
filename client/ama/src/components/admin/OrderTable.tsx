@@ -1,3 +1,4 @@
+// src/components/admin/OrderTable.tsx
 import React from "react";
 import { Button } from "@/components/ui/button";
 import OrderStatusButtons from "./OrderStatusButtons";
@@ -82,6 +83,9 @@ const OrderTable: React.FC<OrderTableProps> = ({
             <th className="border px-4 py-2">الهاتف</th>
             <th className="border px-4 py-2">العنوان</th>
             <th className="border px-4 py-2">المنتجات</th>
+            {/* 🆕 subtotal/discount/total */}
+            <th className="border px-4 py-2">Subtotal</th>
+            <th className="border px-4 py-2">الخصم</th>
             <th className="border px-4 py-2">الإجمالي</th>
             <th className="border px-4 py-2">الحالة</th>
             <th className="border px-4 py-2">عدد المنتجات</th>
@@ -90,39 +94,64 @@ const OrderTable: React.FC<OrderTableProps> = ({
           </tr>
         </thead>
         <tbody>
-          {filteredOrders.map((order, idx) => (
-            <tr key={order._id}>
-              <td className="border px-4 py-2">
-                <Button
-                  variant="link"
-                  onClick={() => setSelectedOrder(order)}
-                  className="text-blue-600 underline p-0"
-                >
-                  {idx + 1}
-                </Button>
-              </td>
-              <td className="border px-4 py-2">{order?.user?.name || "-"}</td>
-              <td className="border px-4 py-2">{order?.user?.phone || "-"}</td>
-              <td className="border px-4 py-2">{order?.address || "-"}</td>
-              <td className="border px-4 py-2">
-                {renderItemsSummary(order?.items)}
-              </td>
-              <td className="border px-4 py-2">{currency(order?.total)}</td>
-              <td className="border px-4 py-2">{statusLabel(order?.status)}</td>
-              <td className="border px-4 py-2">{order?.items?.length || 0}</td>
-              <td className="border px-4 py-2">
-                <OrderStatusButtons
-                  orderId={order._id}
-                  updateStatus={updateStatus}
-                />
-              </td>
-              <td className="border px-4 py-2">
-                {order?.createdAt
-                  ? new Date(order.createdAt).toLocaleDateString("ar-EG")
-                  : "-"}
-              </td>
-            </tr>
-          ))}
+          {filteredOrders.map((order, idx) => {
+            const discountAmount =
+              Number(order?.discount?.amount || 0) > 0 &&
+              order?.discount?.applied
+                ? order.discount.amount
+                : 0;
+
+            return (
+              <tr key={order._id}>
+                <td className="border px-4 py-2">
+                  <Button
+                    variant="link"
+                    onClick={() => setSelectedOrder(order)}
+                    className="text-blue-600 underline p-0"
+                  >
+                    {idx + 1}
+                  </Button>
+                </td>
+                <td className="border px-4 py-2">{order?.user?.name || "-"}</td>
+                <td className="border px-4 py-2">
+                  {order?.user?.phone || "-"}
+                </td>
+                <td className="border px-4 py-2">{order?.address || "-"}</td>
+                <td className="border px-4 py-2">
+                  {renderItemsSummary(order?.items)}
+                </td>
+
+                {/* 🆕 العرض المالي */}
+                <td className="border px-4 py-2">
+                  {currency(order?.subtotal ?? 0)}
+                </td>
+                <td className="border px-4 py-2">
+                  {discountAmount ? `-${currency(discountAmount)}` : "—"}
+                </td>
+                <td className="border px-4 py-2 font-semibold">
+                  {currency(order?.total)}
+                </td>
+
+                <td className="border px-4 py-2">
+                  {statusLabel(order?.status)}
+                </td>
+                <td className="border px-4 py-2">
+                  {order?.items?.length || 0}
+                </td>
+                <td className="border px-4 py-2">
+                  <OrderStatusButtons
+                    orderId={order._id}
+                    updateStatus={updateStatus}
+                  />
+                </td>
+                <td className="border px-4 py-2">
+                  {order?.createdAt
+                    ? new Date(order.createdAt).toLocaleDateString("ar-EG")
+                    : "-"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

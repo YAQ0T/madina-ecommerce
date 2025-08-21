@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+// src/pages/Cart.tsx
+import React, { useState, useEffect, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,30 @@ import axios from "axios";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import QuantityInput from "@/components/common/QuantityInput";
+
+type DiscountPreview = {
+  items: Array<{
+    productId: string;
+    variantId: string;
+    name: string;
+    quantity: number;
+    price: number;
+    color?: string | null;
+    measure?: string | null;
+    sku?: string | null;
+  }>;
+  subtotal: number;
+  discount: {
+    applied: boolean;
+    ruleId: string | null;
+    type: "percent" | "fixed" | null;
+    value: number;
+    amount: number;
+    threshold: number;
+    name: string;
+  };
+  total: number;
+};
 
 const currency = (n: number) => `₪${Number(n || 0).toFixed(2)}`;
 
@@ -19,6 +44,9 @@ const Cart: React.FC = () => {
     address: "",
   });
 
+  const [preview, setPreview] = useState<DiscountPreview | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
   useEffect(() => {
     if (user) {
       setUserData((prev) => ({
@@ -29,7 +57,94 @@ const Cart: React.FC = () => {
     }
   }, [user]);
 
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // المجموع المحلي (fallback لو فشل استدعاء المعاينة)
+  const localSubtotal = useMemo(
+    () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    [cart]
+  );
+
+  const localTotal = useMemo(() => localSubtotal, [localSubtotal]);
+
+  // استدعاء معاينة الخصم الديناميكي من السيرفر عند تغيّر السلة
+  useEffect(() => {
+    const applyDiscountPreview = async () => {
+      if (cart.length === 0) {
+        setPreview(null);
+        return;
+      }
+      try {
+        setLoadingPreview(true);
+
+        // نرسل عناصر السلة بالشكل الذي يتوقعه السيرفر للبحث عن المتغيرات الحقيقية
+        const payload = {
+          items: cart.map((item) => ({
+            productId: item._id,
+            quantity: item.quantity,
+            // السيرفر يعطي أولوية لـ sku إن وُجد:
+            sku: (item as any).sku || undefined,
+            // وإلا يستخدم productId + color + measure:
+            color: item.selectedColor || null,
+            measure: item.selectedMeasure || null,
+            // الاسم اختياري (للعرض فقط)
+            name: item.name,
+          })),
+        };
+
+        const headers =
+          token && token.length
+            ? { Authorization: `Bearer ${token}` }
+            : undefined;
+
+        const res = await axios.post(
+          `${import.meta.env.VITE_API_URL}/api/discounts/apply`,
+          payload,
+          { headers }
+        );
+
+        setPreview(res.data as DiscountPreview);
+      } catch (err) {
+        console.error("فشل في معاينة الخصم:", err);
+        setPreview(null); // نستخدم القيم المحلية بدلًا من ذلك
+      } finally {
+        setLoadingPreview(false);
+      }
+    };
+
+    applyDiscountPreview();
+  }, [cart, token]);
+
+  // قيم العرض النهائية (نفضل معاينة السيرفر إن نجحت، وإلا fallback محلي)
+  const summary = useMemo(() => {
+    if (preview) {
+      return {
+        subtotal: preview.subtotal,
+        discountAmount:
+          preview.discount?.applied && preview.discount?.amount > 0
+            ? preview.discount.amount
+            : 0,
+        total: preview.total,
+        discountLabel:
+          preview.discount?.applied && preview.discount?.amount > 0
+            ? preview.discount?.type === "percent"
+              ? `${preview.discount.value}%${
+                  preview.discount.name ? ` - ${preview.discount.name}` : ""
+                }`
+              : `₪${preview.discount.value}${
+                  preview.discount.name ? ` - ${preview.discount.name}` : ""
+                }`
+            : null,
+        threshold: preview.discount?.threshold || 0,
+      };
+    }
+    // fallback محلي (بدون خصم)
+    return {
+      subtotal: localSubtotal,
+      discountAmount: 0,
+      total: localTotal,
+      discountLabel: null as string | null,
+      threshold: 0,
+    };
+  }, [preview, localSubtotal, localTotal]);
 
   const handleOrder = async () => {
     if (!user) {
@@ -48,19 +163,19 @@ const Cart: React.FC = () => {
     }
 
     try {
+      // نجمع البيانات بنفس أسلوبك القديم — السيرفر سيعيد الحساب ويتجاهل أي سعر مرسل من العميل
       const orderData = {
         address: userData.address,
-        total,
+        // إرسال total ليس ضروريًا، لكن لا يضرّ — السيرفر يعيد الحساب على أي حال
+        total: summary.total,
         items: cart.map((item) => ({
           productId: item._id,
           name: item.name,
           quantity: item.quantity,
-          price: item.price,
+          price: item.price, // لا يعتمد عليه السيرفر، سيقرأ من Variant ويحسب
           color: item.selectedColor || null,
           measure: item.selectedMeasure || null,
-          // إن كان عندك sku داخل عنصر السلة (مثلاً من اختيار المتغير) نرسله، وإلا يتجاهله السيرفر
           sku: (item as any).sku || undefined,
-          // اختياري: لو عندك صورة مختارة للمتغير
           image: (item as any).image || item.image || undefined,
         })),
       };
@@ -78,8 +193,9 @@ const Cart: React.FC = () => {
       if (res.status === 201) {
         alert("✅ تم إرسال الطلب بنجاح!");
         clearCart();
+        setPreview(null);
       }
-    } catch (err) {
+    } catch (err: any) {
       let message = "حدث خطأ أثناء تنفيذ الطلب.";
       if (axios.isAxiosError(err) && err.response?.data?.message) {
         message = err.response.data.message;
@@ -267,13 +383,49 @@ const Cart: React.FC = () => {
           ))}
         </div>
 
-        {/* 💳 الإجمالي وزر الإرسال */}
-        <div className="mt-6 flex justify-between items-center flex-col md:flex-row gap-4">
-          <p className="text-xl font-semibold">
-            المجموع الكلي:{" "}
-            <span className="text-green-600">{currency(total)}</span>
-          </p>
-          <Button onClick={handleOrder}>تأكيد الطلب</Button>
+        {/* 💳 الملخص + زر الإرسال */}
+        <div className="mt-6 flex justify-between items-start flex-col md:flex-row gap-4">
+          <div className="space-y-1 text-right w-full md:w-auto">
+            <p className="text-base">
+              المجموع الفرعي:{" "}
+              <span className="font-medium">{currency(summary.subtotal)}</span>
+            </p>
+
+            {loadingPreview ? (
+              <p className="text-sm text-muted-foreground">
+                جارٍ احتساب الخصم…
+              </p>
+            ) : summary.discountAmount > 0 ? (
+              <>
+                <p className="text-base text-green-700">
+                  الخصم
+                  {summary.discountLabel
+                    ? ` (${summary.discountLabel})`
+                    : ""}:{" "}
+                  <span className="font-medium">
+                    -{currency(summary.discountAmount)}
+                  </span>
+                </p>
+                {summary.threshold > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    تم تطبيق شريحة عند ≥ {currency(summary.threshold)}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                لا يوجد خصم مطبّق على هذا السلة.
+              </p>
+            )}
+
+            <p className="text-xl font-bold border-t pt-2">
+              الإجمالي: <span>{currency(summary.total)}</span>
+            </p>
+          </div>
+
+          <Button onClick={handleOrder} disabled={cart.length === 0}>
+            تأكيد الطلب
+          </Button>
         </div>
       </main>
       <Footer />

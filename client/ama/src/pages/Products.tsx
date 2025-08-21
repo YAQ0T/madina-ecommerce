@@ -302,8 +302,8 @@ const Products: React.FC = () => {
                   title="مصدر المنتج"
                 >
                   <option value="all">كل المصادر</option>
-                  <option value="ours">على اسمنا (ours)</option>
-                  <option value="local">محلي (local)</option>
+                  <option value="ours">مصدر ١</option>
+                  <option value="local">مصدر ٢</option>
                 </select>
               )}
             </div>

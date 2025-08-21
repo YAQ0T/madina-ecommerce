@@ -1,3 +1,4 @@
+// server/models/Order.js
 const mongoose = require("mongoose");
 
 const OrderItemSchema = new mongoose.Schema(
@@ -36,7 +37,28 @@ const OrderSchema = new mongoose.Schema(
       email: String,
     },
     items: { type: [OrderItemSchema], required: true },
+
+    // ✅ إجمالي قبل الخصم (نحسبه من عناصر الطلب)
+    subtotal: { type: Number, min: 0, required: true },
+
+    // ✅ تفاصيل الخصم المطبّق (إن وُجد)
+    discount: {
+      applied: { type: Boolean, default: false },
+      ruleId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "DiscountRule",
+        default: null,
+      },
+      type: { type: String, enum: ["percent", "fixed", null], default: null },
+      value: { type: Number, min: 0, default: 0 }, // القيمة المعلنة في القاعدة (مثلاً 5 أو 10 أو 50 شيكل)
+      amount: { type: Number, min: 0, default: 0 }, // المبلغ المخصوم فعلياً بالشيكل
+      threshold: { type: Number, min: 0, default: 0 }, // العتبة التي طابقت
+      name: { type: String, default: "" }, // اسم القاعدة لسهولة القراءة
+    },
+
+    // ✅ الإجمالي بعد الخصم
     total: { type: Number, min: 0, required: true },
+
     address: { type: String, required: true },
     status: {
       type: String,
@@ -47,7 +69,7 @@ const OrderSchema = new mongoose.Schema(
         "delivered",
         "cancelled",
       ],
-      default: "waiting_confirmation", // ✅ الافتراضية الجديدة
+      default: "waiting_confirmation",
       index: true,
     },
   },

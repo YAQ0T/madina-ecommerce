@@ -17,6 +17,7 @@ import ProductTable from "@/components/admin/ProductTable";
 import CategoryFilterMenus from "@/components/admin/CategoryFilterMenus";
 import OrderTable from "@/components/admin/OrderTable";
 import OrderDetailsDialog from "@/components/admin/OrderDetailsDialog";
+import DiscountRulesManager from "@/components/admin/DiscountRulesManager"; // 🆕 إدارة الخصومات
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 
 type ProductItem = {
@@ -259,10 +260,12 @@ const AdminDashboard: React.FC = () => {
         <h1 className="text-3xl font-bold mb-6">لوحة تحكم الأدمن</h1>
 
         <Tabs defaultValue="products" className="w-full">
-          <TabsList className="flex justify-end mb-6">
+          <TabsList className="flex justify-end mb-6 flex-wrap gap-2">
             <TabsTrigger value="products">المنتجات</TabsTrigger>
             <TabsTrigger value="orders">الطلبات</TabsTrigger>
             <TabsTrigger value="users">المستخدمين</TabsTrigger>
+            <TabsTrigger value="discounts">خصومات الطلبات</TabsTrigger>{" "}
+            {/* 🆕 */}
           </TabsList>
 
           {/* ✅ تبويب المنتجات */}
@@ -339,7 +342,7 @@ const AdminDashboard: React.FC = () => {
           <TabsContent value="orders">
             <h2 className="text-xl font-semibold mb-4">الطلبات</h2>
 
-            <div className="flex justify-end gap-2 mb-4">
+            <div className="flex justify-end gap-2 mb-4 flex-wrap">
               <Button
                 variant={filter === "all" ? "default" : "outline"}
                 onClick={() => setFilter("all")}
@@ -427,6 +430,12 @@ const AdminDashboard: React.FC = () => {
                 currentAdminId={user?._id}
               />
             )}
+          </TabsContent>
+
+          {/* 🆕 تبويب خصومات الطلبات */}
+          <TabsContent value="discounts">
+            <h2 className="text-xl font-semibold mb-4">خصومات الطلبات</h2>
+            <DiscountRulesManager />
           </TabsContent>
         </Tabs>
       </main>
