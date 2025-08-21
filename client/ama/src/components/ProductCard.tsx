@@ -32,8 +32,8 @@ type Variant = {
     discount?: {
       type?: "percent" | "amount";
       value?: number;
-      startAt?: string;
-      endAt?: string;
+      startAt?: string; // ISO
+      endAt?: string; // ISO
     };
   };
   stock: { inStock: number; sku: string };
@@ -48,6 +48,22 @@ const slugify = (s: string) =>
   (s || "").toString().trim().toLowerCase().replace(/\s+/g, "-");
 
 const isHexColor = (c: string) => /^#([0-9A-F]{3}){1,2}$/i.test(c);
+
+const formatTimeLeft = (ms: number) => {
+  if (ms <= 0) return "انتهى الخصم";
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  // صيغة مختصرة تحافظ على السياق
+  if (days > 0) return `${days}ي ${hours}س ${minutes}د`;
+  if (hours > 0) return `${hours}س ${minutes}د ${seconds}ث`;
+  return `${minutes}د ${seconds}ث`;
+};
+
+const clamp = (n: number, min = 0, max = 100) =>
+  Math.max(min, Math.min(max, n));
 
 const ProductCard: React.FC<Props> = ({ product }) => {
   const { addToCart } = useCart();
@@ -68,6 +84,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   // إشعار الإضافة
   const [showAdded, setShowAdded] = useState(false);
+
+  // ⏳ حالات التايمر/التقدم
+  const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
+  const [progressPct, setProgressPct] = useState<number | null>(null);
+  const [showDiscountTimer, setShowDiscountTimer] = useState(false);
 
   // جلب المتغيّرات (من /api/variants لضمان الحقول المحسوبة)
   useEffect(() => {
@@ -184,6 +205,65 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     variantFinal < variantCompare
       ? Math.round(((variantCompare - variantFinal) / variantCompare) * 100)
       : null;
+
+  // 🕒 تشغيل/تحديث شريط التقدم والوقت المتبقي — يظهر فقط عندما يكون الخصم نشطًا
+  useEffect(() => {
+    // إن لم يوجد خصم أو لا يوجد endAt فاخفِ المؤشر
+    const d = currentVariant?.price?.discount;
+    if (!d?.endAt) {
+      setShowDiscountTimer(false);
+      setTimeLeftMs(null);
+      setProgressPct(null);
+      return;
+    }
+
+    const now = Date.now();
+    const end = new Date(d.endAt).getTime();
+    // لو startAt غير محدد نعتبر بداية الخصم هي الآن - (مدة قصيرة) حتى لا يكسر الحساب
+    const start = d.startAt ? new Date(d.startAt).getTime() : now;
+
+    const hasRealDiscount =
+      typeof variantFinal === "number" &&
+      typeof variantCompare === "number" &&
+      variantCompare > 0 &&
+      variantFinal < variantCompare;
+
+    const isActive = hasRealDiscount && now >= start && now < end;
+
+    if (!isActive) {
+      setShowDiscountTimer(false);
+      setTimeLeftMs(null);
+      setProgressPct(null);
+      return;
+    }
+
+    // مبدئيًا فعّل المؤشر
+    setShowDiscountTimer(true);
+
+    // دالة تحديث كل ثانية
+    const update = () => {
+      const t = Date.now();
+      const left = end - t;
+      setTimeLeftMs(left > 0 ? left : 0);
+
+      const duration = Math.max(1, end - start);
+      const progress = ((t - start) / duration) * 100;
+      setProgressPct(clamp(progress));
+      // لو انتهى، أخفِ المؤشر
+      if (t >= end) {
+        setShowDiscountTimer(false);
+      }
+    };
+
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [
+    currentVariant?.price?.discount?.startAt,
+    currentVariant?.price?.discount?.endAt,
+    variantFinal,
+    variantCompare,
+  ]);
 
   const handleAddToCart = () => {
     // لو عندنا Variants: تأكد من اختيار متغيّر صالح
@@ -395,6 +475,29 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           <p className="font-bold mb-0">₪{displayPrice}</p>
         )}
       </div>
+
+      {/* ⏰ شريط تقدّم الخصم — يظهر فقط إذا الخصم نشط */}
+      {showDiscountTimer && progressPct !== null && timeLeftMs !== null && (
+        <div className="mb-3">
+          <div
+            className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
+            aria-label="مدّة الخصم المتبقية"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(progressPct)}
+            title="مدّة الخصم"
+          >
+            <div
+              className="h-full bg-red-600 transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <div className="mt-1 text-xs text-red-700 font-semibold text-right">
+            ينتهي خلال: {formatTimeLeft(timeLeftMs)}
+          </div>
+        </div>
+      )}
 
       {/* ✅ الأزرار */}
       <div className="mt-auto">

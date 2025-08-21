@@ -32,6 +32,21 @@ type Variant = {
   displayCompareAt?: number | null;
 };
 
+const clamp = (n: number, min = 0, max = 100) =>
+  Math.max(min, Math.min(max, n));
+
+const formatTimeLeft = (ms: number) => {
+  if (ms <= 0) return "انتهى الخصم";
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (days > 0) return `${days}ي ${hours}س ${minutes}د`;
+  if (hours > 0) return `${hours}س ${minutes}د ${seconds}ث`;
+  return `${minutes}د ${seconds}ث`;
+};
+
 const ProductDetails: React.FC = () => {
   const { addToCart } = useCart();
   const { id } = useParams();
@@ -47,19 +62,22 @@ const ProductDetails: React.FC = () => {
   const [measure, setMeasure] = useState<string>("");
   const [color, setColor] = useState<string>("");
 
-  // جلب المنتج + المتغيّرات (نستغني عن withVariants=1 ونستخدم /api/variants لضمان الحقول المحسوبة)
+  // ⏳ حالات التايمر/التقدم للخصم
+  const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
+  const [progressPct, setProgressPct] = useState<number | null>(null);
+  const [showDiscountTimer, setShowDiscountTimer] = useState(false);
+
+  // جلب المنتج + المتغيّرات
   useEffect(() => {
     let ignore = false;
     (async () => {
       try {
-        // المنتج وحده
         const prodRes = await axios.get(
           `${import.meta.env.VITE_API_URL}/api/products/${id}`
         );
         if (ignore) return;
         setProduct(prodRes.data);
 
-        // المتغيرات مع الحقول المحسوبة
         const varsRes = await axios.get(
           `${import.meta.env.VITE_API_URL}/api/variants`,
           { params: { product: id, limit: 500 } }
@@ -188,6 +206,61 @@ const ProductDetails: React.FC = () => {
       ? Math.round(((compareAt - finalAmount) / compareAt) * 100)
       : null;
 
+  // 🕒 إدارة ظهور شريط التقدم والعدّاد — يظهر فقط عند خصم فعلي نشط
+  useEffect(() => {
+    const d = currentVariant?.price?.discount;
+    if (!d?.endAt) {
+      setShowDiscountTimer(false);
+      setTimeLeftMs(null);
+      setProgressPct(null);
+      return;
+    }
+
+    const now = Date.now();
+    const end = new Date(d.endAt).getTime();
+    const start = d.startAt ? new Date(d.startAt).getTime() : now;
+
+    const hasRealDiscount =
+      typeof finalAmount === "number" &&
+      typeof compareAt === "number" &&
+      compareAt > 0 &&
+      finalAmount < compareAt;
+
+    const isActive = hasRealDiscount && now >= start && now < end;
+
+    if (!isActive) {
+      setShowDiscountTimer(false);
+      setTimeLeftMs(null);
+      setProgressPct(null);
+      return;
+    }
+
+    setShowDiscountTimer(true);
+
+    const update = () => {
+      const t = Date.now();
+      const left = end - t;
+      setTimeLeftMs(left > 0 ? left : 0);
+
+      const duration = Math.max(1, end - start);
+      const progress = ((t - start) / duration) * 100;
+      setProgressPct(clamp(progress));
+
+      if (t >= end) {
+        setShowDiscountTimer(false);
+      }
+    };
+
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [
+    currentVariant?.price?.discount?.startAt,
+    currentVariant?.price?.discount?.endAt,
+    finalAmount,
+    compareAt,
+  ]);
+
   if (!product) {
     return <p className="text-center mt-10">جاري تحميل تفاصيل المنتج...</p>;
   }
@@ -305,6 +378,31 @@ const ProductDetails: React.FC = () => {
                 </p>
               )}
             </div>
+
+            {/* ⏰ شريط تقدّم ووقت متبقّي — يظهر فقط عند خصم نشط */}
+            {showDiscountTimer &&
+              progressPct !== null &&
+              timeLeftMs !== null && (
+                <div className="mb-4">
+                  <div
+                    className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
+                    aria-label="مدّة الخصم المتبقية"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(progressPct)}
+                    title="مدّة الخصم"
+                  >
+                    <div
+                      className="h-full bg-red-600 transition-all duration-500"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                  <div className="mt-1 text-xs text-red-700 font-semibold text-right">
+                    ينتهي خلال: {formatTimeLeft(timeLeftMs)}
+                  </div>
+                </div>
+              )}
 
             {currentVariant && (
               <p className="text-sm text-gray-600 mb-6">
