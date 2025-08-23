@@ -249,7 +249,7 @@ const Cart: React.FC = () => {
                 <th className="py-2 px-4 border">المقاس</th>
                 <th className="py-2 px-4 border">السعر</th>
                 <th className="py-2 px-4 border">الكمية</th>
-                <th className="py-2 px-4 border">الإجمالي</th>
+                <th className="py-2 px-4 border">الاجمالي الفرعي</th>
                 <th className="py-2 px-4 border">إزالة</th>
               </tr>
             </thead>
@@ -395,27 +395,24 @@ const Cart: React.FC = () => {
               <p className="text-sm text-muted-foreground">
                 جارٍ احتساب الخصم…
               </p>
-            ) : summary.discountAmount > 0 ? (
-              <>
-                <p className="text-base text-green-700">
-                  الخصم
-                  {summary.discountLabel
-                    ? ` (${summary.discountLabel})`
-                    : ""}:{" "}
-                  <span className="font-medium">
-                    -{currency(summary.discountAmount)}
-                  </span>
-                </p>
-                {summary.threshold > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    تم تطبيق شريحة عند ≥ {currency(summary.threshold)}
-                  </p>
-                )}
-              </>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                لا يوجد خصم مطبّق على هذا السلة.
-              </p>
+              summary.discountAmount > 0 && (
+                <>
+                  <p className="text-base text-green-700">
+                    الخصم
+                    {summary.discountLabel ? ` (${summary.discountLabel})` : ""}
+                    :{" "}
+                    <span className="font-medium">
+                      -{currency(summary.discountAmount)}
+                    </span>
+                  </p>
+                  {summary.threshold > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      تم تطبيق شريحة عند ≥ {currency(summary.threshold)}
+                    </p>
+                  )}
+                </>
+              )
             )}
 
             <p className="text-xl font-bold border-t pt-2">
