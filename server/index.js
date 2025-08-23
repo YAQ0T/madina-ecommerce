@@ -49,19 +49,23 @@ const authRoutes = require("./routes/auth");
 const contactRoute = require("./routes/contact");
 const userRoutes = require("./routes/user");
 
-/* 🆕 خصومات الشرائح (إدارة القواعد) */
 const discountRulesRoutes = require("./routes/discountRules");
-/* 🆕 معاينة/تطبيق الخصم قبل إنشاء الطلب */
 const discountsRoutes = require("./routes/discounts");
 
+/* 🔎 راوتر المنتجات المحدّثة */
+const productsRecentUpdatesRoutes = require("./routes/products.recent-updates");
+
 app.use("/api/auth", authRoutes);
+
+/* ✅ مهم: اربط recent-updates قبل راوتر المنتجات الأساسي */
+app.use("/api/products", productsRecentUpdatesRoutes);
 app.use("/api/products", productRoutes);
+
 app.use("/api/variants", variantsRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/contact", contactRoute);
 app.use("/api/users", userRoutes);
 
-/* 🆕 نربط راوترات الخصم */
 app.use("/api/discount-rules", discountRulesRoutes);
 app.use("/api/discounts", discountsRoutes);
 

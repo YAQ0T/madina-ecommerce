@@ -28,7 +28,7 @@ type OwnershipFilter = "all" | "ours" | "local";
 
 const Products: React.FC = () => {
   const { user, token } = useAuth();
-  const canUseOwnership = user?.role === "admin" || user?.role === "dealer"; // ✅ فقط الأدمن/التاجر
+  const canUseOwnership = user?.role === "admin" || user?.role === "dealer";
 
   const [selectedMainCategory, setSelectedMainCategory] = useState("الكل");
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
@@ -50,7 +50,10 @@ const Products: React.FC = () => {
   const location = useLocation();
   const [currentPage, setCurrentPage] = useState(1);
 
-  // لو صار المستخدم غير مخوّل، نرجّع الفلتر إلى "all"
+  // ✅ زر “المحدّثة هذا الأسبوع”
+  const [recentDays, setRecentDays] = useState<number | null>(null); // null = إيقاف، >0 = فعّال
+  const [recentTotal, setRecentTotal] = useState<number | null>(null); // عرض العدد كبادج
+
   useEffect(() => {
     if (!canUseOwnership && ownershipFilter !== "all") {
       setOwnershipFilter("all");
@@ -64,7 +67,7 @@ const Products: React.FC = () => {
     if (category) setSelectedMainCategory(category);
   }, [location.search]);
 
-  // جلب الـ Facets (مع فلتر الملكية للأدمن/التاجر فقط)
+  // جلب Facets
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -76,7 +79,7 @@ const Products: React.FC = () => {
         if (selectedSubCategory) params.set("subCategory", selectedSubCategory);
         if (searchTerm) params.set("q", searchTerm);
         if (canUseOwnership && ownershipFilter !== "all") {
-          params.set("ownership", ownershipFilter); // ✅ أرسل فقط لو مخوّل
+          params.set("ownership", ownershipFilter);
         }
 
         const url = `${
@@ -85,7 +88,7 @@ const Products: React.FC = () => {
 
         const headers = token
           ? { Authorization: `Bearer ${token}` }
-          : undefined; // ✅ حتى يقرأ السيرفر الدور
+          : undefined;
 
         const { data } = await axios.get(url, { headers });
         if (ignore) return;
@@ -112,8 +115,7 @@ const Products: React.FC = () => {
         ) {
           setSelectedMeasureSlug("");
         }
-      } catch (err) {
-        console.error("❌ Failed to fetch facets", err);
+      } catch {
         setFacets({ measures: [], colors: [] });
       }
     })();
@@ -125,11 +127,11 @@ const Products: React.FC = () => {
     selectedSubCategory,
     searchTerm,
     ownershipFilter,
-    canUseOwnership, // ✅ تعيد الجلب لو تغيّرت صلاحية الدور
-    token, // ✅ نمرّر الهيدر لما يتوفّر
+    canUseOwnership,
+    token,
   ]);
 
-  // جلب المنتجات (مع فلتر الملكية للأدمن/التاجر فقط)
+  // جلب المنتجات
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -146,7 +148,7 @@ const Products: React.FC = () => {
       if (maxPrice) params.set("maxPrice", maxPrice);
 
       if (canUseOwnership && ownershipFilter !== "all") {
-        params.set("ownership", ownershipFilter); // ✅ ours | local فقط لو مخوّل
+        params.set("ownership", ownershipFilter);
       }
 
       const tags: string[] = [];
@@ -155,20 +157,26 @@ const Products: React.FC = () => {
       if (tags.length) params.set("tags", tags.join(","));
 
       try {
-        const url = `${
-          import.meta.env.VITE_API_URL
-        }/api/products/with-stats?${params.toString()}`;
+        const base = `${import.meta.env.VITE_API_URL}/api/products`;
+        const url =
+          recentDays && recentDays > 0
+            ? `${base}/recent-updates?${params.toString()}&days=${recentDays}`
+            : `${base}/with-stats?${params.toString()}`;
 
         const headers = token
           ? { Authorization: `Bearer ${token}` }
-          : undefined; // ✅ تمرير التوكن (اختياري)
-
+          : undefined;
         const res = await axios.get(url, { headers });
         if (ignore) return;
 
-        const { items, totalPages: tp } = res.data || {
+        const {
+          items,
+          totalPages: tp,
+          total,
+        } = res.data || {
           items: [],
           totalPages: 1,
+          total: 0,
         };
 
         const mapped: ProductItem[] = (items || []).map((p: any) => ({
@@ -186,10 +194,17 @@ const Products: React.FC = () => {
 
         setProducts(mapped);
         setTotalPages(tp || 1);
-      } catch (err) {
-        console.error("❌ Failed to fetch products with stats", err);
+
+        // ✅ تحديث البادج لو الفلتر فعّال
+        if (recentDays && recentDays > 0) {
+          setRecentTotal(typeof total === "number" ? total : mapped.length);
+        } else {
+          setRecentTotal(null);
+        }
+      } catch {
         setProducts([]);
         setTotalPages(1);
+        if (recentDays && recentDays > 0) setRecentTotal(null);
       } finally {
         setLoading(false);
       }
@@ -206,8 +221,9 @@ const Products: React.FC = () => {
     selectedColorSlug,
     selectedMeasureSlug,
     ownershipFilter,
-    canUseOwnership, // ✅
-    token, // ✅
+    canUseOwnership,
+    token,
+    recentDays,
   ]);
 
   const handleCategorySelect = (main: string, sub: string = "") => {
@@ -256,7 +272,52 @@ const Products: React.FC = () => {
     <>
       <Navbar />
       <main className="container mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-6 text-right">جميع المنتجات</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-right">جميع المنتجات</h1>
+
+          {/* زر “المحدّثة هذا الأسبوع” + البادج */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setRecentDays((prev) => {
+                  const next = prev ? null : 7;
+                  setCurrentPage(1);
+                  return next;
+                });
+              }}
+              className={`relative px-3 py-2 rounded transition-colors duration-200 ${
+                recentDays
+                  ? "bg-black text-white"
+                  : "bg-gray-100 text-black hover:bg-gray-300"
+              }`}
+              title="عرض المنتجات التي تم تحديثها خلال آخر 7 أيام"
+            >
+              {recentDays ? "إظهار الكل" : "آخر التحديثات"}
+              {recentDays && typeof recentTotal === "number" && (
+                <span className="absolute -top-2 -right-2 text-xs rounded-full bg-red-600 text-white px-2 py-0.5">
+                  {recentTotal}
+                </span>
+              )}
+            </button>
+
+            {recentDays && (
+              <select
+                className="border rounded px-2 py-2"
+                value={recentDays}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value || "7", 10);
+                  setRecentDays(Number.isFinite(v) && v > 0 ? v : 7);
+                  setCurrentPage(1);
+                }}
+                title="عدد الأيام"
+              >
+                <option value={7}>آخر 7 أيام</option>
+                <option value={14}>آخر 14 يوم</option>
+                <option value={30}>آخر 30 يوم</option>
+              </select>
+            )}
+          </div>
+        </div>
 
         <div className="flex flex-col lg:flex-row gap-6">
           <aside className="w-full lg:w-1/4">
@@ -290,7 +351,6 @@ const Products: React.FC = () => {
                 }}
               />
 
-              {/* ✅ فلتر الملكية يظهر فقط للأدمن/التاجر */}
               {canUseOwnership && (
                 <select
                   className="border rounded px-3 py-2"

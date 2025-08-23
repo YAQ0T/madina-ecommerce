@@ -47,12 +47,18 @@ const Cart: React.FC = () => {
   const [preview, setPreview] = useState<DiscountPreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
+  // ✅ تحديد ما إذا كان المستخدم تاجر
+  const isAdmin = useMemo(() => {
+    const u: any = user || {};
+    return u?.role === "admin";
+  }, [user]);
+
   useEffect(() => {
     if (user) {
       setUserData((prev) => ({
         ...prev,
-        name: user.name || "",
-        phone: user.phone || "",
+        name: (user as any).name || "",
+        phone: (user as any).phone || "",
       }));
     }
   }, [user]);
@@ -75,17 +81,13 @@ const Cart: React.FC = () => {
       try {
         setLoadingPreview(true);
 
-        // نرسل عناصر السلة بالشكل الذي يتوقعه السيرفر للبحث عن المتغيرات الحقيقية
         const payload = {
           items: cart.map((item) => ({
             productId: item._id,
             quantity: item.quantity,
-            // السيرفر يعطي أولوية لـ sku إن وُجد:
             sku: (item as any).sku || undefined,
-            // وإلا يستخدم productId + color + measure:
-            color: item.selectedColor || null,
-            measure: item.selectedMeasure || null,
-            // الاسم اختياري (للعرض فقط)
+            color: (item as any).selectedColor || null,
+            measure: (item as any).selectedMeasure || null,
             name: item.name,
           })),
         };
@@ -113,7 +115,7 @@ const Cart: React.FC = () => {
     applyDiscountPreview();
   }, [cart, token]);
 
-  // قيم العرض النهائية (نفضل معاينة السيرفر إن نجحت، وإلا fallback محلي)
+  // قيم العرض النهائية
   const summary = useMemo(() => {
     if (preview) {
       return {
@@ -136,7 +138,6 @@ const Cart: React.FC = () => {
         threshold: preview.discount?.threshold || 0,
       };
     }
-    // fallback محلي (بدون خصم)
     return {
       subtotal: localSubtotal,
       discountAmount: 0,
@@ -145,6 +146,179 @@ const Cart: React.FC = () => {
       threshold: 0,
     };
   }, [preview, localSubtotal, localTotal]);
+
+  // ✅ الطباعة عبر IFRAME مخفي (بدون نافذة منبثقة)
+  const handlePrintForDealer = () => {
+    if (!isAdmin) return;
+    if (cart.length === 0) {
+      alert("السلة فارغة، لا يوجد ما يُطبع.");
+      return;
+    }
+
+    const now = new Date();
+    const arabicDate = now.toLocaleString("ar-EG", {
+      dateStyle: "full",
+      timeStyle: "short",
+      hour12: false,
+    });
+
+    const rowsHtml = cart
+      .map((item) => {
+        const lineTotal = item.price * item.quantity;
+        return `
+          <tr>
+            <td>${(item as any).sku || ""}</td>
+            <td>${item.name || ""}</td>
+            <td>${(item as any).selectedColor || "-"}</td>
+            <td>${(item as any).selectedMeasure || "-"}</td>
+            <td>${currency(item.price)}</td>
+            <td>${item.quantity}</td>
+            <td>${currency(lineTotal)}</td>
+            <td></td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const discountRow =
+      summary.discountAmount > 0
+        ? `<tr>
+            <td colspan="6" class="ta-left">الخصم${
+              summary.discountLabel ? ` (${summary.discountLabel})` : ""
+            }</td>
+            <td>${"-" + currency(summary.discountAmount)}</td>
+            <td></td>
+           </tr>`
+        : "";
+
+    const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>عرض أسعار / طلبية</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Naskh Arabic", "Noto Sans Arabic", "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      direction: rtl; color: #111;
+    }
+    .head { display: flex; justify-content: space-between; gap: 16px; border-bottom: 2px solid #555; padding-bottom: 8px; margin-bottom: 16px; }
+    .brand { font-size: 20px; font-weight: 700; }
+    .muted { color: #666; font-size: 12px; line-height: 1.6; }
+    .title { font-size: 18px; font-weight: 700; margin: 8px 0 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { border: 1px solid #333; padding: 6px 8px; font-size: 12px; vertical-align: top; }
+    th { background: #f3f3f3; }
+    .ta-left { text-align: left; }
+    .notes { border: 1px dashed #aaa; padding: 8px; margin-top: 14px; min-height: 40px; }
+    .signatures { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .sign-box { border-top: 1px dashed #777; padding-top: 8px; min-height: 60px; font-size: 12px; }
+    .badge { display: inline-block; border: 1px solid #999; padding: 2px 6px; border-radius: 6px; font-size: 11px; color: #333; }
+  </style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <div class="brand">فاتورة/عرض للتاجر</div>
+      <div class="muted">التاريخ: ${arabicDate}</div>
+      <div class="badge">نسخة للطباعة — عمود فارغ للكتابة بالقلم</div>
+    </div>
+    <div class="muted">
+      <div><strong>العميل:</strong> ${userData.name || "-"}</div>
+      <div><strong>الهاتف:</strong> ${userData.phone || "-"}</div>
+      <div><strong>العنوان:</strong> ${userData.address || "-"}</div>
+    </div>
+  </div>
+
+  <div class="title">تفاصيل العناصر المختارة</div>
+  <table>
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>المنتج</th>
+        <th>اللون</th>
+        <th>المقاس</th>
+        <th>السعر</th>
+        <th>الكمية</th>
+        <th>الإجمالي الفرعي</th>
+        <th>.......جديد.......</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHtml}
+      <tr>
+        <td colspan="6" class="ta-left"><strong>المجموع الفرعي</strong></td>
+        <td><strong>${currency(summary.subtotal)}</strong></td>
+        <td></td>
+      </tr>
+      ${discountRow}
+      <tr>
+        <td colspan="6" class="ta-left"><strong>الإجمالي النهائي</strong></td>
+        <td><strong>${currency(summary.total)}</strong></td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="notes">
+    <strong>ملاحظات إضافية:</strong><br/>
+    <!-- اكتب بالقلم هنا بعد الطباعة -->
+  </div>
+
+  <div class="signatures">
+    <div class="sign-box"><strong>توقيع العميل:</strong></div>
+    <div class="sign-box"><strong>توقيع المندوب:</strong></div>
+  </div>
+
+  <script>
+    // تأخير بسيط لضمان اكتمال الرسم قبل الطباعة
+    window.onload = function() {
+      setTimeout(function(){ window.print(); }, 150);
+    };
+  </script>
+</body>
+</html>`;
+
+    // إنشاء iframe مخفي وحقن الـ HTML بداخله
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.setAttribute("aria-hidden", "true");
+
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      alert("تعذر تجهيز مستند الطباعة.");
+      document.body.removeChild(iframe);
+      return;
+    }
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    // تنظيف iframe بعد الطباعة
+    const cleanup = () => {
+      setTimeout(() => {
+        try {
+          document.body.removeChild(iframe);
+        } catch {}
+      }, 300);
+    };
+
+    // بعض المتصفحات تطلق حدث afterprint داخل iframe
+    const iwin = iframe.contentWindow;
+    if (iwin) {
+      iwin.onafterprint = cleanup;
+    }
+    // احتياط إضافي
+    setTimeout(cleanup, 10000);
+  };
 
   const handleOrder = async () => {
     if (!user) {
@@ -163,18 +337,16 @@ const Cart: React.FC = () => {
     }
 
     try {
-      // نجمع البيانات بنفس أسلوبك القديم — السيرفر سيعيد الحساب ويتجاهل أي سعر مرسل من العميل
       const orderData = {
         address: userData.address,
-        // إرسال total ليس ضروريًا، لكن لا يضرّ — السيرفر يعيد الحساب على أي حال
         total: summary.total,
         items: cart.map((item) => ({
           productId: item._id,
           name: item.name,
           quantity: item.quantity,
-          price: item.price, // لا يعتمد عليه السيرفر، سيقرأ من Variant ويحسب
-          color: item.selectedColor || null,
-          measure: item.selectedMeasure || null,
+          price: item.price,
+          color: (item as any).selectedColor || null,
+          measure: (item as any).selectedMeasure || null,
           sku: (item as any).sku || undefined,
           image: (item as any).image || item.image || undefined,
         })),
@@ -256,14 +428,16 @@ const Cart: React.FC = () => {
             <tbody>
               {cart.map((item) => (
                 <tr
-                  key={`${item._id}-${item.selectedColor}-${item.selectedMeasure}`}
+                  key={`${item._id}-${(item as any).selectedColor}-${
+                    (item as any).selectedMeasure
+                  }`}
                 >
                   <td className="py-2 px-4 border">{item.name}</td>
                   <td className="py-2 px-4 border">
-                    {item.selectedColor || "-"}
+                    {(item as any).selectedColor || "-"}
                   </td>
                   <td className="py-2 px-4 border">
-                    {item.selectedMeasure || "-"}
+                    {(item as any).selectedMeasure || "-"}
                   </td>
                   <td className="py-2 px-4 border">{currency(item.price)}</td>
                   <td className="py-2 px-4 border">
@@ -274,8 +448,8 @@ const Cart: React.FC = () => {
                           updateQuantity(
                             item._id,
                             item.quantity - 1,
-                            item.selectedColor,
-                            item.selectedMeasure
+                            (item as any).selectedColor,
+                            (item as any).selectedMeasure
                           )
                         }
                         disabled={item.quantity <= 1}
@@ -289,8 +463,8 @@ const Cart: React.FC = () => {
                           updateQuantity(
                             item._id,
                             newQty,
-                            item.selectedColor,
-                            item.selectedMeasure
+                            (item as any).selectedColor,
+                            (item as any).selectedMeasure
                           )
                         }
                       />
@@ -301,8 +475,8 @@ const Cart: React.FC = () => {
                           updateQuantity(
                             item._id,
                             item.quantity + 1,
-                            item.selectedColor,
-                            item.selectedMeasure
+                            (item as any).selectedColor,
+                            (item as any).selectedMeasure
                           )
                         }
                       >
@@ -320,8 +494,8 @@ const Cart: React.FC = () => {
                       onClick={() =>
                         removeFromCart(
                           item._id,
-                          item.selectedColor,
-                          item.selectedMeasure
+                          (item as any).selectedColor,
+                          (item as any).selectedMeasure
                         )
                       }
                     >
@@ -338,13 +512,15 @@ const Cart: React.FC = () => {
         <div className="grid gap-4 md:hidden">
           {cart.map((item) => (
             <div
-              key={`${item._id}-${item.selectedColor}-${item.selectedMeasure}`}
+              key={`${item._id}-${(item as any).selectedColor}-${
+                (item as any).selectedMeasure
+              }`}
               className="border rounded-lg p-4 text-right"
             >
               <h3 className="text-lg font-semibold mb-1">{item.name}</h3>
               <p className="text-sm text-gray-500">
-                اللون: {item.selectedColor || "-"} | المقاس:{" "}
-                {item.selectedMeasure || "-"}
+                اللون: {(item as any).selectedColor || "-"} | المقاس:{" "}
+                {(item as any).selectedMeasure || "-"}
               </p>
               <p className="text-gray-600 mb-1">
                 السعر: {currency(item.price)}
@@ -357,8 +533,8 @@ const Cart: React.FC = () => {
                     updateQuantity(
                       item._id,
                       newQty,
-                      item.selectedColor,
-                      item.selectedMeasure
+                      (item as any).selectedColor,
+                      (item as any).selectedMeasure
                     )
                   }
                 />
@@ -372,8 +548,8 @@ const Cart: React.FC = () => {
                 onClick={() =>
                   removeFromCart(
                     item._id,
-                    item.selectedColor,
-                    item.selectedMeasure
+                    (item as any).selectedColor,
+                    (item as any).selectedMeasure
                   )
                 }
               >
@@ -383,7 +559,7 @@ const Cart: React.FC = () => {
           ))}
         </div>
 
-        {/* 💳 الملخص + زر الإرسال */}
+        {/* 💳 الملخص + أزرار الإرسال/الطباعة */}
         <div className="mt-6 flex justify-between items-start flex-col md:flex-row gap-4">
           <div className="space-y-1 text-right w-full md:w-auto">
             <p className="text-base">
@@ -420,9 +596,22 @@ const Cart: React.FC = () => {
             </p>
           </div>
 
-          <Button onClick={handleOrder} disabled={cart.length === 0}>
-            تأكيد الطلب
-          </Button>
+          <div className="flex gap-2 w-full md:w-auto">
+            {/* زر طباعة للتاجر فقط */}
+            {isAdmin && (
+              <Button
+                variant="outline"
+                onClick={handlePrintForDealer}
+                disabled={cart.length === 0}
+              >
+                طباعة كـ PDF (للتاجر)
+              </Button>
+            )}
+
+            <Button onClick={handleOrder} disabled={cart.length === 0}>
+              تأكيد الطلب
+            </Button>
+          </div>
         </div>
       </main>
       <Footer />

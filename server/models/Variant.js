@@ -63,6 +63,10 @@ VariantSchema.index(
 );
 VariantSchema.index({ "price.amount": 1 });
 VariantSchema.index({ "stock.inStock": 1 });
+// ✅ فهارس للتحديثات والخصومات لتسريع الاستعلامات
+VariantSchema.index({ updatedAt: -1 });
+VariantSchema.index({ "price.discount.startAt": 1 });
+VariantSchema.index({ "price.discount.endAt": 1 });
 
 const slugify = (s) =>
   (s || "").toString().trim().toLowerCase().replace(/\s+/g, "-");
