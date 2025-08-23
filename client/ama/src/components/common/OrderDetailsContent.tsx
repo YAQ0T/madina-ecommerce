@@ -69,20 +69,6 @@ const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
   }, [authUser]);
 
   // ✅ هل هذا الطلب لتاجر؟
-  const isDealerOrder = useMemo(() => {
-    const u = order?.user || {};
-    const uRole =
-      (u as any)?.role ||
-      (u as any)?.type ||
-      (u as any)?.userType ||
-      (u as any)?.accountType;
-    const tagIsDealer =
-      Array.isArray(order?.tags) &&
-      order.tags.some((t: string) =>
-        String(t).toLowerCase().includes("dealer")
-      );
-    return uRole === "dealer" || tagIsDealer;
-  }, [order]);
 
   // ✅ طباعة نسخة للتاجر (عمود ملاحظات فارغ) عبر iframe
   const handlePrintDealer = () => {
