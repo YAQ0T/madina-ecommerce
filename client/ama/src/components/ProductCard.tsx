@@ -98,10 +98,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         setVariants(vs);
 
         // افتراض: أول متغيّر
-        // if (vs.length > 0) {
-        //   setSelectedMeasure(vs[0].measureSlug || "");
-        //   setSelectedColor(vs[0].colorSlug || "");
-        // }
+        if (vs.length > 0) {
+          setSelectedMeasure(vs[0].measureSlug || "");
+          setSelectedColor(vs[0].colorSlug || "");
+        }
       } catch {
         setVariants([]);
       } finally {

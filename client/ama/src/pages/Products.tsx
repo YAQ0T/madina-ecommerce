@@ -26,6 +26,9 @@ type FacetItem = { name: string; slug: string };
 type Facets = { measures: FacetItem[]; colors: FacetItem[] };
 type OwnershipFilter = "all" | "ours" | "local";
 
+// نوع مساعد لشجرة التصنيفات في القائمة
+type CategoryGroup = { mainCategory: string; subCategories: string[] };
+
 const Products: React.FC = () => {
   const { user, token } = useAuth();
   const canUseOwnership = user?.role === "admin" || user?.role === "dealer";
@@ -54,6 +57,10 @@ const Products: React.FC = () => {
   const [recentDays, setRecentDays] = useState<number | null>(null); // null = إيقاف، >0 = فعّال
   const [recentTotal, setRecentTotal] = useState<number | null>(null); // عرض العدد كبادج
 
+  // ✅ شجرة التصنيفات الشاملة لكل الصفحات
+  const [categoryMenu, setCategoryMenu] = useState<CategoryGroup[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
+
   useEffect(() => {
     if (!canUseOwnership && ownershipFilter !== "all") {
       setOwnershipFilter("all");
@@ -67,7 +74,7 @@ const Products: React.FC = () => {
     if (category) setSelectedMainCategory(category);
   }, [location.search]);
 
-  // جلب Facets
+  // جلب Facets (ألوان/مقاسات) بحسب الفلاتر الحالية
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -78,9 +85,13 @@ const Products: React.FC = () => {
         }
         if (selectedSubCategory) params.set("subCategory", selectedSubCategory);
         if (searchTerm) params.set("q", searchTerm);
+        if (maxPrice) params.set("maxPrice", maxPrice);
         if (canUseOwnership && ownershipFilter !== "all") {
           params.set("ownership", ownershipFilter);
         }
+        // لو فلتر آخر التحديثات مفعّل، نمرر days حتى تتوافق الفلاتر بين القائمة والبطاقات
+        if (recentDays && recentDays > 0)
+          params.set("days", String(recentDays));
 
         const url = `${
           import.meta.env.VITE_API_URL
@@ -126,12 +137,16 @@ const Products: React.FC = () => {
     selectedMainCategory,
     selectedSubCategory,
     searchTerm,
+    maxPrice,
     ownershipFilter,
     canUseOwnership,
     token,
+    recentDays,
+    selectedColorSlug,
+    selectedMeasureSlug,
   ]);
 
-  // جلب المنتجات
+  // جلب المنتجات (صفحة العرض الحالية فقط للبطاقات)
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -226,12 +241,148 @@ const Products: React.FC = () => {
     recentDays,
   ]);
 
+  // ✅ حمل شجرة التصنيفات من كل الصفحات وفق الفلاتر الحالية (بدون التقيد بالصفحة الحالية)
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      setLoadingCategories(true);
+
+      try {
+        const headers = token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined;
+        const base = `${import.meta.env.VITE_API_URL}/api/products`;
+
+        // نبني نفس الفلاتر المستخدمة في جلب المنتجات
+        const buildParams = () => {
+          const params = new URLSearchParams();
+          if (selectedMainCategory && selectedMainCategory !== "الكل") {
+            params.set("mainCategory", selectedMainCategory);
+          }
+          if (selectedSubCategory)
+            params.set("subCategory", selectedSubCategory);
+          if (searchTerm) params.set("q", searchTerm);
+          if (maxPrice) params.set("maxPrice", maxPrice);
+          if (canUseOwnership && ownershipFilter !== "all") {
+            params.set("ownership", ownershipFilter);
+          }
+          const tags: string[] = [];
+          if (selectedColorSlug) tags.push(`color:${selectedColorSlug}`);
+          if (selectedMeasureSlug) tags.push(`measure:${selectedMeasureSlug}`);
+          if (tags.length) params.set("tags", tags.join(","));
+          return params;
+        };
+
+        // أول طلب لمعرفة عدد الصفحات
+        const firstParams = buildParams();
+        firstParams.set("page", "1");
+        // نستخدم ليمت أعلى لتقليل عدد الطلبات
+        const PER_PAGE = 100;
+        firstParams.set("limit", String(PER_PAGE));
+
+        const firstUrl =
+          recentDays && recentDays > 0
+            ? `${base}/recent-updates?${firstParams.toString()}&days=${recentDays}`
+            : `${base}/with-stats?${firstParams.toString()}`;
+
+        const firstRes = await axios.get(firstUrl, { headers });
+        if (ignore) return;
+
+        const firstData = firstRes.data || { items: [], totalPages: 1 };
+        const totalPagesAll = Math.max(1, Number(firstData.totalPages) || 1);
+
+        // مجمّع للتصنيفات
+        const map = new Map<string, Set<string>>();
+
+        const consume = (items: any[]) => {
+          for (const p of items || []) {
+            const main = p?.mainCategory;
+            const sub = p?.subCategory;
+            if (!main) continue;
+            if (!map.has(main)) map.set(main, new Set<string>());
+            if (sub) map.get(main)!.add(sub);
+          }
+        };
+
+        consume(firstData.items || []);
+
+        // نجلب بقية الصفحات (لو وُجدت) — مع حد أقصى أماناً
+        const MAX_PAGES = 20;
+        const pagesToFetch = Math.min(totalPagesAll, MAX_PAGES);
+
+        const requests: Promise<any>[] = [];
+        for (let page = 2; page <= pagesToFetch; page++) {
+          const params = buildParams();
+          params.set("page", String(page));
+          params.set("limit", String(PER_PAGE));
+          const url =
+            recentDays && recentDays > 0
+              ? `${base}/recent-updates?${params.toString()}&days=${recentDays}`
+              : `${base}/with-stats?${params.toString()}`;
+          requests.push(
+            axios
+              .get(url, { headers })
+              .then((res) => res.data)
+              .catch(() => null)
+          );
+        }
+
+        const pages = await Promise.all(requests);
+        if (ignore) return;
+
+        for (const pageData of pages) {
+          if (!pageData?.items) continue;
+          consume(pageData.items);
+        }
+
+        const groups: CategoryGroup[] = Array.from(map.entries()).map(
+          ([main, subs]) => ({
+            mainCategory: main,
+            subCategories: Array.from(subs.values()),
+          })
+        );
+
+        // ترتيب ألفبائي بسيط (اختياري)
+        groups.sort((a, b) =>
+          a.mainCategory.localeCompare(b.mainCategory, "ar")
+        );
+        groups.forEach((g) =>
+          g.subCategories.sort((a, b) => a.localeCompare(b, "ar"))
+        );
+
+        setCategoryMenu(groups);
+      } catch {
+        // في حال الخطأ نبقي القائمة الحالية كما هي
+      } finally {
+        setLoadingCategories(false);
+      }
+    })();
+
+    return () => {
+      ignore = true;
+    };
+    // نعيد بناء القائمة عند تغيّر أي فلتر باستثناء currentPage لأنها قائمة شاملة
+  }, [
+    selectedMainCategory,
+    selectedSubCategory,
+    searchTerm,
+    maxPrice,
+    selectedColorSlug,
+    selectedMeasureSlug,
+    ownershipFilter,
+    canUseOwnership,
+    token,
+    recentDays,
+  ]);
+
   const handleCategorySelect = (main: string, sub: string = "") => {
     setSelectedMainCategory(main);
     setSelectedSubCategory(sub);
     setCurrentPage(1);
   };
 
+  // ⚠️ لم نعد نعتمد على المنتجات الظاهرة في الصفحة لبناء القائمة
+  // أبقينا هذا الـ useMemo إن أردت استخدامه لشيء لاحق، لكن القائمة تأتي الآن من categoryMenu
   const categoryGroups = useMemo(() => {
     return products.reduce((acc, product) => {
       const { mainCategory, subCategory } = product;
@@ -322,10 +473,12 @@ const Products: React.FC = () => {
         <div className="flex flex-col lg:flex-row gap-6">
           <aside className="w-full lg:w-1/4">
             <CategorySidebar
-              categories={categoryGroups}
+              // ✅ نستخدم الشجرة الشاملة عبر كل الصفحات
+              categories={categoryMenu.length ? categoryMenu : categoryGroups}
               onFilter={handleCategorySelect}
               selectedMain={selectedMainCategory}
               selectedSub={selectedSubCategory}
+              loading={loadingCategories as any}
             />
           </aside>
 
