@@ -1,6 +1,20 @@
 // src/components/CategorySidebar.tsx
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 interface CategorySidebarProps {
   categories: {
@@ -10,142 +24,158 @@ interface CategorySidebarProps {
   onFilter: (main: string, sub?: string) => void;
   selectedMain: string;
   selectedSub: string;
-  loading?: boolean; // ✅ جديد: دعم حالة التحميل
+  loading?: boolean;
 }
+
+const CLOSED = "__closed__"; // ✅ قيمة حارسة بدل undefined
 
 const CategorySidebar: React.FC<CategorySidebarProps> = ({
   categories,
   onFilter,
   selectedMain,
   selectedSub,
-  loading = false, // ✅ قيمة افتراضية
+  loading = false,
 }) => {
-  const [openCategory, setOpenCategory] = useState<string | null>(null);
-  const [mobileOpen, setMobileOpen] = useState(false); // فتح القائمة في الجوال
+  // ✅ نجعل الـ Accordion "controlled" دائمًا باستخدام قيمة string
+  const [openMain, setOpenMain] = useState<string>(CLOSED);
+  const [openSheet, setOpenSheet] = useState(false); // للموبايل
 
-  const handleMainClick = (cat: string) => {
-    if (loading) return; // منع التفاعل أثناء التحميل
-    setOpenCategory((prev) => (prev === cat ? null : cat));
-    onFilter(cat);
-  };
+  // افتح التصنيف المطابق للاختيار الحالي أو أغلقه للقيمة الحارسة
+  useEffect(() => {
+    setOpenMain(
+      selectedMain && selectedMain !== "الكل" ? selectedMain : CLOSED
+    );
+  }, [selectedMain]);
 
-  return (
-    <aside className="w-full">
-      <h2 className="text-lg font-bold mb-4 text-right hidden xl:block">
-        التصنيفات
-      </h2>
+  // ترتيب وتنظيف القوائم
+  const normalized = useMemo(() => {
+    const list = [...categories].map((c) => ({
+      mainCategory: c.mainCategory,
+      subCategories: Array.from(new Set(c.subCategories)),
+    }));
+    list.sort((a, b) => a.mainCategory.localeCompare(b.mainCategory, "ar"));
+    list.forEach((g) =>
+      g.subCategories.sort((a, b) => a.localeCompare(b, "ar"))
+    );
+    return list;
+  }, [categories]);
 
-      {/* زر فتح القائمة في الجوال */}
-      <div className="xl:hidden mb-4 text-right">
-        <button
-          onClick={() => !loading && setMobileOpen(!mobileOpen)}
-          className={cn(
-            "bg-gray-100 px-4 py-2 rounded font-semibold",
-            loading && "opacity-60 cursor-not-allowed"
-          )}
-          disabled={loading}
-        >
-          {loading ? "جاري التحميل…" : <>التصنيفات {mobileOpen ? "▲" : "▼"}</>}
-        </button>
-      </div>
-
-      {/* القائمة نفسها */}
-      <ul
+  const SidebarBody = (
+    <div className="space-y-2">
+      {/* زر الكل */}
+      <button
         className={cn(
-          "flex flex-col xl:space-y-2 text-right transition-all duration-300",
-          mobileOpen ? "block" : "hidden xl:block"
+          "w-full text-right px-3 py-2 rounded-md transition-colors",
+          selectedMain === "الكل" ? "bg-black text-white" : "hover:bg-gray-100"
         )}
+        onClick={() => {
+          setOpenMain(CLOSED);
+          onFilter("الكل", "");
+          setOpenSheet(false);
+        }}
+        disabled={loading}
       >
-        {/* حالة التحميل: سكليتون بسيط */}
-        {loading ? (
-          <>
-            <li className="h-8 bg-gray-100 rounded animate-pulse mb-2" />
-            <li className="h-8 bg-gray-100 rounded animate-pulse mb-2" />
-            <li className="h-8 bg-gray-100 rounded animate-pulse mb-2" />
-          </>
-        ) : (
-          <>
-            {/* زر الكل */}
-            <li className="relative">
-              <div
-                onClick={() => {
-                  setOpenCategory(null);
-                  onFilter("الكل", "");
-                  if (window.innerWidth < 1280) setMobileOpen(false);
-                }}
+        الكل
+      </button>
+
+      {/* حالة التحميل */}
+      {loading ? (
+        <div className="space-y-2">
+          <div className="h-9 bg-gray-100 rounded animate-pulse" />
+          <div className="h-9 bg-gray-100 rounded animate-pulse" />
+          <div className="h-9 bg-gray-100 rounded animate-pulse" />
+        </div>
+      ) : normalized.length === 0 ? (
+        <div className="text-sm text-gray-500 px-1">لا توجد تصنيفات متاحة.</div>
+      ) : (
+        <Accordion
+          type="single"
+          collapsible
+          dir="rtl"
+          // ✅ controlled دائمًا بقيمة string
+          value={openMain}
+          onValueChange={(v) => setOpenMain(v || CLOSED)}
+          className="w-full"
+        >
+          {normalized.map((cat) => (
+            <AccordionItem
+              key={cat.mainCategory}
+              value={cat.mainCategory}
+              className="border-b"
+            >
+              <AccordionTrigger
                 className={cn(
-                  "cursor-pointer font-medium px-2 py-1 rounded transition-colors",
-                  selectedMain === "الكل"
+                  "px-3 py-2 rounded-md text-right",
+                  openMain === cat.mainCategory ||
+                    selectedMain === cat.mainCategory
                     ? "bg-black text-white"
                     : "hover:bg-gray-100"
                 )}
               >
-                الكل
-              </div>
-            </li>
+                {cat.mainCategory}
+              </AccordionTrigger>
+              <AccordionContent className="px-2 pt-1 pb-2">
+                <div className="flex flex-col gap-1">
+                  {cat.subCategories.map((sub) => {
+                    const active =
+                      selectedMain === cat.mainCategory && selectedSub === sub;
+                    return (
+                      <button
+                        key={sub}
+                        onClick={() => {
+                          onFilter(cat.mainCategory, sub);
+                          setOpenSheet(false);
+                        }}
+                        className={cn(
+                          "w-full text-right px-3 py-2 rounded-md transition-colors",
+                          active
+                            ? "bg-gray-700 text-white"
+                            : "hover:bg-gray-100"
+                        )}
+                      >
+                        {sub}
+                      </button>
+                    );
+                  })}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      )}
+    </div>
+  );
 
-            {/* باقي التصنيفات */}
-            {categories.map((cat) => {
-              const isOpen = openCategory === cat.mainCategory;
-              const isActive = selectedMain === cat.mainCategory;
+  return (
+    <aside className="w-full">
+      {/* عنوان على الديسكتوب */}
+      <h2 className="text-lg font-bold mb-4 text-right hidden lg:block">
+        التصنيفات
+      </h2>
 
-              return (
-                <li key={cat.mainCategory} className="relative">
-                  <div
-                    onClick={() => handleMainClick(cat.mainCategory)}
-                    className={cn(
-                      "cursor-pointer font-medium px-2 py-1 rounded transition-colors flex justify-between items-center",
-                      isActive ? "bg-black text-white" : "hover:bg-gray-100"
-                    )}
-                  >
-                    <span>{cat.mainCategory}</span>
-                    <span>{isOpen ? "▲" : "▼"}</span>
-                  </div>
+      {/* جوّال: زر يفتح Sheet */}
+      <div className="lg:hidden mb-4 text-right">
+        <Sheet open={openSheet} onOpenChange={setOpenSheet}>
+          <SheetTrigger asChild>
+            <Button variant="secondary" className="font-semibold">
+              التصنيفات
+            </Button>
+          </SheetTrigger>
+          <SheetContent
+            side="right"
+            className="w-[90vw] sm:w-[420px]"
+            aria-describedby={undefined} // ✅ يمنع التحذير
+          >
+            <SheetHeader>
+              <SheetTitle className="text-right">التصنيفات</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">{SidebarBody}</div>
+          </SheetContent>
+        </Sheet>
+      </div>
 
-                  {isOpen && (
-                    <ul
-                      className={cn(
-                        "mt-1 text-sm space-y-1 text-gray-600 bg-white shadow-md rounded-md transition-all",
-                        "flex flex-col items-center text-center",
-                        "xl:items-start xl:text-right xl:min-w-[180px] xl:p-2"
-                      )}
-                    >
-                      {cat.subCategories.map((sub) => (
-                        <li
-                          key={sub}
-                          onClick={() => {
-                            if (loading) return;
-                            onFilter(cat.mainCategory, sub);
-                            if (window.innerWidth < 1280) {
-                              setMobileOpen(false);
-                              setOpenCategory(null);
-                            }
-                          }}
-                          className={cn(
-                            "cursor-pointer px-2 py-1 rounded transition-colors w-full",
-                            selectedSub === sub
-                              ? "bg-gray-700 text-white font-semibold"
-                              : "hover:bg-gray-100"
-                          )}
-                        >
-                          {sub}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-
-            {/* لا توجد تصنيفات */}
-            {categories.length === 0 && (
-              <li className="text-gray-500 text-sm px-2 py-1">
-                لا توجد تصنيفات متاحة.
-              </li>
-            )}
-          </>
-        )}
-      </ul>
+      {/* ديسكتوب/تابلت: سايدبار ثابت */}
+      <div className="hidden lg:block">{SidebarBody}</div>
     </aside>
   );
 };

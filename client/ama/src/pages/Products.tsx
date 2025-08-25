@@ -1,5 +1,5 @@
 // src/pages/Products.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,6 @@ type FacetItem = { name: string; slug: string };
 type Facets = { measures: FacetItem[]; colors: FacetItem[] };
 type OwnershipFilter = "all" | "ours" | "local";
 
-// نوع مساعد لشجرة التصنيفات في القائمة
 type CategoryGroup = { mainCategory: string; subCategories: string[] };
 
 const Products: React.FC = () => {
@@ -35,7 +34,13 @@ const Products: React.FC = () => {
 
   const [selectedMainCategory, setSelectedMainCategory] = useState("الكل");
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
+
+  // 🔎 البحث اليدوي بالاسم:
+  const [rawSearch, setRawSearch] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // 💰 السعر الأقصى اليدوي:
+  const [rawMaxPrice, setRawMaxPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
 
   const [selectedColorSlug, setSelectedColorSlug] = useState("");
@@ -53,14 +58,30 @@ const Products: React.FC = () => {
   const location = useLocation();
   const [currentPage, setCurrentPage] = useState(1);
 
-  // ✅ زر “المحدّثة هذا الأسبوع”
-  const [recentDays, setRecentDays] = useState<number | null>(null); // null = إيقاف، >0 = فعّال
-  const [recentTotal, setRecentTotal] = useState<number | null>(null); // عرض العدد كبادج
+  // زر “المحدّثة هذا الأسبوع”
+  const [recentDays, setRecentDays] = useState<number | null>(null);
+  const [recentTotal, setRecentTotal] = useState<number | null>(null);
 
-  // ✅ شجرة التصنيفات الشاملة لكل الصفحات
+  // شجرة التصنيفات الشاملة — تُحمّل مرة عند دخول الصفحة فقط
   const [categoryMenu, setCategoryMenu] = useState<CategoryGroup[]>([]);
   const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
 
+  // اقتراحات البحث بالاسم
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState<number>(-1);
+
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const searchBoxWrapperRef = useRef<HTMLDivElement | null>(null);
+  const maxPriceRef = useRef<HTMLInputElement | null>(null);
+
+  // عند تفعيل/تثبيت بحث جديد، عد للصفحة الأولى وابقِ الفوكس
+  useEffect(() => {
+    setCurrentPage(1);
+    searchRef.current?.focus();
+  }, [searchTerm]);
+
+  // منع تغيير فلتر الملكية لغير المصرّح لهم
   useEffect(() => {
     if (!canUseOwnership && ownershipFilter !== "all") {
       setOwnershipFilter("all");
@@ -68,13 +89,14 @@ const Products: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUseOwnership]);
 
+  // قراءة بارام الفئة من المسار
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const category = params.get("category");
     if (category) setSelectedMainCategory(category);
   }, [location.search]);
 
-  // جلب Facets (ألوان/مقاسات) بحسب الفلاتر الحالية
+  // جلب Facets (ألوان/مقاسات) — يعتمد على searchTerm/maxPrice (بعد التثبيت اليدوي)
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -89,7 +111,6 @@ const Products: React.FC = () => {
         if (canUseOwnership && ownershipFilter !== "all") {
           params.set("ownership", ownershipFilter);
         }
-        // لو فلتر آخر التحديثات مفعّل، نمرر days حتى تتوافق الفلاتر بين القائمة والبطاقات
         if (recentDays && recentDays > 0)
           params.set("days", String(recentDays));
 
@@ -146,7 +167,7 @@ const Products: React.FC = () => {
     selectedMeasureSlug,
   ]);
 
-  // جلب المنتجات (صفحة العرض الحالية فقط للبطاقات)
+  // جلب المنتجات — يعتمد على searchTerm/maxPrice (بعد التثبيت اليدوي)
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -210,14 +231,13 @@ const Products: React.FC = () => {
         setProducts(mapped);
         setTotalPages(tp || 1);
 
-        // ✅ تحديث البادج لو الفلتر فعّال
         if (recentDays && recentDays > 0) {
           setRecentTotal(typeof total === "number" ? total : mapped.length);
         } else {
           setRecentTotal(null);
         }
       } catch {
-        setProducts([]);
+        // ما نمسح المنتجات لنتجنّب وميض الشبكة
         setTotalPages(1);
         if (recentDays && recentDays > 0) setRecentTotal(null);
       } finally {
@@ -241,59 +261,30 @@ const Products: React.FC = () => {
     recentDays,
   ]);
 
-  // ✅ حمل شجرة التصنيفات من كل الصفحات وفق الفلاتر الحالية (بدون التقيد بالصفحة الحالية)
+  // حمّل شجرة التصنيفات مرة واحدة فقط عند الدخول (لا تتأثر بالبحث أو الفلاتر)
   useEffect(() => {
     let ignore = false;
     (async () => {
       setLoadingCategories(true);
-
       try {
         const headers = token
           ? { Authorization: `Bearer ${token}` }
           : undefined;
         const base = `${import.meta.env.VITE_API_URL}/api/products`;
 
-        // نبني نفس الفلاتر المستخدمة في جلب المنتجات
-        const buildParams = () => {
-          const params = new URLSearchParams();
-          if (selectedMainCategory && selectedMainCategory !== "الكل") {
-            params.set("mainCategory", selectedMainCategory);
-          }
-          if (selectedSubCategory)
-            params.set("subCategory", selectedSubCategory);
-          if (searchTerm) params.set("q", searchTerm);
-          if (maxPrice) params.set("maxPrice", maxPrice);
-          if (canUseOwnership && ownershipFilter !== "all") {
-            params.set("ownership", ownershipFilter);
-          }
-          const tags: string[] = [];
-          if (selectedColorSlug) tags.push(`color:${selectedColorSlug}`);
-          if (selectedMeasureSlug) tags.push(`measure:${selectedMeasureSlug}`);
-          if (tags.length) params.set("tags", tags.join(","));
-          return params;
-        };
-
-        // أول طلب لمعرفة عدد الصفحات
-        const firstParams = buildParams();
-        firstParams.set("page", "1");
-        // نستخدم ليمت أعلى لتقليل عدد الطلبات
         const PER_PAGE = 100;
+        const firstParams = new URLSearchParams();
+        firstParams.set("page", "1");
         firstParams.set("limit", String(PER_PAGE));
 
-        const firstUrl =
-          recentDays && recentDays > 0
-            ? `${base}/recent-updates?${firstParams.toString()}&days=${recentDays}`
-            : `${base}/with-stats?${firstParams.toString()}`;
-
+        const firstUrl = `${base}/with-stats?${firstParams.toString()}`;
         const firstRes = await axios.get(firstUrl, { headers });
         if (ignore) return;
 
         const firstData = firstRes.data || { items: [], totalPages: 1 };
         const totalPagesAll = Math.max(1, Number(firstData.totalPages) || 1);
 
-        // مجمّع للتصنيفات
         const map = new Map<string, Set<string>>();
-
         const consume = (items: any[]) => {
           for (const p of items || []) {
             const main = p?.mainCategory;
@@ -306,19 +297,15 @@ const Products: React.FC = () => {
 
         consume(firstData.items || []);
 
-        // نجلب بقية الصفحات (لو وُجدت) — مع حد أقصى أماناً
         const MAX_PAGES = 20;
         const pagesToFetch = Math.min(totalPagesAll, MAX_PAGES);
 
         const requests: Promise<any>[] = [];
         for (let page = 2; page <= pagesToFetch; page++) {
-          const params = buildParams();
+          const params = new URLSearchParams();
           params.set("page", String(page));
           params.set("limit", String(PER_PAGE));
-          const url =
-            recentDays && recentDays > 0
-              ? `${base}/recent-updates?${params.toString()}&days=${recentDays}`
-              : `${base}/with-stats?${params.toString()}`;
+          const url = `${base}/with-stats?${params.toString()}`;
           requests.push(
             axios
               .get(url, { headers })
@@ -342,7 +329,6 @@ const Products: React.FC = () => {
           })
         );
 
-        // ترتيب ألفبائي بسيط (اختياري)
         groups.sort((a, b) =>
           a.mainCategory.localeCompare(b.mainCategory, "ar")
         );
@@ -352,7 +338,7 @@ const Products: React.FC = () => {
 
         setCategoryMenu(groups);
       } catch {
-        // في حال الخطأ نبقي القائمة الحالية كما هي
+        // تجاهل الخطأ للحفاظ على القائمة الحالية
       } finally {
         setLoadingCategories(false);
       }
@@ -361,28 +347,77 @@ const Products: React.FC = () => {
     return () => {
       ignore = true;
     };
-    // نعيد بناء القائمة عند تغيّر أي فلتر باستثناء currentPage لأنها قائمة شاملة
-  }, [
-    selectedMainCategory,
-    selectedSubCategory,
-    searchTerm,
-    maxPrice,
-    selectedColorSlug,
-    selectedMeasureSlug,
-    ownershipFilter,
-    canUseOwnership,
-    token,
-    recentDays,
-  ]);
+    // ✅ دون أي تبعيات: مرة واحدة فقط
+  }, [token]);
+
+  // اقتراحات البحث — جلب أسماء المنتجات أثناء الكتابة (بدون تنفيذ بحث)
+  useEffect(() => {
+    let active = true;
+    if (!rawSearch.trim()) {
+      setSuggestions([]);
+      return;
+    }
+
+    const t = setTimeout(async () => {
+      try {
+        const headers = token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined;
+        const params = new URLSearchParams();
+        params.set("page", "1");
+        params.set("limit", "10");
+        params.set("q", rawSearch.trim());
+
+        // نستخدم with-stats لتجميع أسماء سريعة
+        const url = `${
+          import.meta.env.VITE_API_URL
+        }/api/products/with-stats?${params.toString()}`;
+        const res = await axios.get(url, { headers });
+        if (!active) return;
+
+        const names = Array.from(
+          new Set(
+            (res.data?.items || [])
+              .map((p: any) => p?.name)
+              .filter((n: any) => typeof n === "string" && n.trim())
+          )
+        ) as string[];
+
+        setSuggestions(names.slice(0, 10));
+      } catch {
+        if (!active) return;
+        setSuggestions([]);
+      }
+    }, 250); // debounce خفيف
+
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+  }, [rawSearch, token]);
+
+  // إغلاق قائمة الاقتراحات عند الضغط خارج صندوق البحث
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (!searchBoxWrapperRef.current) return;
+      if (!searchBoxWrapperRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+        setHighlightIndex(-1);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   const handleCategorySelect = (main: string, sub: string = "") => {
+    if (main === selectedMainCategory && sub === selectedSubCategory) return;
     setSelectedMainCategory(main);
     setSelectedSubCategory(sub);
     setCurrentPage(1);
+    searchRef.current?.focus();
   };
 
-  // ⚠️ لم نعد نعتمد على المنتجات الظاهرة في الصفحة لبناء القائمة
-  // أبقينا هذا الـ useMemo إن أردت استخدامه لشيء لاحق، لكن القائمة تأتي الآن من categoryMenu
+  // احتياطي: ليس مصدر القائمة الآن
   const categoryGroups = useMemo(() => {
     return products.reduce((acc, product) => {
       const { mainCategory, subCategory } = product;
@@ -405,6 +440,58 @@ const Products: React.FC = () => {
       return acc;
     }, [] as { mainCategory: string; subCategories: string[] }[]);
   }, [products]);
+
+  // 🔎 تثبيت البحث عند Enter أو الضغط على الأيقونة
+  const triggerSearch = () => {
+    setSearchTerm(rawSearch.trim());
+    setShowSuggestions(false);
+    setHighlightIndex(-1);
+  };
+
+  // 💰 تثبيت السعر الأقصى عند Enter أو الضغط على زر التطبيق
+  const triggerMaxPrice = () => {
+    const v = rawMaxPrice.trim();
+    setMaxPrice(v);
+    setCurrentPage(1);
+    // إبقاء الفوكس على حقل السعر لو حابب
+    maxPriceRef.current?.focus();
+  };
+
+  const handleSearchKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
+    e
+  ) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!showSuggestions) setShowSuggestions(true);
+      setHighlightIndex((prev) =>
+        Math.min((prev < 0 ? -1 : prev) + 1, suggestions.length - 1)
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((prev) => Math.max(prev - 1, -1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (showSuggestions && highlightIndex >= 0) {
+        const chosen = suggestions[highlightIndex];
+        if (chosen) {
+          setRawSearch(chosen);
+        }
+      }
+      triggerSearch();
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+      setHighlightIndex(-1);
+    }
+  };
+
+  const handleMaxPriceKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
+    e
+  ) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      triggerMaxPrice();
+    }
+  };
 
   if (loading && products.length === 0) {
     return (
@@ -473,36 +560,111 @@ const Products: React.FC = () => {
         <div className="flex flex-col lg:flex-row gap-6">
           <aside className="w-full lg:w-1/4">
             <CategorySidebar
-              // ✅ نستخدم الشجرة الشاملة عبر كل الصفحات
               categories={categoryMenu.length ? categoryMenu : categoryGroups}
               onFilter={handleCategorySelect}
               selectedMain={selectedMainCategory}
               selectedSub={selectedSubCategory}
-              loading={loadingCategories as any}
+              loading={loadingCategories}
             />
           </aside>
 
           <section className="flex-1">
             {/* شريط الفلاتر العلوية */}
             <div className="flex flex-col sm:flex-row gap-2 mb-4">
-              <Input
-                type="text"
-                placeholder="ابحث باسم المنتج..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-              />
-              <Input
-                type="number"
-                placeholder="سعر أقصى"
-                value={maxPrice}
-                onChange={(e) => {
-                  setMaxPrice(e.target.value);
-                  setCurrentPage(1);
-                }}
-              />
+              {/* مجموعة البحث: Input + زر أيقونة + اقتراحات */}
+              <div
+                className="relative flex w-full sm:max-w-xl"
+                ref={searchBoxWrapperRef}
+              >
+                <Input
+                  ref={searchRef}
+                  type="text"
+                  placeholder="ابحث باسم المنتج..."
+                  value={rawSearch}
+                  autoComplete="off"
+                  onChange={(e) => {
+                    setRawSearch(e.target.value);
+                    setShowSuggestions(true);
+                    setHighlightIndex(-1);
+                  }}
+                  onKeyDown={handleSearchKeyDown}
+                  onFocus={() => rawSearch && setShowSuggestions(true)}
+                  className="pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={triggerSearch}
+                  className="absolute inset-y-0 left-0 sm:left-auto sm:right-0 sm:inset-y-0 flex items-center justify-center w-12 bg-black text-white rounded-r-md sm:rounded-l-none sm:rounded-r-md hover:bg-gray-800"
+                  title="بحث"
+                >
+                  {/* أيقونة عدسة */}
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                </button>
+
+                {/* قائمة الاقتراحات */}
+                {showSuggestions && suggestions.length > 0 && (
+                  <ul
+                    className="absolute top-full mt-1 w-full z-20 bg-white border rounded-md shadow-lg max-h-64 overflow-auto text-right"
+                    role="listbox"
+                  >
+                    {suggestions.map((s, idx) => (
+                      <li
+                        key={`${s}-${idx}`}
+                        role="option"
+                        aria-selected={idx === highlightIndex}
+                        onMouseDown={(e) => {
+                          // onMouseDown لتجنب فقدان الفوكس قبل onClick/blur
+                          e.preventDefault();
+                          setRawSearch(s);
+                          setShowSuggestions(false);
+                          setHighlightIndex(-1);
+                          setTimeout(() => triggerSearch(), 0);
+                        }}
+                        className={`px-3 py-2 cursor-pointer transition-colors ${
+                          idx === highlightIndex
+                            ? "bg-gray-200"
+                            : "hover:bg-gray-100"
+                        }`}
+                      >
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* مجموعة السعر الأقصى: Input + زر تطبيق */}
+              <div className="relative flex w-full sm:max-w-xs">
+                <Input
+                  ref={maxPriceRef}
+                  type="number"
+                  placeholder="سعر أقصى"
+                  value={rawMaxPrice}
+                  onChange={(e) => setRawMaxPrice(e.target.value)}
+                  onKeyDown={handleMaxPriceKeyDown}
+                  className="pr-16"
+                />
+                <button
+                  type="button"
+                  onClick={triggerMaxPrice}
+                  className="absolute inset-y-0 left-0 sm:left-auto sm:right-0 sm:inset-y-0 flex items-center justify-center px-3 bg-black text-white rounded-r-md sm:rounded-l-none sm:rounded-r-md hover:bg-gray-800"
+                  title="تطبيق السعر"
+                >
+                  تطبيق
+                </button>
+              </div>
 
               {canUseOwnership && (
                 <select
