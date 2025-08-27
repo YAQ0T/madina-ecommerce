@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 const Footer: React.FC = () => {
   return (
     <footer className="dark:text-gray-200 mt-12 border-t pt-6 text-center text-gray-600">
-      <p>جميع الحقوق محفوظة &copy; 2025 متجر المدينة المنورة</p>
+      <p>جميع الحقوق محفوظة &copy; 2025 متجر ديكوري</p>
       <p className="dark:text-gray-200 mt-2">للتواصل: 0599-XXXXXX</p>
 
       <div className="dark:text-gray-200 mt-4 flex justify-center gap-4">

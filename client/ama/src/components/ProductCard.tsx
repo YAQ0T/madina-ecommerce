@@ -44,8 +44,6 @@ type Variant = {
 const slugify = (s: string) =>
   (s || "").toString().trim().toLowerCase().replace(/\s+/g, "-");
 
-const isHexColor = (c: string) => /^#([0-9A-F]{3}){1,2}$/i.test(c);
-
 const formatTimeLeft = (ms: number) => {
   if (ms <= 0) return "انتهى الخصم";
   const totalSeconds = Math.floor(ms / 1000);
@@ -83,7 +81,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const [progressPct, setProgressPct] = useState<number | null>(null);
   const [showDiscountTimer, setShowDiscountTimer] = useState(false);
 
-  // جلب المتغيّرات (من /api/variants لضمان الحقول المحسوبة)
+  // جلب المتغيّرات
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -122,18 +120,14 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     return Array.from(map.entries()).map(([slug, label]) => ({ slug, label }));
   }, [variants]);
 
-  // كل الألوان المعرفة عبر كل المتغيرات (لعرضها دائمًا لكن مع تعطيل غير المتاح)
+  // كل الألوان المعرفة عبر كل المتغيرات (عرضها بالكلمات)
   const allColorsFromVariants = useMemo(() => {
-    const map = new Map<
-      string,
-      { slug: string; name: string; code?: string }
-    >();
+    const map = new Map<string, { slug: string; name: string }>();
     for (const v of variants) {
       if (v.colorSlug) {
         map.set(v.colorSlug, {
           slug: v.colorSlug,
           name: v.color?.name || v.colorSlug,
-          code: v.color?.code,
         });
       }
     }
@@ -180,7 +174,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     return ["https://i.imgur.com/PU1aG4t.jpeg"];
   }, [currentVariant?.color?.images, product.images]);
 
-  // عند تغيير المقاس: لو اللون الحالي غير متاح، اختَر أول لون متاح تلقائيًا
+  // عند تغيير المقاس: لو اللون الحالي غير متاح، اختَر أول لون متاح
   useEffect(() => {
     if (variants.length === 0) return;
     if (!selectedMeasure) return;
@@ -326,10 +320,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     "opacity-80 bg-black/20 backdrop-blur-sm active:scale-95 " +
     // كمبيوتر: مخفية إلا عند الـ hover على الـ group
     "md:opacity-0 md:bg-white/60 md:text-black md:group-hover:opacity-100";
-  const arrowSize =
-    // موبايل: مساحة لمس أكبر قليلًا
-    "w-10 h-10 md:w-9 md:h-9 flex items-center justify-center";
-  const arrowIcon = "pointer-events-none select-none"; // الأيقونة لا تستقبل تفاعل
+  const arrowSize = "w-10 h-10 md:w-9 md:h-9 flex items-center justify-center";
+  const arrowIcon = "pointer-events-none select-none";
 
   return (
     <div className="group border rounded-lg p-4 text-right hover:shadow relative flex flex-col justify-between h-full">
@@ -366,7 +358,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                 "left-2 text-white md:text-black"
               )}
             >
-              {/* SVG أنيق وخفيف */}
               <svg
                 className={arrowIcon}
                 xmlns="http://www.w3.org/2000/svg"
@@ -405,7 +396,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
         {/* بادج خصم إن وُجد */}
         {discountPercent !== null && (
-          <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-10">
+          <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-20">
             -{discountPercent}%
           </span>
         )}
@@ -444,45 +435,39 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         </div>
       )}
 
-      {/* ✅ اختيار اللون */}
+      {/* ✅ اختيار اللون (كلمات بدل hex) */}
       {allColorsFromVariants.length > 0 && (
         <div className="mb-2">
           <span className="text-sm font-medium">الألوان: </span>
+          <div className="flex gap-2 mt-1 flex-wrap">
+            {allColorsFromVariants.map((c) => {
+              const isAvailable =
+                selectedMeasure &&
+                availableColorSlugsForSelectedMeasure.has(c.slug);
 
-          {
-            <div className="flex gap-2 mt-1 flex-wrap">
-              {allColorsFromVariants.map((c) => {
-                const isAvailable =
-                  selectedMeasure &&
-                  availableColorSlugsForSelectedMeasure.has(c.slug);
-
-                return (
-                  <button
-                    key={c.slug}
-                    title={c.name}
-                    onClick={() => {
-                      if (!isAvailable) return;
-                      setSelectedColor(c.slug);
-                      setCurrentImage(0);
-                    }}
-                    disabled={!isAvailable}
-                    className={clsx(
-                      "w-6 h-6 rounded-full border-2 transition",
-                      selectedColor === c.slug && isAvailable
-                        ? "border-black scale-110"
-                        : "border-gray-300",
-                      !isAvailable && "opacity-40 cursor-not-allowed"
-                    )}
-                    style={
-                      c.code && isHexColor(c.code)
-                        ? { backgroundColor: c.code }
-                        : undefined
-                    }
-                  />
-                );
-              })}
-            </div>
-          }
+              return (
+                <button
+                  key={c.slug}
+                  title={c.name}
+                  onClick={() => {
+                    if (!isAvailable) return;
+                    setSelectedColor(c.slug);
+                    setCurrentImage(0);
+                  }}
+                  disabled={!isAvailable}
+                  className={clsx(
+                    "px-3 py-1 text-sm rounded border transition",
+                    selectedColor === c.slug && isAvailable
+                      ? "border-black font-bold"
+                      : "border-gray-300",
+                    !isAvailable && "opacity-40 cursor-not-allowed"
+                  )}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -536,7 +521,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       </div>
 
       {showAdded && (
-        <div className="absolute top-2 left-2 bg-black text-white text-sm px-3 py-1 rounded shadow animate-bounce z-10">
+        <div className="absolute top-2 left-2 bg-black text-white text-sm px-3 py-1 rounded shadow animate-bounce z-20">
           ✅ تمت الإضافة!
         </div>
       )}
