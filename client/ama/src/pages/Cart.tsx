@@ -1,4 +1,4 @@
-// src/pages/Cart.tsx
+// client/ama/src/pages/Cart.tsx
 import React, { useState, useEffect, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -34,8 +34,17 @@ type DiscountPreview = {
 
 const currency = (n: number) => `₪${Number(n || 0).toFixed(2)}`;
 
+function normalizeMobile(input: string) {
+  const s = String(input || "").replace(/\s+/g, "");
+  if (!s) return "";
+  if (s.startsWith("+")) return s;
+  if (s.startsWith("00")) return `+${s.slice(2)}`;
+  if (s.startsWith("0")) return `+970${s.slice(1)}`;
+  return s;
+}
+
 const Cart: React.FC = () => {
-  const { cart, removeFromCart, clearCart, updateQuantity } = useCart();
+  const { cart, removeFromCart, updateQuantity, clearCart } = useCart();
   const { user, token } = useAuth();
 
   const [userData, setUserData] = useState({
@@ -43,15 +52,11 @@ const Cart: React.FC = () => {
     phone: "",
     address: "",
   });
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "cod">("card");
+  const [notes, setNotes] = useState("");
 
   const [preview, setPreview] = useState<DiscountPreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
-
-  // ✅ تحديد ما إذا كان المستخدم تاجر
-  const isAdmin = useMemo(() => {
-    const u: any = user || {};
-    return u?.role === "admin";
-  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -63,15 +68,12 @@ const Cart: React.FC = () => {
     }
   }, [user]);
 
-  // المجموع المحلي (fallback لو فشل استدعاء المعاينة)
   const localSubtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [cart]
   );
-
   const localTotal = useMemo(() => localSubtotal, [localSubtotal]);
 
-  // استدعاء معاينة الخصم الديناميكي من السيرفر عند تغيّر السلة
   useEffect(() => {
     const applyDiscountPreview = async () => {
       if (cart.length === 0) {
@@ -80,7 +82,6 @@ const Cart: React.FC = () => {
       }
       try {
         setLoadingPreview(true);
-
         const payload = {
           items: cart.map((item) => ({
             productId: item._id,
@@ -91,31 +92,25 @@ const Cart: React.FC = () => {
             name: item.name,
           })),
         };
-
-        const headers =
-          token && token.length
-            ? { Authorization: `Bearer ${token}` }
-            : undefined;
-
+        const headers = token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined;
         const res = await axios.post(
           `${import.meta.env.VITE_API_URL}/api/discounts/apply`,
           payload,
           { headers }
         );
-
         setPreview(res.data as DiscountPreview);
       } catch (err) {
         console.error("فشل في معاينة الخصم:", err);
-        setPreview(null); // نستخدم القيم المحلية بدلًا من ذلك
+        setPreview(null);
       } finally {
         setLoadingPreview(false);
       }
     };
-
     applyDiscountPreview();
   }, [cart, token]);
 
-  // قيم العرض النهائية
   const summary = useMemo(() => {
     if (preview) {
       return {
@@ -147,233 +142,115 @@ const Cart: React.FC = () => {
     };
   }, [preview, localSubtotal, localTotal]);
 
-  // ✅ الطباعة عبر IFRAME مخفي (بدون نافذة منبثقة)
-  const handlePrintForDealer = () => {
-    if (!isAdmin) return;
-    if (cart.length === 0) {
-      alert("السلة فارغة، لا يوجد ما يُطبع.");
-      return;
-    }
-
-    const now = new Date();
-    const arabicDate = now.toLocaleString("ar-EG", {
-      dateStyle: "full",
-      timeStyle: "short",
-      hour12: false,
-    });
-
-    const rowsHtml = cart
-      .map((item) => {
-        const lineTotal = item.price * item.quantity;
-        return `
-          <tr>
-            <td>${(item as any).sku || ""}</td>
-            <td>${item.name || ""}</td>
-            <td>${(item as any).selectedColor || "-"}</td>
-            <td>${(item as any).selectedMeasure || "-"}</td>
-            <td>${currency(item.price)}</td>
-            <td>${item.quantity}</td>
-            <td>${currency(lineTotal)}</td>
-            <td></td>
-          </tr>
-        `;
-      })
-      .join("");
-
-    const discountRow =
-      summary.discountAmount > 0
-        ? `<tr>
-            <td colspan="6" class="ta-left">الخصم${
-              summary.discountLabel ? ` (${summary.discountLabel})` : ""
-            }</td>
-            <td>${"-" + currency(summary.discountAmount)}</td>
-            <td></td>
-           </tr>`
-        : "";
-
-    const html = `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <title>عرض أسعار / طلبية</title>
-  <style>
-    @page { size: A4; margin: 14mm; }
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Naskh Arabic", "Noto Sans Arabic", "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      direction: rtl; color: #111;
-    }
-    .head { display: flex; justify-content: space-between; gap: 16px; border-bottom: 2px solid #555; padding-bottom: 8px; margin-bottom: 16px; }
-    .brand { font-size: 20px; font-weight: 700; }
-    .muted { color: #666; font-size: 12px; line-height: 1.6; }
-    .title { font-size: 18px; font-weight: 700; margin: 8px 0 4px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    th, td { border: 1px solid #333; padding: 6px 8px; font-size: 12px; vertical-align: top; }
-    th { background: #f3f3f3; }
-    .ta-left { text-align: left; }
-    .notes { border: 1px dashed #aaa; padding: 8px; margin-top: 14px; min-height: 40px; }
-    .signatures { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    .sign-box { border-top: 1px dashed #777; padding-top: 8px; min-height: 60px; font-size: 12px; }
-    .badge { display: inline-block; border: 1px solid #999; padding: 2px 6px; border-radius: 6px; font-size: 11px; color: #333; }
-  </style>
-</head>
-<body>
-  <div class="head">
-    <div>
-      <div class="brand">فاتورة/عرض للتاجر</div>
-      <div class="muted">التاريخ: ${arabicDate}</div>
-      <div class="badge">نسخة للطباعة — عمود فارغ للكتابة بالقلم</div>
-    </div>
-    <div class="muted">
-      <div><strong>العميل:</strong> ${userData.name || "-"}</div>
-      <div><strong>الهاتف:</strong> ${userData.phone || "-"}</div>
-      <div><strong>العنوان:</strong> ${userData.address || "-"}</div>
-    </div>
-  </div>
-
-  <div class="title">تفاصيل العناصر المختارة</div>
-  <table>
-    <thead>
-      <tr>
-        <th>SKU</th>
-        <th>المنتج</th>
-        <th>اللون</th>
-        <th>المقاس</th>
-        <th>السعر</th>
-        <th>الكمية</th>
-        <th>الإجمالي الفرعي</th>
-        <th>.......جديد.......</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${rowsHtml}
-      <tr>
-        <td colspan="6" class="ta-left"><strong>المجموع الفرعي</strong></td>
-        <td><strong>${currency(summary.subtotal)}</strong></td>
-        <td></td>
-      </tr>
-      ${discountRow}
-      <tr>
-        <td colspan="6" class="ta-left"><strong>الإجمالي النهائي</strong></td>
-        <td><strong>${currency(summary.total)}</strong></td>
-        <td></td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div class="notes">
-    <strong>ملاحظات إضافية:</strong><br/>
-    <!-- اكتب بالقلم هنا بعد الطباعة -->
-  </div>
-
-  <div class="signatures">
-    <div class="sign-box"><strong>توقيع العميل:</strong></div>
-    <div class="sign-box"><strong>توقيع المندوب:</strong></div>
-  </div>
-
-  <script>
-    // تأخير بسيط لضمان اكتمال الرسم قبل الطباعة
-    window.onload = function() {
-      setTimeout(function(){ window.print(); }, 150);
-    };
-  </script>
-</body>
-</html>`;
-
-    // إنشاء iframe مخفي وحقن الـ HTML بداخله
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    iframe.setAttribute("aria-hidden", "true");
-
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) {
-      alert("تعذر تجهيز مستند الطباعة.");
-      document.body.removeChild(iframe);
-      return;
-    }
-
-    doc.open();
-    doc.write(html);
-    doc.close();
-
-    // تنظيف iframe بعد الطباعة
-    const cleanup = () => {
-      setTimeout(() => {
-        try {
-          document.body.removeChild(iframe);
-        } catch {}
-      }, 300);
-    };
-
-    // بعض المتصفحات تطلق حدث afterprint داخل iframe
-    const iwin = iframe.contentWindow;
-    if (iwin) {
-      iwin.onafterprint = cleanup;
-    }
-    // احتياط إضافي
-    setTimeout(cleanup, 10000);
-  };
-
-  const handleOrder = async () => {
-    if (!user) {
-      alert("يجب تسجيل الدخول قبل تأكيد الطلب");
-      return;
-    }
-
-    if (!userData.address.trim()) {
-      alert("الرجاء تعبئة العنوان قبل تأكيد الطلب.");
-      return;
-    }
-
-    if (cart.length === 0) {
-      alert("سلة الشراء فارغة");
-      return;
-    }
+  const handleCreateCOD = async () => {
+    if (!user) return alert("يجب تسجيل الدخول");
+    if (!userData.address.trim()) return alert("الرجاء تعبئة العنوان");
+    if (cart.length === 0) return alert("السلة فارغة");
 
     try {
-      const orderData = {
-        address: userData.address,
-        total: summary.total,
-        items: cart.map((item) => ({
-          productId: item._id,
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          color: (item as any).selectedColor || null,
-          measure: (item as any).selectedMeasure || null,
-          sku: (item as any).sku || undefined,
-          image: (item as any).image || item.image || undefined,
-        })),
-      };
-
-      const res = await axios.post(
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      await axios.post(
         `${import.meta.env.VITE_API_URL}/api/orders`,
-        orderData,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+          address: userData.address,
+          paymentMethod: "cod",
+          paymentStatus: "unpaid",
+          status: "waiting_confirmation",
+          notes,
+          items: cart.map((it) => ({
+            productId: it._id,
+            name: it.name,
+            quantity: it.quantity,
+            sku: (it as any).sku || undefined,
+            color: (it as any).selectedColor || null,
+            measure: (it as any).selectedMeasure || null,
+          })),
+        },
+        { headers }
       );
 
-      if (res.status === 201) {
-        alert("✅ تم إرسال الطلب بنجاح!");
-        clearCart();
-        setPreview(null);
+      clearCart();
+      window.location.href = "/checkout/success?method=cod";
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.response?.data?.message || "تعذر إنشاء طلب الدفع عند التوصيل");
+    }
+  };
+
+  /** الدفع بالبطاقة (Card): حضّر طلب -> هيّئ دفعة -> Redirect */
+  const handlePayCardRedirect = async () => {
+    if (!user) return alert("يجب تسجيل الدخول قبل الدفع");
+    if (!userData.address.trim())
+      return alert("الرجاء تعبئة العنوان قبل الدفع.");
+    if (cart.length === 0) return alert("سلة الشراء فارغة");
+
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      // 1) إنشاء طلب مبدئي (pending/unpaid)
+      const prep = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/orders/prepare-card`,
+        {
+          address: userData.address,
+          notes,
+          items: cart.map((it) => ({
+            productId: it._id,
+            name: it.name,
+            quantity: it.quantity,
+            sku: (it as any).sku || undefined,
+            color: (it as any).selectedColor || null,
+            measure: (it as any).selectedMeasure || null,
+          })),
+        },
+        { headers }
+      );
+
+      const orderId = prep?.data?._id;
+      if (!orderId) throw new Error("فشل تحضير الطلب");
+
+      // 2) تهيئة دفع لَهْزة + ربط المرجع بالطلب
+      const amountMinor = Math.round(Number(summary.total || 0) * 100);
+      const callback_url = `${window.location.origin}/checkout/success`;
+
+      const mobile = normalizeMobile(
+        userData.phone || (user as any)?.phone || ""
+      );
+      const resp = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/payments/create`,
+        {
+          orderId, // ✅ مهم لربط reference
+          amountMinor,
+          currency: "ILS",
+          email: (user as any)?.email || undefined,
+          name: userData.name || (user as any)?.name || undefined,
+          mobile,
+          metadata: {
+            orderId,
+            cartCount: cart.length,
+            subtotal: summary.subtotal,
+            discount: summary.discountAmount,
+            finalTotal: summary.total,
+            address: userData.address || "",
+          },
+          callback_url,
+        },
+        { headers }
+      );
+
+      const { authorization_url } = resp.data;
+      if (!authorization_url) {
+        alert("تعذر الحصول على رابط الدفع من السيرفر");
+        return;
       }
-    } catch (err: any) {
-      let message = "حدث خطأ أثناء تنفيذ الطلب.";
-      if (axios.isAxiosError(err) && err.response?.data?.message) {
-        message = err.response.data.message;
-      }
-      console.error(message, err);
-      alert(message);
+
+      // 3) الانتقال لبوابة الدفع
+      window.location.href = authorization_url;
+    } catch (e: any) {
+      console.error(e);
+      alert(
+        e?.response?.data?.error ||
+          e?.response?.data?.message ||
+          "تعذر إنشاء معاملة الدفع"
+      );
     }
   };
 
@@ -383,7 +260,7 @@ const Cart: React.FC = () => {
       <main className="container mx-auto p-6 text-right">
         <h1 className="text-3xl font-bold mb-6">سلة المشتريات</h1>
 
-        {/* 🧾 نموذج بيانات المستخدم */}
+        {/* بيانات العميل */}
         <div className="grid md:grid-cols-3 gap-4 my-6">
           <input
             className="border p-2 rounded"
@@ -411,7 +288,15 @@ const Cart: React.FC = () => {
           />
         </div>
 
-        {/* 💻 لسطح المكتب */}
+        {/* ملاحظات */}
+        <textarea
+          className="border p-2 rounded w-full mb-4"
+          placeholder="ملاحظات إضافية (اختياري)"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+
+        {/* 💻 لسطح المكتب: جدول العناصر */}
         <div className="hidden md:block overflow-x-auto">
           <table className="min-w-full border text-right">
             <thead className="bg-gray-100 dark:bg-black dark:text-white">
@@ -421,7 +306,7 @@ const Cart: React.FC = () => {
                 <th className="py-2 px-4 border">المقاس</th>
                 <th className="py-2 px-4 border">السعر</th>
                 <th className="py-2 px-4 border">الكمية</th>
-                <th className="py-2 px-4 border">الاجمالي الفرعي</th>
+                <th className="py-2 px-4 border">الإجمالي الفرعي</th>
                 <th className="py-2 px-4 border">إزالة</th>
               </tr>
             </thead>
@@ -504,11 +389,18 @@ const Cart: React.FC = () => {
                   </td>
                 </tr>
               ))}
+              {cart.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-4 text-center text-gray-500">
+                    السلة فارغة.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
-        {/* 📱 للموبايل */}
+        {/* 📱 للموبايل: كروت العناصر */}
         <div className="grid gap-4 md:hidden">
           {cart.map((item) => (
             <div
@@ -557,16 +449,18 @@ const Cart: React.FC = () => {
               </Button>
             </div>
           ))}
+          {cart.length === 0 && (
+            <p className="text-center text-gray-500">السلة فارغة.</p>
+          )}
         </div>
 
-        {/* 💳 الملخص + أزرار الإرسال/الطباعة */}
-        <div className="mt-6 flex justify-between items-start flex-col md:flex-row gap-4">
-          <div className="space-y-1 text-right w-full md:w-auto">
+        {/* الملخص + اختيار طريقة الدفع */}
+        <div className="mt-6 grid gap-4">
+          <div className="space-y-1">
             <p className="text-base">
               المجموع الفرعي:{" "}
               <span className="font-medium">{currency(summary.subtotal)}</span>
             </p>
-
             {loadingPreview ? (
               <p className="text-sm text-muted-foreground">
                 جارٍ احتساب الخصم…
@@ -590,27 +484,66 @@ const Cart: React.FC = () => {
                 </>
               )
             )}
-
             <p className="text-xl font-bold border-t pt-2">
               الإجمالي: <span>{currency(summary.total)}</span>
             </p>
           </div>
 
-          <div className="flex gap-2 w-full md:w-auto">
-            {/* زر طباعة للتاجر فقط */}
-            {isAdmin && (
+          {/* اختيار طريقة الدفع */}
+          <div className="border rounded p-4 space-y-3">
+            <h3 className="font-semibold">طريقة الدفع</h3>
+
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="pay"
+                checked={paymentMethod === "card"}
+                onChange={() => setPaymentMethod("card")}
+              />
+              <div>
+                <div className="font-medium">
+                  💳 الدفع بالبطاقة (فيزا/ماستر)
+                </div>
+                <div className="text-sm text-green-700">
+                  ملاحظة: <strong>أسرع ومُستحسن</strong> — يُسرِّع معالجة الطلب.
+                </div>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="pay"
+                checked={paymentMethod === "cod"}
+                onChange={() => setPaymentMethod("cod")}
+              />
+              <div>
+                <div className="font-medium">🚚 الدفع عند التوصيل (COD)</div>
+                <div className="text-sm text-amber-700">
+                  ملاحظة: قد يتم <strong>إجراءات إضافية</strong> للتحقق عند
+                  اختيارك لهذا الخيار (تأكيد هاتفي/عربون).
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <div className="flex gap-2">
+            {paymentMethod === "card" ? (
               <Button
-                variant="outline"
-                onClick={handlePrintForDealer}
+                onClick={handlePayCardRedirect}
                 disabled={cart.length === 0}
               >
-                طباعة كـ PDF (للتاجر)
+                ادفع الآن بالبطاقة
+              </Button>
+            ) : (
+              <Button
+                onClick={handleCreateCOD}
+                variant="outline"
+                disabled={cart.length === 0}
+              >
+                إنشاء طلب دفع عند التوصيل
               </Button>
             )}
-
-            <Button onClick={handleOrder} disabled={cart.length === 0}>
-              تأكيد الطلب
-            </Button>
           </div>
         </div>
       </main>

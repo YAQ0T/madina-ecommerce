@@ -33,10 +33,15 @@ const statusLabel = (s: string) => {
       return s || "-";
   }
 };
+const payMethodLabel = (m: string) =>
+  m === "card" ? "💳 بطاقة" : "🚚 عند التوصيل";
+const payStatusLabel = (s: string) => {
+  return s === "paid" ? "✅ مدفوع" : s === "failed" ? "❌ فشل" : "🕓 غير مدفوع";
+};
 
 const currency = (n: number) => `₪${Number(n || 0).toFixed(2)}`;
 
-const renderItemsSummary = (items: any[] = []) => {
+const renderItemsSummary = (items: any[] = [], notes: string | undefined) => {
   if (!items.length) return "-";
   return (
     <div className="space-y-1">
@@ -55,10 +60,15 @@ const renderItemsSummary = (items: any[] = []) => {
           </div>
         );
       })}
+      {/* Display notes */}
+      {notes && (
+        <div className="mt-4">
+          <strong>ملاحظات:</strong> {notes}
+        </div>
+      )}
     </div>
   );
 };
-
 const OrderTable: React.FC<OrderTableProps> = ({
   orders,
   filter,
@@ -69,9 +79,8 @@ const OrderTable: React.FC<OrderTableProps> = ({
     filter === "all" ? true : order.status === filter
   );
 
-  if (orders.length === 0) {
+  if (orders.length === 0)
     return <p className="text-gray-600">لا توجد طلبات حالياً.</p>;
-  }
 
   return (
     <div className="overflow-x-auto">
@@ -83,10 +92,11 @@ const OrderTable: React.FC<OrderTableProps> = ({
             <th className="border px-4 py-2">الهاتف</th>
             <th className="border px-4 py-2">العنوان</th>
             <th className="border px-4 py-2">المنتجات</th>
-            {/* 🆕 subtotal/discount/total */}
             <th className="border px-4 py-2">Subtotal</th>
             <th className="border px-4 py-2">الخصم</th>
             <th className="border px-4 py-2">الإجمالي</th>
+            <th className="border px-4 py-2">طريقة الدفع</th>
+            <th className="border px-4 py-2">حالة الدفع</th>
             <th className="border px-4 py-2">الحالة</th>
             <th className="border px-4 py-2">عدد المنتجات</th>
             <th className="border px-4 py-2">تحديث الحالة</th>
@@ -118,10 +128,8 @@ const OrderTable: React.FC<OrderTableProps> = ({
                 </td>
                 <td className="border px-4 py-2">{order?.address || "-"}</td>
                 <td className="border px-4 py-2">
-                  {renderItemsSummary(order?.items)}
+                  {renderItemsSummary(order?.items, order?.notes)}
                 </td>
-
-                {/* 🆕 العرض المالي */}
                 <td className="border px-4 py-2">
                   {currency(order?.subtotal ?? 0)}
                 </td>
@@ -131,7 +139,12 @@ const OrderTable: React.FC<OrderTableProps> = ({
                 <td className="border px-4 py-2 font-semibold">
                   {currency(order?.total)}
                 </td>
-
+                <td className="border px-4 py-2">
+                  {payMethodLabel(order?.paymentMethod)}
+                </td>
+                <td className="border px-4 py-2">
+                  {payStatusLabel(order?.paymentStatus)}
+                </td>
                 <td className="border px-4 py-2">
                   {statusLabel(order?.status)}
                 </td>

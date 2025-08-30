@@ -1,6 +1,13 @@
+/* ===========================
+ *  madina-ecommerce — server/index.js
+ *  Express + MongoDB + Lahza Webhooks (CJS)
+ * =========================== */
+
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
+const axios = require("axios");
 require("dotenv").config();
 
 const app = express();
@@ -26,9 +33,178 @@ app.use(
   })
 );
 
-/* ---------- Core Middleware ---------- */
-app.use(express.json({ limit: "1mb" }));
+/* ---------- Trust Proxy (قبل استخدام IP) ---------- */
 app.set("trust proxy", 1);
+
+/* =====================================================
+ *  WEBHOOK: Lahza  (ضروري يكون قبل express.json)
+ *  - يستقبل RAW JSON
+ *  - يتحقق من x-lahza-signature (HMAC-SHA256 على الـ raw body)
+ *  - عند charge.success: يخصم مخزون أصناف الطلب، ويعلّم الطلب مدفوع
+ *  - يرجع 200 بسرعة لتجنّب إعادة المحاولات الطويلة
+ * ===================================================== */
+
+const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || ""; // ضع قيمتك في .env
+const WEBHOOK_IP_WHITELIST =
+  String(process.env.WEBHOOK_IP_WHITELIST || "true") === "true";
+const WEBHOOK_ALLOWED_IPS = (
+  process.env.WEBHOOK_ALLOWED_IPS || "161.35.20.140,165.227.134.20"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+// ⚠️ سنحتاج هذه الموديلات داخل الـ webhook
+const Order = require("./models/Order");
+const Variant = require("./models/Variant");
+
+// جلب IP الحقيقي (خلف بروكسي/كلودفلير)
+function getClientIp(req) {
+  const xff = req.headers["x-forwarded-for"];
+  if (xff) return xff.split(",")[0].trim();
+  return req.socket?.remoteAddress || req.ip || "";
+}
+
+// خصم مخزون عناصر الطلب
+async function decrementStockByOrderItems(items = []) {
+  await Promise.all(
+    (items || []).map((ci) =>
+      Variant.updateOne(
+        { _id: ci.variantId, "stock.inStock": { $gte: ci.quantity } },
+        { $inc: { "stock.inStock": -ci.quantity } }
+      )
+    )
+  );
+}
+
+app.post(
+  "/api/webhooks/lahza",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    try {
+      if (!LAHZA_SECRET_KEY) {
+        console.error("⚠️ LAHZA_SECRET_KEY غير معرّف في .env");
+        return res.sendStatus(200);
+      }
+
+      if (WEBHOOK_IP_WHITELIST && WEBHOOK_ALLOWED_IPS.length) {
+        const ip = getClientIp(req);
+        const pass = WEBHOOK_ALLOWED_IPS.some((a) => ip.includes(a));
+        if (!pass) {
+          console.warn("🚫 Webhook مرفوض من IP غير مسموح:", ip);
+          return res.sendStatus(200);
+        }
+      }
+
+      const signature = req.get("x-lahza-signature") || "";
+      let computed;
+      try {
+        computed = crypto
+          .createHmac("sha256", LAHZA_SECRET_KEY)
+          .update(req.body)
+          .digest("hex");
+      } catch (e) {
+        console.error("❌ فشل إنشاء HMAC:", e.message);
+        return res.sendStatus(200);
+      }
+
+      let verified = false;
+      try {
+        const a = Buffer.from(computed, "utf8");
+        const b = Buffer.from(signature, "utf8");
+        verified = a.length === b.length && crypto.timingSafeEqual(a, b);
+      } catch {
+        verified = false;
+      }
+
+      if (!verified) {
+        console.warn("⚠️ توقيع Webhook غير صالح");
+        return res.sendStatus(200);
+      }
+
+      let event;
+      try {
+        event = JSON.parse(req.body.toString("utf8"));
+      } catch (e) {
+        console.error("❌ جسم Webhook ليس JSON صالح");
+        return res.sendStatus(200);
+      }
+
+      const type = event?.type || "";
+      const data = event?.data || {};
+
+      if (type === "charge.success") {
+        const reference =
+          data?.reference || data?.ref || data?.transaction_ref || null;
+
+        if (reference) {
+          try {
+            // ✅ تحقّق من المعاملة من لَهْزة (اختياري لكنه جيد)
+            const url = `https://api.lahza.io/transaction/verify/${encodeURIComponent(
+              reference
+            )}`;
+            const resp = await axios.get(url, {
+              headers: {
+                Authorization: `Bearer ${LAHZA_SECRET_KEY}`,
+                "Content-Type": "application/json",
+              },
+              timeout: 15000,
+            });
+
+            const v = resp?.data || {};
+            const status = v?.data?.status;
+
+            if (String(status).toLowerCase() === "success") {
+              // ابحث عن الطلب المرتبط بهذا المرجع
+              const order = await Order.findOne({ reference }).lean();
+              if (!order) {
+                console.warn("⚠️ لا يوجد طلب مرتبط بهذا المرجع:", reference);
+              } else {
+                if (order.paymentStatus !== "paid") {
+                  // خصم المخزون الآن
+                  await decrementStockByOrderItems(order.items || []);
+                  // علّم الطلب كمدفوع وبانتظار التأكيد
+                  await Order.findByIdAndUpdate(order._id, {
+                    $set: {
+                      paymentStatus: "paid",
+                      status: "waiting_confirmation",
+                    },
+                  }).lean();
+
+                  console.log(
+                    "✅ تم وسم الطلب مدفوعًا وتحديث الحالة:",
+                    order._id
+                  );
+                } else {
+                  console.log("ℹ️ الطلب مدفوع مسبقًا:", order._id);
+                }
+              }
+            } else {
+              console.warn(
+                "⚠️ verify لم يرجع success لهذه المعاملة:",
+                reference,
+                status
+              );
+            }
+          } catch (err) {
+            console.error(
+              "❌ فشل Verify/تحديث الطلب:",
+              err?.response?.data || err.message
+            );
+          }
+        }
+      }
+
+      return res.sendStatus(200);
+    } catch (e) {
+      console.error("🔥 Webhook handler error:", e);
+      return res.sendStatus(200);
+    }
+  }
+);
+
+/* ---------- Core Middleware (بعد الويبهوك) ---------- */
+app.use(express.json({ limit: "1mb" }));
 
 /* ---------- DB Connection ---------- */
 mongoose.set("strictQuery", true);
@@ -48,14 +224,17 @@ const orderRoutes = require("./routes/orders");
 const authRoutes = require("./routes/auth");
 const contactRoute = require("./routes/contact");
 const userRoutes = require("./routes/user");
-
 const discountRulesRoutes = require("./routes/discountRules");
 const discountsRoutes = require("./routes/discounts");
 
 /* 🔎 راوتر المنتجات المحدّثة */
 const productsRecentUpdatesRoutes = require("./routes/products.recent-updates");
 
+/* ✅ راوتر المدفوعات الجديد */
+const paymentsRoutes = require("./routes/payments");
+
 app.use("/api/auth", authRoutes);
+app.use("/api/payments", paymentsRoutes); // <<— مهم لخطوة redirect
 
 /* ✅ مهم: اربط recent-updates قبل راوتر المنتجات الأساسي */
 app.use("/api/products", productsRecentUpdatesRoutes);
@@ -65,7 +244,6 @@ app.use("/api/variants", variantsRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/contact", contactRoute);
 app.use("/api/users", userRoutes);
-
 app.use("/api/discount-rules", discountRulesRoutes);
 app.use("/api/discounts", discountsRoutes);
 

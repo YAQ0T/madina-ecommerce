@@ -36,12 +36,13 @@ const OrderSchema = new mongoose.Schema(
       phone: String,
       email: String,
     },
+
     items: { type: [OrderItemSchema], required: true },
 
-    // ✅ إجمالي قبل الخصم (نحسبه من عناصر الطلب)
+    // إجمالي قبل الخصم
     subtotal: { type: Number, min: 0, required: true },
 
-    // ✅ تفاصيل الخصم المطبّق (إن وُجد)
+    // تفاصيل الخصم (إن وجد)
     discount: {
       applied: { type: Boolean, default: false },
       ruleId: {
@@ -50,16 +51,18 @@ const OrderSchema = new mongoose.Schema(
         default: null,
       },
       type: { type: String, enum: ["percent", "fixed", null], default: null },
-      value: { type: Number, min: 0, default: 0 }, // القيمة المعلنة في القاعدة (مثلاً 5 أو 10 أو 50 شيكل)
-      amount: { type: Number, min: 0, default: 0 }, // المبلغ المخصوم فعلياً بالشيكل
-      threshold: { type: Number, min: 0, default: 0 }, // العتبة التي طابقت
-      name: { type: String, default: "" }, // اسم القاعدة لسهولة القراءة
+      value: { type: Number, min: 0, default: 0 },
+      amount: { type: Number, min: 0, default: 0 },
+      threshold: { type: Number, min: 0, default: 0 },
+      name: { type: String, default: "" },
     },
 
-    // ✅ الإجمالي بعد الخصم
+    // الإجمالي بعد الخصم
     total: { type: Number, min: 0, required: true },
 
     address: { type: String, required: true },
+
+    // حالة الطلب التشغيلية
     status: {
       type: String,
       enum: [
@@ -72,6 +75,26 @@ const OrderSchema = new mongoose.Schema(
       default: "waiting_confirmation",
       index: true,
     },
+
+    // ✅ معلومات الدفع
+    paymentMethod: {
+      type: String,
+      enum: ["card", "cod"],
+      default: "cod",
+      index: true,
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["unpaid", "paid", "failed"],
+      default: "unpaid",
+      index: true,
+    },
+
+    // مرجع منصة الدفع (من لَهْزة) — نربط به الطلب
+    reference: { type: String, index: true, default: null },
+
+    // ملاحظات العميل
+    notes: { type: String, default: "" },
   },
   { timestamps: true }
 );

@@ -14,6 +14,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import UserOrderDetails from "./pages/UserOrderDetails";
 import OfferDialog from "./components/common/OfferDialog";
 import { useEffect, useState } from "react";
+import CheckoutSuccess from "./pages/CheckoutSuccess";
 
 function App() {
   const [open, setOpen] = useState(false);
@@ -41,6 +42,7 @@ function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/my-orders/:orderId" element={<UserOrderDetails />} />
+        <Route path="/checkout/success" element={<CheckoutSuccess />} />
       </Routes>
     </>
   );

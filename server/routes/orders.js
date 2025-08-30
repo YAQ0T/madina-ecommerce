@@ -8,7 +8,7 @@ const Order = require("../models/Order");
 const Product = require("../models/Product");
 const Variant = require("../models/Variant");
 const User = require("../models/User");
-const DiscountRule = require("../models/DiscountRule"); // ✅
+const DiscountRule = require("../models/DiscountRule");
 
 // ===== أدوات مساعدة آمنة =====
 const ALLOWED_STATUSES = [
@@ -21,8 +21,12 @@ const ALLOWED_STATUSES = [
 const isNonEmptyString = (v) => typeof v === "string" && v.trim().length > 0;
 const toCleanString = (v) => (isNonEmptyString(v) ? v.trim() : "");
 const toNumber = (v, d = 0) => (typeof v === "number" && !isNaN(v) ? v : d);
+const clampQty = (q) => Math.max(1, Math.min(9999, Math.floor(q || 1)));
 
-// نفس منطق الخصم في موديل Variant
+const ALLOWED_PAYMENT_METHODS = ["card", "cod"];
+const ALLOWED_PAYMENT_STATUSES = ["unpaid", "paid", "failed"];
+
+// خصومات variant
 function isDiscountActive(discount = {}) {
   if (!discount || !discount.value) return false;
   const now = new Date();
@@ -40,184 +44,201 @@ function computeFinalAmount(price = {}) {
     : Math.max(0, amount - discount.value);
 }
 
-// ✅ دالة تجيب أفضل قاعدة خصم مطابقة لمجموع الطلب (subtotal)
+// أفضل قاعدة خصم
 async function findBestDiscountRule(subtotal) {
   const now = new Date();
-  // فعّالة + ضمن الفترة (إن وُجدت) + threshold <= subtotal
   const rule = await DiscountRule.findOne({
     isActive: true,
     threshold: { $lte: subtotal },
     $and: [
-      {
-        $or: [{ startAt: null }, { startAt: { $lte: now } }],
-      },
-      {
-        $or: [{ endAt: null }, { endAt: { $gte: now } }],
-      },
+      { $or: [{ startAt: null }, { startAt: { $lte: now } }] },
+      { $or: [{ endAt: null }, { endAt: { $gte: now } }] },
     ],
   })
-    .sort({ threshold: -1, priority: -1, createdAt: -1 }) // أعلى عتبة ثم أعلى أولوية
+    .sort({ threshold: -1, priority: -1, createdAt: -1 })
     .lean();
 
   return rule || null;
 }
 
-// ======================= إنشاء طلب =======================
+/** يبني عناصر الطلب من عناصر العميل ويتحقق من المخزون ويعيد:
+ * { cleanItems, serverSubtotal }  (ولا يقوم بتعديل المخزون)
+ */
+async function buildOrderItemsFromClientItems(items = []) {
+  const cleanItems = [];
+  let serverSubtotal = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i] || {};
+    const productId = toCleanString(it.productId);
+    const nameFromClient = toCleanString(it.name);
+    const quantity = clampQty(toNumber(it.quantity, 1));
+
+    if (!mongoose.isValidObjectId(productId)) {
+      throw new Error(`productId غير صالح في العنصر رقم ${i + 1}`);
+    }
+
+    const color = toCleanString(it.color) || toCleanString(it.selectedColor);
+    const measure =
+      toCleanString(it.measure) || toCleanString(it.selectedMeasure);
+    const sku = toCleanString(it.sku);
+
+    // جلب المتغيّر
+    let variant;
+    if (sku) {
+      variant = await Variant.findOne({
+        "stock.sku": sku,
+        product: productId,
+      });
+    } else if (measure && color) {
+      variant = await Variant.findOne({
+        product: productId,
+        measure,
+        "color.name": color,
+      });
+    }
+
+    if (!variant) {
+      throw new Error(
+        `لم يتم العثور على المتغير المناسب (SKU أو اللون/المقاس) للمنتج في العنصر رقم ${
+          i + 1
+        }`
+      );
+    }
+
+    const finalPrice = computeFinalAmount(variant.price);
+    if (finalPrice <= 0) {
+      throw new Error(`سعر المتغير غير صالح للعنصر رقم ${i + 1}`);
+    }
+
+    // تحقق الكمية
+    if ((variant.stock?.inStock ?? 0) < quantity) {
+      throw new Error(
+        `الكمية غير كافية في المخزون للعنصر رقم ${i + 1} (SKU: ${
+          variant.stock?.sku || "-"
+        })`
+      );
+    }
+
+    const product = await Product.findById(productId).lean();
+    const productName = product?.name || nameFromClient || "منتج";
+
+    cleanItems.push({
+      productId: variant.product,
+      variantId: variant._id,
+      name: productName,
+      quantity,
+      price: finalPrice,
+      color: variant.color?.name || color || null,
+      measure: variant.measure || measure || null,
+      sku: variant.stock?.sku || sku || null,
+      image:
+        Array.isArray(variant.color?.images) && variant.color.images.length
+          ? variant.color.images[0]
+          : Array.isArray(product?.images) && product.images.length
+          ? product.images[0]
+          : null,
+    });
+
+    serverSubtotal += finalPrice * quantity;
+  }
+
+  return { cleanItems, serverSubtotal };
+}
+
+/** يطبّق خصم الطلبات (إن وجد) */
+async function computeOrderDiscount(subtotal) {
+  let discountInfo = {
+    applied: false,
+    ruleId: null,
+    type: null,
+    value: 0,
+    amount: 0,
+    threshold: 0,
+    name: "",
+  };
+
+  const rule = await findBestDiscountRule(subtotal);
+  if (rule) {
+    let amount = 0;
+    if (rule.type === "percent") {
+      amount = Math.max(0, (subtotal * rule.value) / 100);
+    } else if (rule.type === "fixed") {
+      amount = Math.max(0, Math.min(rule.value, subtotal));
+    }
+
+    discountInfo = {
+      applied: amount > 0,
+      ruleId: rule._id,
+      type: rule.type,
+      value: rule.value,
+      amount,
+      threshold: rule.threshold,
+      name: rule.name || "",
+    };
+  }
+  return discountInfo;
+}
+
+/** يخصم المخزون ذرّيًا */
+async function decrementStock(cleanItems) {
+  await Promise.all(
+    cleanItems.map((ci) =>
+      Variant.updateOne(
+        { _id: ci.variantId, "stock.inStock": { $gte: ci.quantity } },
+        { $inc: { "stock.inStock": -ci.quantity } }
+      )
+    )
+  );
+}
+
+/* =====================================================
+ *  1) إنشاء طلب COD (مباشر)
+ * ===================================================== */
 router.post("/", verifyToken, async (req, res) => {
   try {
     const body = req.body || {};
-
-    // التحقق من المستخدم من التوكن
     const authUserId = req.user?.id || req.user?._id;
     if (!authUserId || !mongoose.isValidObjectId(authUserId)) {
       return res.status(401).json({ message: "مصادقة غير صالحة." });
     }
 
-    // جلب المستخدم من DB لبناء الـ subdocument المطلوب في Order
-    const dbUser = await User.findById(authUserId).lean();
-    if (!dbUser) {
+    const realUser = await User.findById(authUserId);
+    if (!realUser)
       return res.status(401).json({ message: "المستخدم غير موجود." });
-    }
+
     const orderUser = {
-      _id: dbUser._id,
-      name: dbUser.name || "",
-      phone: dbUser.phone || "",
-      email: dbUser.email || "",
+      _id: realUser._id,
+      name: realUser.name || "",
+      phone: realUser.phone || "",
+      email: realUser.email || "",
     };
 
-    // العنوان
     const address = toCleanString(body.address);
-    if (!address) {
-      return res.status(400).json({ message: "العنوان مطلوب." });
-    }
+    if (!address) return res.status(400).json({ message: "العنوان مطلوب." });
 
-    // الحالة (اختيارية)
     const rawStatus = toCleanString(body.status) || "waiting_confirmation";
     const status = ALLOWED_STATUSES.includes(rawStatus)
       ? rawStatus
       : "waiting_confirmation";
 
-    // العناصر
+    const paymentMethod = ALLOWED_PAYMENT_METHODS.includes(body.paymentMethod)
+      ? body.paymentMethod
+      : "cod";
+    const paymentStatus = ALLOWED_PAYMENT_STATUSES.includes(body.paymentStatus)
+      ? body.paymentStatus
+      : "unpaid";
+    const notes = toCleanString(body.notes);
+
     const items = Array.isArray(body.items) ? body.items : [];
-    if (!items.length) {
+    if (!items.length)
       return res.status(400).json({ message: "عناصر الطلب مطلوبة." });
-    }
 
-    // نبني عناصر الطلب بعد التحقق من المتغيرات/الأسعار
-    const cleanItems = [];
-    let serverSubtotal = 0;
-
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i] || {};
-      const productId = toCleanString(it.productId);
-      const nameFromClient = toCleanString(it.name);
-      const quantity = Math.max(1, toNumber(it.quantity, 1));
-
-      if (!mongoose.isValidObjectId(productId)) {
-        return res
-          .status(400)
-          .json({ message: `productId غير صالح في العنصر رقم ${i + 1}` });
-      }
-
-      const color = toCleanString(it.color) || toCleanString(it.selectedColor);
-      const measure =
-        toCleanString(it.measure) || toCleanString(it.selectedMeasure);
-      const sku = toCleanString(it.sku); // اختياري
-
-      // نبحث عن المتغير: أولوية بالـ SKU، وإلا product+measure+color
-      let variant;
-      if (sku) {
-        variant = await Variant.findOne({
-          "stock.sku": sku,
-          product: productId,
-        });
-      } else if (measure && color) {
-        variant = await Variant.findOne({
-          product: productId,
-          measure,
-          "color.name": color,
-        });
-      }
-
-      if (!variant) {
-        return res.status(404).json({
-          message: `لم يتم العثور على المتغير المناسب (SKU أو اللون/المقاس) للمنتج في العنصر رقم ${
-            i + 1
-          }`,
-        });
-      }
-
-      // السعر النهائي من السيرفر
-      const finalPrice = computeFinalAmount(variant.price);
-      if (finalPrice <= 0) {
-        return res.status(400).json({
-          message: `سعر المتغير غير صالح للعنصر رقم ${i + 1}`,
-        });
-      }
-
-      // التحقق من المخزون
-      if ((variant.stock?.inStock ?? 0) < quantity) {
-        return res.status(409).json({
-          message: `الكمية غير كافية في المخزون للعنصر رقم ${i + 1} (SKU: ${
-            variant.stock?.sku || "-"
-          })`,
-        });
-      }
-
-      const product = await Product.findById(productId).lean();
-      const productName = product?.name || nameFromClient || "منتج";
-
-      cleanItems.push({
-        productId: variant.product,
-        variantId: variant._id,
-        name: productName,
-        quantity,
-        price: finalPrice, // سعر الوحدة
-        color: variant.color?.name || color || null,
-        measure: variant.measure || measure || null,
-        sku: variant.stock?.sku || sku || null,
-        image:
-          Array.isArray(variant.color?.images) && variant.color.images.length
-            ? variant.color.images[0]
-            : Array.isArray(product?.images) && product.images.length
-            ? product.images[0]
-            : null,
-      });
-
-      serverSubtotal += finalPrice * quantity;
-    }
-
-    // ✅ نحسب الخصم الديناميكي (إن وجد)
-    let discountInfo = {
-      applied: false,
-      ruleId: null,
-      type: null,
-      value: 0,
-      amount: 0,
-      threshold: 0,
-      name: "",
-    };
-
-    const rule = await findBestDiscountRule(serverSubtotal);
-    if (rule) {
-      let amount = 0;
-      if (rule.type === "percent") {
-        amount = Math.max(0, (serverSubtotal * rule.value) / 100);
-      } else if (rule.type === "fixed") {
-        amount = Math.max(0, Math.min(rule.value, serverSubtotal));
-      }
-
-      discountInfo = {
-        applied: amount > 0,
-        ruleId: rule._id,
-        type: rule.type,
-        value: rule.value,
-        amount,
-        threshold: rule.threshold,
-        name: rule.name || "",
-      };
-    }
-
+    // بناء العناصر + الإجمالي
+    const { cleanItems, serverSubtotal } = await buildOrderItemsFromClientItems(
+      items
+    );
+    const discountInfo = await computeOrderDiscount(serverSubtotal);
     const finalTotal = Math.max(0, serverSubtotal - discountInfo.amount);
 
     // إنشاء الطلب
@@ -226,20 +247,16 @@ router.post("/", verifyToken, async (req, res) => {
       address,
       status,
       items: cleanItems,
-      subtotal: serverSubtotal, // ✅ قبل الخصم
-      discount: discountInfo, // ✅ تفاصيل الخصم
-      total: finalTotal, // ✅ بعد الخصم
+      subtotal: serverSubtotal,
+      discount: discountInfo,
+      total: finalTotal,
+      paymentMethod,
+      paymentStatus, // unpaid
+      notes,
     });
 
-    // خصم المخزون ذرّيًا بعد الإنشاء
-    await Promise.all(
-      cleanItems.map((ci) =>
-        Variant.updateOne(
-          { _id: ci.variantId, "stock.inStock": { $gte: ci.quantity } },
-          { $inc: { "stock.inStock": -ci.quantity } }
-        )
-      )
-    );
+    // خصم المخزون مباشرة (COD)
+    await decrementStock(cleanItems);
 
     const saved = await Order.findById(orderDoc._id).lean();
     return res.status(201).json(saved);
@@ -249,9 +266,131 @@ router.post("/", verifyToken, async (req, res) => {
   }
 });
 
-// ======================= أوامر إدارية/مستخدم =======================
+/* =====================================================
+ *  2) تحضير طلب بطاقة (Card) قبل التحويل للدفع
+ *     - ننشئ طلب paymentMethod=card, paymentStatus=unpaid, status=pending
+ *     - لا نخصم المخزون الآن
+ * ===================================================== */
+router.post("/prepare-card", verifyToken, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const authUserId = req.user?.id || req.user?._id;
+    if (!authUserId || !mongoose.isValidObjectId(authUserId)) {
+      return res.status(401).json({ message: "مصادقة غير صالحة." });
+    }
 
-// جلب كل الطلبات (أدمن)
+    const realUser = await User.findById(authUserId);
+    if (!realUser)
+      return res.status(401).json({ message: "المستخدم غير موجود." });
+
+    const orderUser = {
+      _id: realUser._id,
+      name: realUser.name || "",
+      phone: realUser.phone || "",
+      email: realUser.email || "",
+    };
+
+    const address = toCleanString(body.address);
+    if (!address) return res.status(400).json({ message: "العنوان مطلوب." });
+
+    const notes = toCleanString(body.notes);
+    const items = Array.isArray(body.items) ? body.items : [];
+    if (!items.length)
+      return res.status(400).json({ message: "عناصر الطلب مطلوبة." });
+
+    const { cleanItems, serverSubtotal } = await buildOrderItemsFromClientItems(
+      items
+    );
+    const discountInfo = await computeOrderDiscount(serverSubtotal);
+    const finalTotal = Math.max(0, serverSubtotal - discountInfo.amount);
+
+    const orderDoc = await Order.create({
+      user: orderUser,
+      address,
+      status: "pending", // بانتظار الدفع/التأكيد
+      items: cleanItems,
+      subtotal: serverSubtotal,
+      discount: discountInfo,
+      total: finalTotal,
+      paymentMethod: "card",
+      paymentStatus: "unpaid",
+      notes,
+    });
+
+    const saved = await Order.findById(orderDoc._id).lean();
+    return res.status(201).json(saved);
+  } catch (err) {
+    console.error("Error preparing card order:", err);
+    return res.status(500).json({ message: "فشل تحضير الطلب" });
+  }
+});
+
+/* =====================================================
+ *  3) ربط مرجع الدفع (reference) بالطلب بعد تهيئة الدفع
+ *     - تُستدعى من راوتر payments بعد الحصول على reference
+ * ===================================================== */
+router.patch("/:id/attach-reference", verifyToken, async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const reference = toCleanString(req.body?.reference);
+    if (!mongoose.isValidObjectId(orderId) || !reference) {
+      return res.status(400).json({ message: "orderId/reference غير صالح." });
+    }
+
+    const updated = await Order.findByIdAndUpdate(
+      orderId,
+      { $set: { reference } },
+      { new: true }
+    ).lean();
+
+    if (!updated) return res.status(404).json({ message: "الطلب غير موجود" });
+    res.json(updated);
+  } catch (err) {
+    console.error("Error attaching reference:", err);
+    res.status(500).json({ message: "فشل ربط المرجع" });
+  }
+});
+
+/* =====================================================
+ *  4) وسم الطلب كـ Paid via Reference (بديل إضافي/يدوي)
+ *     - يمكن استدعاؤه من Webhook/Verify أو لأغراض صيانة
+ * ===================================================== */
+router.patch("/by-reference/:reference/pay", async (req, res) => {
+  try {
+    const reference = toCleanString(req.params.reference);
+    if (!reference) return res.status(400).json({ message: "reference مطلوب" });
+
+    const order = await Order.findOne({ reference }).lean();
+    if (!order)
+      return res.status(404).json({ message: "طلب غير موجود لهذا المرجع" });
+
+    if (order.paymentStatus === "paid") {
+      return res.json({ message: "الطلب مدفوع مسبقًا", order });
+    }
+
+    // خصم المخزون الآن (لأن الدفع اكتمل)
+    const cleanItems = order.items || [];
+    await decrementStock(cleanItems);
+
+    const updated = await Order.findByIdAndUpdate(
+      order._id,
+      {
+        $set: {
+          paymentStatus: "paid",
+          status: "waiting_confirmation",
+        },
+      },
+      { new: true }
+    ).lean();
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Error marking order paid:", err);
+    res.status(500).json({ message: "فشل وسم الطلب مدفوع" });
+  }
+});
+
+// ======================= جلب كل الطلبات (أدمن) =======================
 router.get("/", verifyToken, isAdmin, async (_req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 }).lean();
@@ -274,6 +413,21 @@ router.patch("/:id/status", verifyToken, isAdmin, async (req, res) => {
           ", "
         )}`,
       });
+    }
+    if (status === "delivered") {
+      const updated = await Order.findByIdAndUpdate(
+        req.params.id,
+        {
+          $set: {
+            status,
+            paymentStatus: "paid", // تحديث حالة الدفع إلى "مدفوع"
+          },
+        },
+        { new: true }
+      ).lean();
+
+      if (!updated) return res.status(404).json({ message: "الطلب غير موجود" });
+      return res.json(updated);
     }
 
     const updated = await Order.findByIdAndUpdate(

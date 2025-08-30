@@ -332,10 +332,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             key={`${src}-${index}`}
             src={src}
             alt={product.name}
-            width={400}
-            height={250}
+            width="100%" // Ensures the image's width is 100% of its parent container
+            height="auto" // Allows the height to adjust proportionally
             className={clsx(
-              "absolute top-0 left-0 w-full h-full object-contain transition-all duration-500 pointer-events-none",
+              "absolute top-0 left-0 w-[95%] max-h-[300px] h-auto object-contain transition-all duration-500 pointer-events-none", // Add max height
               {
                 "opacity-100 translate-x-0 z-10": index === currentImage,
                 "opacity-0 translate-x-full z-0": index > currentImage,
