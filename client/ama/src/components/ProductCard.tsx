@@ -325,17 +325,16 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   return (
     <div className="group border rounded-lg p-4 text-right hover:shadow relative flex flex-col justify-between h-full">
-      {/* ✅ الصورة — تتغيّر حسب المتغيّر */}
-      <div className="relative w-full h-64 mb-3 overflow-hidden rounded">
+      {/* ✅ الصورة — نسبة 3:4 وعرض كامل، مع object-contain لرؤية الصورة كاملة */}
+      <div className="relative w-full aspect-[3/4] mb-3 overflow-hidden rounded bg-white">
         {displayedImages.map((src, index) => (
           <img
             key={`${src}-${index}`}
             src={src}
             alt={product.name}
-            width="100%" // Ensures the image's width is 100% of its parent container
-            height="auto" // Allows the height to adjust proportionally
             className={clsx(
-              "absolute top-0 left-0 w-[95%] max-h-[300px] h-auto object-contain transition-all duration-500 pointer-events-none", // Add max height
+              // ملء الحاوية كاملة مع الحفاظ على الصورة كاملة بدون قص
+              "absolute inset-0 w-full h-full object-contain transition-all duration-500 pointer-events-none",
               {
                 "opacity-100 translate-x-0 z-10": index === currentImage,
                 "opacity-0 translate-x-full z-0": index > currentImage,
@@ -343,6 +342,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               }
             )}
             loading="lazy"
+            decoding="async"
+            sizes="(max-width: 768px) 100vw, 33vw"
+            draggable={false}
           />
         ))}
 
