@@ -15,6 +15,7 @@ import UserOrderDetails from "./pages/UserOrderDetails";
 import OfferDialog from "./components/common/OfferDialog";
 import { useEffect, useState } from "react";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
+import ReturnsPolicy from "./pages/ReturnsPolicy";
 
 function App() {
   const [open, setOpen] = useState(false);
@@ -39,6 +40,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/products/:id" element={<ProductDetails />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/returnes" element={<ReturnsPolicy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/my-orders/:orderId" element={<UserOrderDetails />} />

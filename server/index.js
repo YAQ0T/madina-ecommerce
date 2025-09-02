@@ -44,7 +44,7 @@ app.set("trust proxy", 1);
  *  - يرجع 200 بسرعة لتجنّب إعادة المحاولات الطويلة
  * ===================================================== */
 
-const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || ""; // ضع قيمتك في .env
+const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || "";
 const WEBHOOK_IP_WHITELIST =
   String(process.env.WEBHOOK_IP_WHITELIST || "true") === "true";
 const WEBHOOK_ALLOWED_IPS = (
@@ -54,18 +54,16 @@ const WEBHOOK_ALLOWED_IPS = (
   .map((s) => s.trim())
   .filter(Boolean);
 
-// ⚠️ سنحتاج هذه الموديلات داخل الـ webhook
+// ⚠️ موديلات مستخدمة داخل الـ webhook
 const Order = require("./models/Order");
 const Variant = require("./models/Variant");
 
-// جلب IP الحقيقي (خلف بروكسي/كلودفلير)
 function getClientIp(req) {
   const xff = req.headers["x-forwarded-for"];
   if (xff) return xff.split(",")[0].trim();
   return req.socket?.remoteAddress || req.ip || "";
 }
 
-// خصم مخزون عناصر الطلب
 async function decrementStockByOrderItems(items = []) {
   await Promise.all(
     (items || []).map((ci) =>
@@ -139,7 +137,6 @@ app.post(
 
         if (reference) {
           try {
-            // ✅ تحقّق من المعاملة من لَهْزة (اختياري لكنه جيد)
             const url = `https://api.lahza.io/transaction/verify/${encodeURIComponent(
               reference
             )}`;
@@ -155,26 +152,19 @@ app.post(
             const status = v?.data?.status;
 
             if (String(status).toLowerCase() === "success") {
-              // ابحث عن الطلب المرتبط بهذا المرجع
               const order = await Order.findOne({ reference }).lean();
               if (!order) {
                 console.warn("⚠️ لا يوجد طلب مرتبط بهذا المرجع:", reference);
               } else {
                 if (order.paymentStatus !== "paid") {
-                  // خصم المخزون الآن
                   await decrementStockByOrderItems(order.items || []);
-                  // علّم الطلب كمدفوع وبانتظار التأكيد
                   await Order.findByIdAndUpdate(order._id, {
                     $set: {
                       paymentStatus: "paid",
                       status: "waiting_confirmation",
                     },
                   }).lean();
-
-                  console.log(
-                    "✅ تم وسم الطلب مدفوعًا وتحديث الحالة:",
-                    order._id
-                  );
+                  console.log("✅ تم وسم الطلب مدفوعًا:", order._id);
                 } else {
                   console.log("ℹ️ الطلب مدفوع مسبقًا:", order._id);
                 }
@@ -233,8 +223,11 @@ const productsRecentUpdatesRoutes = require("./routes/products.recent-updates");
 /* ✅ راوتر المدفوعات الجديد */
 const paymentsRoutes = require("./routes/payments");
 
+/* ✅ جديد: راوتر reCAPTCHA */
+const recaptchaRoutes = require("./routes/recaptcha");
+
 app.use("/api/auth", authRoutes);
-app.use("/api/payments", paymentsRoutes); // <<— مهم لخطوة redirect
+app.use("/api/payments", paymentsRoutes);
 
 /* ✅ مهم: اربط recent-updates قبل راوتر المنتجات الأساسي */
 app.use("/api/products", productsRecentUpdatesRoutes);
@@ -246,6 +239,9 @@ app.use("/api/contact", contactRoute);
 app.use("/api/users", userRoutes);
 app.use("/api/discount-rules", discountRulesRoutes);
 app.use("/api/discounts", discountsRoutes);
+
+/* ✅ ربط reCAPTCHA v3 */
+app.use("/api/recaptcha", recaptchaRoutes);
 
 /* ---------- 404 ---------- */
 app.use((req, res, next) => {

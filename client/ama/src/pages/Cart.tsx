@@ -8,6 +8,12 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import QuantityInput from "@/components/common/QuantityInput";
 
+// reCAPTCHA v3
+import {
+  GoogleReCaptchaProvider,
+  useGoogleReCaptcha,
+} from "react-google-recaptcha-v3";
+
 type DiscountPreview = {
   items: Array<{
     productId: string;
@@ -43,7 +49,15 @@ function normalizeMobile(input: string) {
   return s;
 }
 
-const Cart: React.FC = () => {
+// مفاتيح v3
+const RECAPTCHA_SITE_KEY = "6LcENrsrAAAAALomNaP-d0iFoJIIglAqX2uWfMWH";
+const RECAPTCHA_ACTION = "checkout";
+const RECAPTCHA_MIN_SCORE = 0.5;
+
+// ---------------------------
+//  محتوى الصفحة الحقيقي
+// ---------------------------
+const CartPageContent: React.FC = () => {
   const { cart, removeFromCart, updateQuantity, clearCart } = useCart();
   const { user, token } = useAuth();
 
@@ -57,6 +71,13 @@ const Cart: React.FC = () => {
 
   const [preview, setPreview] = useState<DiscountPreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+
+  // v3 hook
+  const { executeRecaptcha } = useGoogleReCaptcha();
+
+  // Checkbox السياسات
+  const [acceptedPolicies, setAcceptedPolicies] = useState(false);
+  const [policyError, setPolicyError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -142,12 +163,40 @@ const Cart: React.FC = () => {
     };
   }, [preview, localSubtotal, localTotal]);
 
+  // طلب توكن v3 والتحقق عبر السيرفر
+  const runV3AndVerify = async () => {
+    if (!executeRecaptcha) {
+      throw new Error("reCAPTCHA not ready");
+    }
+    const token = await executeRecaptcha(RECAPTCHA_ACTION);
+    const url = `${import.meta.env.VITE_API_URL}/api/recaptcha/verify`;
+    const { data } = await axios.post(url, {
+      token,
+      expectedAction: RECAPTCHA_ACTION,
+      minScore: RECAPTCHA_MIN_SCORE,
+    });
+    return data?.success === true;
+  };
+
   const handleCreateCOD = async () => {
     if (!user) return alert("يجب تسجيل الدخول");
     if (!userData.address.trim()) return alert("الرجاء تعبئة العنوان");
     if (cart.length === 0) return alert("السلة فارغة");
 
+    // تأكد من قبول السياسات
+    setPolicyError(null);
+    if (!acceptedPolicies) {
+      setPolicyError("يجب الموافقة على سياسة الإرجاع/التبديل والخصوصية.");
+      return;
+    }
+
     try {
+      const ok = await runV3AndVerify();
+      if (!ok) {
+        alert("فشل التحقق من reCAPTCHA. حاول مجددًا.");
+        return;
+      }
+
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       await axios.post(
         `${import.meta.env.VITE_API_URL}/api/orders`,
@@ -184,7 +233,20 @@ const Cart: React.FC = () => {
       return alert("الرجاء تعبئة العنوان قبل الدفع.");
     if (cart.length === 0) return alert("سلة الشراء فارغة");
 
+    // تأكد من قبول السياسات
+    setPolicyError(null);
+    if (!acceptedPolicies) {
+      setPolicyError("يجب الموافقة على سياسة الإرجاع/التبديل والخصوصية.");
+      return;
+    }
+
     try {
+      const ok = await runV3AndVerify();
+      if (!ok) {
+        alert("فشل التحقق من reCAPTCHA. حاول مجددًا.");
+        return;
+      }
+
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       // 1) إنشاء طلب مبدئي (pending/unpaid)
       const prep = await axios.post(
@@ -217,7 +279,7 @@ const Cart: React.FC = () => {
       const resp = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/payments/create`,
         {
-          orderId, // ✅ مهم لربط reference
+          orderId,
           amountMinor,
           currency: "ILS",
           email: (user as any)?.email || undefined,
@@ -527,6 +589,44 @@ const Cart: React.FC = () => {
             </label>
           </div>
 
+          {/* Checkbox السياسات */}
+          <div className="border rounded p-4 space-y-2">
+            <label className="flex items-start gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={acceptedPolicies}
+                onChange={(e) => {
+                  setAcceptedPolicies(e.target.checked);
+                  setPolicyError(null);
+                }}
+              />
+              <span className="text-sm">
+                أُقرّ بأنني قرأت وأوافق على{" "}
+                <a
+                  href="/returnes"
+                  className="text-blue-600 underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  سياسة الإرجاع والتبديل
+                </a>{" "}
+                و{" "}
+                <a
+                  href="/privacy-policy"
+                  className="text-blue-600 underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  سياسة الخصوصية
+                </a>
+                .
+              </span>
+            </label>
+            {policyError && (
+              <p className="text-red-600 text-sm">{policyError}</p>
+            )}
+          </div>
+
           <div className="flex gap-2">
             {paymentMethod === "card" ? (
               <Button
@@ -549,6 +649,20 @@ const Cart: React.FC = () => {
       </main>
       <Footer />
     </>
+  );
+};
+
+// ---------------------------
+//  مُغلِّف بمُزوِّد v3 (بدون container)
+// ---------------------------
+const Cart: React.FC = () => {
+  return (
+    <GoogleReCaptchaProvider
+      reCaptchaKey={RECAPTCHA_SITE_KEY}
+      scriptProps={{ async: true, defer: true, appendTo: "head" }}
+    >
+      <CartPageContent />
+    </GoogleReCaptchaProvider>
   );
 };
 
