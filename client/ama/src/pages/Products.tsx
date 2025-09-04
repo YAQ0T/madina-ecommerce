@@ -47,7 +47,7 @@ type OwnershipFilter = "all" | "ours" | "local";
 type CategoryGroup = { mainCategory: string; subCategories: string[] };
 
 // 🔢 حجم نافذة أرقام الصفحات المرئية
-const PAGE_WINDOW = 5;
+const PAGE_WINDOW = 2;
 
 // 🧮 يبني قائمة الصفحات مع نقاط الحذف …
 // يعيد مصفوفة مثل: [1, 2, 3, 4, 5, 'ellipsis', 20]
