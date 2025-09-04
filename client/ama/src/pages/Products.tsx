@@ -46,11 +46,11 @@ type OwnershipFilter = "all" | "ours" | "local";
 
 type CategoryGroup = { mainCategory: string; subCategories: string[] };
 
-// 🔢 حجم نافذة أرقام الصفحات المرئية
-const PAGE_WINDOW = 2;
+// 🔢 حجم نافذة أرقام الصفحات المرئية على الشاشات >= sm
+const PAGE_WINDOW = 5;
 
 // 🧮 يبني قائمة الصفحات مع نقاط الحذف …
-// يعيد مصفوفة مثل: [1, 2, 3, 4, 5, 'ellipsis', 20]
+// مثال: [1, 2, 3, 4, 5, 'ellipsis', 20]
 function buildPageWindow(
   current: number,
   total: number,
@@ -72,18 +72,15 @@ function buildPageWindow(
     start = Math.max(first, end - windowSize + 1);
   }
 
-  // الصفحة الأولى + … إن لزم
   if (start > first) {
     pages.push(first);
     if (start > first + 1) pages.push("ellipsis");
   }
 
-  // نافذة الأرقام
   for (let p = start; p <= end; p++) {
     pages.push(p);
   }
 
-  // … + الصفحة الأخيرة إن لزم
   if (end < last) {
     if (end < last - 1) pages.push("ellipsis");
     pages.push(last);
@@ -139,7 +136,7 @@ const Products: React.FC = () => {
   const searchBoxWrapperRef = useRef<HTMLDivElement | null>(null);
   const maxPriceRef = useRef<HTMLInputElement | null>(null);
 
-  // عند تفعيل/تثبيت بحث جديد، عد للصفحة الأولى وابقِ الفوكس
+  // عند تثبيت بحث جديد، عد للصفحة الأولى
   useEffect(() => {
     setCurrentPage(1);
     searchRef.current?.focus();
@@ -517,6 +514,7 @@ const Products: React.FC = () => {
     maxPriceRef.current?.focus();
   };
 
+  // ✅ هاتان الدالتان هما المطلوبتان لمنع خطأ "Cannot find name 'handleSearchKeyDown'"
   const handleSearchKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
     e
   ) => {
@@ -533,9 +531,7 @@ const Products: React.FC = () => {
       e.preventDefault();
       if (showSuggestions && highlightIndex >= 0) {
         const chosen = suggestions[highlightIndex];
-        if (chosen) {
-          setRawSearch(chosen);
-        }
+        if (chosen) setRawSearch(chosen);
       }
       triggerSearch();
     } else if (e.key === "Escape") {
@@ -566,7 +562,7 @@ const Products: React.FC = () => {
     );
   }
 
-  // ⚙️ بيانات الترقيم
+  // ⚙️ بيانات الترقيم لنسخة الديسكتوب
   const pageItems = buildPageWindow(currentPage, totalPages, PAGE_WINDOW);
 
   return (
@@ -805,101 +801,183 @@ const Products: React.FC = () => {
                   ))}
                 </div>
 
-                {/* 🔻 شريط الترقيم باستخدام shadcn/ui */}
+                {/* ✅ ترقيم متجاوب */}
                 <div className="mt-6 flex flex-col items-center gap-4">
-                  <Pagination>
-                    <PaginationContent className="rtl:flex-row-reverse">
-                      {/* السابق */}
-                      <PaginationItem>
-                        <PaginationPrevious
-                          size="default"
-                          href="#"
-                          aria-disabled={currentPage === 1}
-                          className={
-                            currentPage === 1
-                              ? "pointer-events-none opacity-50"
-                              : ""
-                          }
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (currentPage > 1)
-                              setCurrentPage((p) => Math.max(1, p - 1));
-                          }}
-                        />
-                      </PaginationItem>
-
-                      {/* أرقام الصفحات مع … */}
-                      {pageItems.map((item, idx) =>
-                        item === "ellipsis" ? (
-                          <PaginationItem key={`ellipsis-${idx}`}>
-                            <PaginationEllipsis />
-                          </PaginationItem>
-                        ) : (
-                          <PaginationItem key={item}>
-                            <PaginationLink
-                              size="default"
+                  {/* 📱 موبايل: مبسّط (السابق/الحالي/التالي) + Select للقفز */}
+                  <div className="sm:hidden w-full">
+                    <div className="w-full overflow-x-auto">
+                      <Pagination>
+                        <PaginationContent className="justify-center">
+                          <PaginationItem>
+                            <PaginationNext
                               href="#"
-                              isActive={currentPage === item}
+                              aria-disabled={currentPage === totalPages}
+                              className={
+                                currentPage === totalPages
+                                  ? "pointer-events-none opacity-50"
+                                  : ""
+                              }
                               onClick={(e) => {
                                 e.preventDefault();
-                                setCurrentPage(item);
+                                if (currentPage < totalPages)
+                                  setCurrentPage((p) =>
+                                    Math.min(totalPages, p + 1)
+                                  );
                               }}
+                            />
+                          </PaginationItem>
+
+                          {/* وسم الصفحة الحالية مختصر */}
+                          <PaginationItem>
+                            <PaginationLink
+                              href="#"
+                              isActive
+                              onClick={(e) => e.preventDefault()}
+                              className="text-xs px-2"
                             >
-                              {item}
+                              {currentPage} / {totalPages}
                             </PaginationLink>
                           </PaginationItem>
-                        )
-                      )}
 
-                      {/* التالي */}
-                      <PaginationItem>
-                        <PaginationNext
-                          size="default"
-                          href="#"
-                          aria-disabled={currentPage === totalPages}
-                          className={
-                            currentPage === totalPages
-                              ? "pointer-events-none opacity-50"
-                              : ""
-                          }
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (currentPage < totalPages)
-                              setCurrentPage((p) =>
-                                Math.min(totalPages, p + 1)
-                              );
-                          }}
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              href="#"
+                              aria-disabled={currentPage === 1}
+                              className={
+                                currentPage === 1
+                                  ? "pointer-events-none opacity-50"
+                                  : ""
+                              }
+                              onClick={(e) => {
+                                e.preventDefault();
+                                if (currentPage > 1)
+                                  setCurrentPage((p) => Math.max(1, p - 1));
+                              }}
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    </div>
 
-                  {/* القائمة المنسدلة للقفز لأي صفحة بسرعة */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-700">
-                      اذهب إلى صفحة:
-                    </span>
-                    <Select
-                      value={String(currentPage)}
-                      onValueChange={(v) => setCurrentPage(Number(v))}
-                    >
-                      <SelectTrigger className="w-28">
-                        <SelectValue placeholder="اختر صفحة" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from(
-                          { length: totalPages },
-                          (_, i) => i + 1
-                        ).map((p) => (
-                          <SelectItem key={p} value={String(p)}>
-                            {p}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <span className="text-sm text-gray-500">
-                      من أصل {totalPages}
-                    </span>
+                    {/* Select للقفز السريع */}
+                    <div className="mt-3 flex items-center justify-center gap-2">
+                      <span className="text-sm text-gray-700">اذهب إلى:</span>
+                      <Select
+                        value={String(currentPage)}
+                        onValueChange={(v) => setCurrentPage(Number(v))}
+                      >
+                        <SelectTrigger className="w-28">
+                          <SelectValue placeholder="اختر صفحة" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from(
+                            { length: totalPages },
+                            (_, i) => i + 1
+                          ).map((p) => (
+                            <SelectItem key={p} value={String(p)}>
+                              {p}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* 💻 ديسكتوب/تابلت: الترقيم الكامل بنافذة 5 + … */}
+                  <div className="hidden sm:flex flex-col items-center gap-3 w-full">
+                    <div className="w-full overflow-x-auto">
+                      <Pagination>
+                        <PaginationContent className="rtl:flex-row-reverse justify-center">
+                          {/* السابق */}
+                          <PaginationItem>
+                            <PaginationPrevious
+                              href="#"
+                              aria-disabled={currentPage === 1}
+                              className={
+                                currentPage === 1
+                                  ? "pointer-events-none opacity-50"
+                                  : ""
+                              }
+                              onClick={(e) => {
+                                e.preventDefault();
+                                if (currentPage > 1)
+                                  setCurrentPage((p) => Math.max(1, p - 1));
+                              }}
+                            />
+                          </PaginationItem>
+
+                          {/* أرقام الصفحات مع … */}
+                          {pageItems.map((item, idx) =>
+                            item === "ellipsis" ? (
+                              <PaginationItem key={`ellipsis-${idx}`}>
+                                <PaginationEllipsis />
+                              </PaginationItem>
+                            ) : (
+                              <PaginationItem key={item}>
+                                <PaginationLink
+                                  href="#"
+                                  isActive={currentPage === item}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setCurrentPage(item);
+                                  }}
+                                >
+                                  {item}
+                                </PaginationLink>
+                              </PaginationItem>
+                            )
+                          )}
+
+                          {/* التالي */}
+                          <PaginationItem>
+                            <PaginationNext
+                              href="#"
+                              aria-disabled={currentPage === totalPages}
+                              className={
+                                currentPage === totalPages
+                                  ? "pointer-events-none opacity-50"
+                                  : ""
+                              }
+                              onClick={(e) => {
+                                e.preventDefault();
+                                if (currentPage < totalPages)
+                                  setCurrentPage((p) =>
+                                    Math.min(totalPages, p + 1)
+                                  );
+                              }}
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    </div>
+
+                    {/* Select للقفز السريع (يبقى مفيد حتى على الديسكتوب) */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-700">
+                        اذهب إلى صفحة:
+                      </span>
+                      <Select
+                        value={String(currentPage)}
+                        onValueChange={(v) => setCurrentPage(Number(v))}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue placeholder="اختر صفحة" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from(
+                            { length: totalPages },
+                            (_, i) => i + 1
+                          ).map((p) => (
+                            <SelectItem key={p} value={String(p)}>
+                              {p}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <span className="text-sm text-gray-500">
+                        من أصل {totalPages}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </>
