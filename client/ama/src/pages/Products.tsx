@@ -9,6 +9,24 @@ import { useLocation } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
 
+// shadcn/ui
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 type ProductItem = {
   _id: string;
   name: string;
@@ -27,6 +45,52 @@ type Facets = { measures: FacetItem[]; colors: FacetItem[] };
 type OwnershipFilter = "all" | "ours" | "local";
 
 type CategoryGroup = { mainCategory: string; subCategories: string[] };
+
+// 🔢 حجم نافذة أرقام الصفحات المرئية
+const PAGE_WINDOW = 5;
+
+// 🧮 يبني قائمة الصفحات مع نقاط الحذف …
+// يعيد مصفوفة مثل: [1, 2, 3, 4, 5, 'ellipsis', 20]
+function buildPageWindow(
+  current: number,
+  total: number,
+  windowSize: number = PAGE_WINDOW
+): (number | "ellipsis")[] {
+  if (total <= windowSize) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const pages: (number | "ellipsis")[] = [];
+  const first = 1;
+  const last = total;
+
+  const half = Math.floor(windowSize / 2);
+  let start = Math.max(first, current - half);
+  let end = Math.min(last, start + windowSize - 1);
+
+  if (end - start + 1 < windowSize) {
+    start = Math.max(first, end - windowSize + 1);
+  }
+
+  // الصفحة الأولى + … إن لزم
+  if (start > first) {
+    pages.push(first);
+    if (start > first + 1) pages.push("ellipsis");
+  }
+
+  // نافذة الأرقام
+  for (let p = start; p <= end; p++) {
+    pages.push(p);
+  }
+
+  // … + الصفحة الأخيرة إن لزم
+  if (end < last) {
+    if (end < last - 1) pages.push("ellipsis");
+    pages.push(last);
+  }
+
+  return pages;
+}
 
 const Products: React.FC = () => {
   const { user, token } = useAuth();
@@ -96,7 +160,7 @@ const Products: React.FC = () => {
     if (category) setSelectedMainCategory(category);
   }, [location.search]);
 
-  // جلب Facets (ألوان/مقاسات) — يعتمد على searchTerm/maxPrice (بعد التثبيت اليدوي)
+  // جلب Facets (ألوان/مقاسات)
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -167,7 +231,7 @@ const Products: React.FC = () => {
     selectedMeasureSlug,
   ]);
 
-  // جلب المنتجات — يعتمد على searchTerm/maxPrice (بعد التثبيت اليدوي)
+  // جلب المنتجات
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -237,7 +301,6 @@ const Products: React.FC = () => {
           setRecentTotal(null);
         }
       } catch {
-        // ما نمسح المنتجات لنتجنّب وميض الشبكة
         setTotalPages(1);
         if (recentDays && recentDays > 0) setRecentTotal(null);
       } finally {
@@ -261,7 +324,7 @@ const Products: React.FC = () => {
     recentDays,
   ]);
 
-  // حمّل شجرة التصنيفات مرة واحدة فقط عند الدخول (لا تتأثر بالبحث أو الفلاتر)
+  // حمّل شجرة التصنيفات مرة واحدة فقط عند الدخول
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -347,10 +410,9 @@ const Products: React.FC = () => {
     return () => {
       ignore = true;
     };
-    // ✅ دون أي تبعيات: مرة واحدة فقط
   }, [token]);
 
-  // اقتراحات البحث — جلب أسماء المنتجات أثناء الكتابة (بدون تنفيذ بحث)
+  // اقتراحات البحث
   useEffect(() => {
     let active = true;
     if (!rawSearch.trim()) {
@@ -368,7 +430,6 @@ const Products: React.FC = () => {
         params.set("limit", "10");
         params.set("q", rawSearch.trim());
 
-        // نستخدم with-stats لتجميع أسماء سريعة
         const url = `${
           import.meta.env.VITE_API_URL
         }/api/products/with-stats?${params.toString()}`;
@@ -388,7 +449,7 @@ const Products: React.FC = () => {
         if (!active) return;
         setSuggestions([]);
       }
-    }, 250); // debounce خفيف
+    }, 250);
 
     return () => {
       active = false;
@@ -453,7 +514,6 @@ const Products: React.FC = () => {
     const v = rawMaxPrice.trim();
     setMaxPrice(v);
     setCurrentPage(1);
-    // إبقاء الفوكس على حقل السعر لو حابب
     maxPriceRef.current?.focus();
   };
 
@@ -505,6 +565,9 @@ const Products: React.FC = () => {
       </>
     );
   }
+
+  // ⚙️ بيانات الترقيم
+  const pageItems = buildPageWindow(currentPage, totalPages, PAGE_WINDOW);
 
   return (
     <>
@@ -625,7 +688,6 @@ const Products: React.FC = () => {
                         role="option"
                         aria-selected={idx === highlightIndex}
                         onMouseDown={(e) => {
-                          // onMouseDown لتجنب فقدان الفوكس قبل onClick/blur
                           e.preventDefault();
                           setRawSearch(s);
                           setShowSuggestions(false);
@@ -743,20 +805,102 @@ const Products: React.FC = () => {
                   ))}
                 </div>
 
-                <div className="flex justify-center mt-6 gap-2">
-                  {Array.from({ length: totalPages }, (_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setCurrentPage(i + 1)}
-                      className={`px-3 py-1 rounded transition-colors duration-200 ${
-                        currentPage === i + 1
-                          ? "bg-black text-white"
-                          : "bg-gray-100 text-black hover:bg-gray-400"
-                      }`}
+                {/* 🔻 شريط الترقيم باستخدام shadcn/ui */}
+                <div className="mt-6 flex flex-col items-center gap-4">
+                  <Pagination>
+                    <PaginationContent className="rtl:flex-row-reverse">
+                      {/* السابق */}
+                      <PaginationItem>
+                        <PaginationPrevious
+                          size="default"
+                          href="#"
+                          aria-disabled={currentPage === 1}
+                          className={
+                            currentPage === 1
+                              ? "pointer-events-none opacity-50"
+                              : ""
+                          }
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage > 1)
+                              setCurrentPage((p) => Math.max(1, p - 1));
+                          }}
+                        />
+                      </PaginationItem>
+
+                      {/* أرقام الصفحات مع … */}
+                      {pageItems.map((item, idx) =>
+                        item === "ellipsis" ? (
+                          <PaginationItem key={`ellipsis-${idx}`}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        ) : (
+                          <PaginationItem key={item}>
+                            <PaginationLink
+                              size="default"
+                              href="#"
+                              isActive={currentPage === item}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setCurrentPage(item);
+                              }}
+                            >
+                              {item}
+                            </PaginationLink>
+                          </PaginationItem>
+                        )
+                      )}
+
+                      {/* التالي */}
+                      <PaginationItem>
+                        <PaginationNext
+                          size="default"
+                          href="#"
+                          aria-disabled={currentPage === totalPages}
+                          className={
+                            currentPage === totalPages
+                              ? "pointer-events-none opacity-50"
+                              : ""
+                          }
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage < totalPages)
+                              setCurrentPage((p) =>
+                                Math.min(totalPages, p + 1)
+                              );
+                          }}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+
+                  {/* القائمة المنسدلة للقفز لأي صفحة بسرعة */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700">
+                      اذهب إلى صفحة:
+                    </span>
+                    <Select
+                      value={String(currentPage)}
+                      onValueChange={(v) => setCurrentPage(Number(v))}
                     >
-                      {i + 1}
-                    </button>
-                  ))}
+                      <SelectTrigger className="w-28">
+                        <SelectValue placeholder="اختر صفحة" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from(
+                          { length: totalPages },
+                          (_, i) => i + 1
+                        ).map((p) => (
+                          <SelectItem key={p} value={String(p)}>
+                            {p}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm text-gray-500">
+                      من أصل {totalPages}
+                    </span>
+                  </div>
                 </div>
               </>
             )}
