@@ -116,7 +116,6 @@ const getName = (p: Product) => p.name || p.title || "منتج بدون اسم";
 // ====== بطاقة منتج بسيطة ======
 const ProductCard = ({ product }: { product: Product }) => {
   const navigate = useNavigate();
-  const keyId = getId(product);
   const img = getImage(product);
   const name = getName(product);
 
