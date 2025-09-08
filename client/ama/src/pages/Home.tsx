@@ -20,13 +20,15 @@ type Product = {
 
 // ====== الأقسام الرئيسية (دوائر) — سنستخدم title نفسه كاسم الفئة ======
 const categories = [
-  { title: "لوازم نجارين", img: "https://i.imgur.com/BEfwYpQ.png" },
-  { title: "أصناف اضافية", img: "https://i.imgur.com/bf8geWx.jpeg" },
-  { title: "لوازم منجدين", img: "https://i.imgur.com/oW6JO0A.png" },
-  { title: "مقابض ابواب", img: "https://i.imgur.com/uazWZhd.jpeg" },
-  { title: "مقابض خزائن", img: "https://i.imgur.com/lu2y3pi.png" },
-  { title: "إكسسوارات مطابخ", img: "https://i.imgur.com/CCEly6H.jpeg" },
-  { title: "إكسسوارات غرف نوم", img: "https://i.imgur.com/uazWZhd.jpeg" },
+  { title: "لوازم نجارين", img: "https://i.imgur.com/CntFVhx.png" },
+  { title: "لوازم منجدين", img: "https://i.imgur.com/S9rjrsh.png" },
+  { title: "مقابض ابواب", img: "https://i.imgur.com/O9xXLeu.png" },
+  { title: "مقابض خزائن", img: "https://i.imgur.com/AEyMjHc.png" },
+  { title: "إكسسوارات مطابخ", img: "https://i.imgur.com/hlpu1oK.png" },
+  { title: "إكسسوارات غرف نوم", img: "https://i.imgur.com/ZMr397G.png" },
+  { title: "عدد وماكنات يدوية", img: "https://i.imgur.com/9uHUSt5.png" },
+  { title: "مفصلات نجارين والامنيوم", img: "https://i.imgur.com/HXFqGsN.png" },
+  { title: "جوارير وسكك جوارير", img: "https://i.imgur.com/rJmoFBE.png" },
   { title: "أقمشة كنب", img: "https://i.imgur.com/bf8geWx.jpeg" },
 ];
 
