@@ -112,7 +112,7 @@ const ProductCard = ({ product }: { product: Product }) => {
       <button
         type="button"
         onClick={goToDetails}
-        className="aspect-[4/3] w-full overflow-hidden bg-gray-50 dark:bg-gray-800 block"
+        className="aspect-[3/4] w-full overflow-hidden bg-gray-50 dark:bg-gray-800 block"
         aria-label={`عرض تفاصيل ${name}`}
       >
         <img
