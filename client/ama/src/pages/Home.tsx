@@ -1,3 +1,4 @@
+// src/pages/Home.tsx
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -19,38 +20,14 @@ type Product = {
 
 // ====== الأقسام الرئيسية (دوائر) — سنستخدم title نفسه كاسم الفئة ======
 const categories = [
-  {
-    title: "مستلزمات نجارين",
-    img: "https://i.imgur.com/BEfwYpQ.png",
-  },
-  {
-    title: "سحّابات ومفصلات",
-    img: "https://i.imgur.com/bf8geWx.jpeg",
-  },
-  {
-    title: "مستلزمات مُنجّدين",
-    img: "https://i.imgur.com/oW6JO0A.png",
-  },
-  {
-    title: "مقابض ابواب",
-    img: "https://i.imgur.com/uazWZhd.jpeg",
-  },
-  {
-    title: "مقابض خزائن",
-    img: "https://i.imgur.com/lu2y3pi.png",
-  },
-  {
-    title: "إكسسوارات مطابخ",
-    img: "https://i.imgur.com/CCEly6H.jpeg",
-  },
-  {
-    title: "إكسسوارات غرف نوم",
-    img: "https://i.imgur.com/uazWZhd.jpeg",
-  },
-  {
-    title: "أقمشة كنب",
-    img: "https://i.imgur.com/bf8geWx.jpeg",
-  },
+  { title: "مستلزمات نجارين", img: "https://i.imgur.com/BEfwYpQ.png" },
+  { title: "سحّابات ومفصلات", img: "https://i.imgur.com/bf8geWx.jpeg" },
+  { title: "مستلزمات مُنجّدين", img: "https://i.imgur.com/oW6JO0A.png" },
+  { title: "مقابض ابواب", img: "https://i.imgur.com/uazWZhd.jpeg" },
+  { title: "مقابض خزائن", img: "https://i.imgur.com/lu2y3pi.png" },
+  { title: "إكسسوارات مطابخ", img: "https://i.imgur.com/CCEly6H.jpeg" },
+  { title: "إكسسوارات غرف نوم", img: "https://i.imgur.com/uazWZhd.jpeg" },
+  { title: "أقمشة كنب", img: "https://i.imgur.com/bf8geWx.jpeg" },
 ];
 
 // ====== بطاقات المزايا 4 ======
@@ -113,13 +90,12 @@ const getImage = (p: Product) =>
   "https://placehold.co/600x400/png?text=No+Image";
 const getName = (p: Product) => p.name || p.title || "منتج بدون اسم";
 
-// ====== بطاقة منتج بسيطة ======
+// ====== بطاقة منتج (مُصغّرة للموبايل) ======
 const ProductCard = ({ product }: { product: Product }) => {
   const navigate = useNavigate();
   const img = getImage(product);
   const name = getName(product);
 
-  // 👇 هذا هو المعرّف الذي سنستخدمه في التوجيه
   const detailId =
     (typeof product._id === "string" && product._id) ||
     (typeof product.id === "string" && product.id) ||
@@ -127,17 +103,12 @@ const ProductCard = ({ product }: { product: Product }) => {
     "";
 
   const goToDetails = () => {
-    if (detailId) {
-      // تأكد أن عندك Route: /products/:id يحمّل ProductDetails
-      navigate(`/products/${detailId}`);
-    } else {
-      // احتياطي لو ما لقيْنا معرّف صالح
-      navigate(`/products`);
-    }
+    if (detailId) navigate(`/products/${detailId}`);
+    else navigate(`/products`);
   };
 
   return (
-    <div className="group rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-900">
+    <div className="group rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-900">
       <button
         type="button"
         onClick={goToDetails}
@@ -151,19 +122,25 @@ const ProductCard = ({ product }: { product: Product }) => {
           loading="lazy"
         />
       </button>
-      <div className="p-4 text-right">
-        <h3 className="font-semibold line-clamp-1">{name}</h3>
+      <div className="p-3 sm:p-4 text-right">
+        <h3 className="font-semibold line-clamp-1 text-sm sm:text-base">
+          {name}
+        </h3>
         {typeof product.price === "number" ? (
-          <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mt-1">
             {product.price.toFixed(2)} ₪
           </p>
         ) : (
-          <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mt-1">
             السعر عند الاختيار
           </p>
         )}
-        <div className="mt-3 flex justify-end">
-          <Button variant="default" className="text-sm" onClick={goToDetails}>
+        <div className="mt-2 sm:mt-3 flex justify-end">
+          <Button
+            variant="default"
+            className="h-8 px-3 text-xs sm:h-9 sm:px-4 sm:text-sm"
+            onClick={goToDetails}
+          >
             عرض المنتج
           </Button>
         </div>
@@ -172,7 +149,7 @@ const ProductCard = ({ product }: { product: Product }) => {
   );
 };
 
-// ====== مكوّن شبكة منتجات (ينادي API مع سقوط افتراضي) ======
+// ====== مكوّن شبكة منتجات (ينادي API مع سقوط افتراضي) — موبايل أصغر ======
 const ProductsSection = ({
   title,
   endpoint,
@@ -213,18 +190,20 @@ const ProductsSection = ({
   }, [endpoint]);
 
   return (
-    <section className="mt-14">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-semibold text-right">{title}</h2>
+    <section className="mt-10 sm:mt-14">
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <h2 className="text-xl sm:text-2xl font-semibold text-right">
+          {title}
+        </h2>
         <Button
           variant="ghost"
-          className="text-sm"
+          className="h-8 px-2 text-xs sm:h-9 sm:px-3 sm:text-sm"
           onClick={() => (window.location.href = "/products")}
         >
           تصفّح الكل
         </Button>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
         {(items ?? fallbackProducts).map((p) => (
           <ProductCard key={getId(p)} product={p} />
         ))}
@@ -246,33 +225,50 @@ const Home: React.FC = () => {
   return (
     <>
       <Navbar />
-      <main className="container mx-auto p-6">
-        {/* البطل */}
+      <main className="container mx-auto px-4 py-4 md:p-6">
+        {/* البطل — أصغر للموبايل */}
         <section className="text-right">
-          <h1 className="text-4xl font-bold mb-4">مرحبًا بكم في متجر ديكوري</h1>
-          <p className="text-lg mb-6 text-gray-700 dark:text-gray-200">
+          <h1 className="text-2xl md:text-4xl font-bold mb-3 md:mb-4">
+            مرحبًا بكم في متجر ديكوري
+          </h1>
+          <p className="text-sm md:text-lg mb-5 md:mb-6 text-gray-700 dark:text-gray-200">
             هنا تجد أفضل مستلزمات النجارة وأقمشة التنجيد وخامات صناعة الكنب.
           </p>
-          <div className="flex justify-end mb-10">
-            <Button className="text-base" onClick={() => navigate(`/products`)}>
+          <div className="flex justify-end mb-6 md:mb-10">
+            <Button
+              className="h-9 px-4 text-sm md:h-10 md:px-5 md:text-base"
+              onClick={() => navigate(`/products`)}
+            >
               ابدأ التسوّق الآن
             </Button>
           </div>
         </section>
 
-        {/* الأقسام الرئيسية (دوائر) */}
-        <section className="mt-4">
-          <h2 className="text-2xl font-semibold mb-6 text-right">
+        {/* الأقسام الرئيسية (دوائر) — أحجام أصغر للموبايل */}
+        <section className="mt-2">
+          <h2 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 text-right">
             تصفّح حسب الفئة
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-6">
+          <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-6">
             {categories.map((c) => (
               <div
                 key={c.title}
                 onClick={() => goToCategory(c.title as string)}
                 className="cursor-pointer flex flex-col items-center text-center"
               >
-                <div className="w-36 h-36 rounded-full overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow duration-300">
+                <div
+                  className="
+                    w-20 h-20
+                    sm:w-24 sm:h-24
+                    md:w-28 md:h-28
+                    lg:w-32 lg:h-32
+                    xl:w-36 xl:h-36
+                    rounded-full overflow-hidden
+                    bg-white dark:bg-gray-900
+                    border border-gray-200 dark:border-gray-700
+                    shadow-sm hover:shadow-md transition-shadow duration-300
+                  "
+                >
                   <img
                     src={c.img}
                     alt={c.title}
@@ -280,35 +276,39 @@ const Home: React.FC = () => {
                     loading="lazy"
                   />
                 </div>
-                <span className="mt-3 text-sm font-medium">{c.title}</span>
+                <span className="mt-2 sm:mt-3 text-[11px] sm:text-sm font-medium">
+                  {c.title}
+                </span>
               </div>
             ))}
           </div>
         </section>
 
-        {/* ماذا نقدّم (4 بطاقات فوائد) */}
-        <section className="mt-14">
-          <h2 className="text-2xl font-semibold mb-6 text-right">
+        {/* ماذا نقدّم (4 بطاقات فوائد) — مصغّر للموبايل */}
+        <section className="mt-10 md:mt-14">
+          <h2 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 text-right">
             ماذا نقدّم لعملائنا؟
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             {benefits.map((b) => (
               <div
                 key={b.title}
-                className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 text-right hover:shadow-md transition-shadow duration-300"
+                className="rounded-xl sm:rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 sm:p-5 text-right hover:shadow-md transition-shadow duration-300"
               >
                 <div className="flex justify-end">
-                  <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                     <img
                       src={b.icon}
                       alt={b.title}
-                      className="w-7 h-7"
+                      className="w-6 h-6 sm:w-7 sm:h-7"
                       loading="lazy"
                     />
                   </div>
                 </div>
-                <h3 className="mt-4 font-semibold">{b.title}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                <h3 className="mt-3 sm:mt-4 font-semibold text-sm sm:text-base">
+                  {b.title}
+                </h3>
+                <p className="text-[11px] sm:text-sm text-gray-600 dark:text-gray-300 mt-1">
                   {b.desc}
                 </p>
               </div>
