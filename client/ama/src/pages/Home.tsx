@@ -20,9 +20,9 @@ type Product = {
 
 // ====== الأقسام الرئيسية (دوائر) — سنستخدم title نفسه كاسم الفئة ======
 const categories = [
-  { title: "مستلزمات نجارين", img: "https://i.imgur.com/BEfwYpQ.png" },
-  { title: "سحّابات ومفصلات", img: "https://i.imgur.com/bf8geWx.jpeg" },
-  { title: "مستلزمات مُنجّدين", img: "https://i.imgur.com/oW6JO0A.png" },
+  { title: "لوازم نجارين", img: "https://i.imgur.com/BEfwYpQ.png" },
+  { title: "أصناف اضافية", img: "https://i.imgur.com/bf8geWx.jpeg" },
+  { title: "لوازم منجدين", img: "https://i.imgur.com/oW6JO0A.png" },
   { title: "مقابض ابواب", img: "https://i.imgur.com/uazWZhd.jpeg" },
   { title: "مقابض خزائن", img: "https://i.imgur.com/lu2y3pi.png" },
   { title: "إكسسوارات مطابخ", img: "https://i.imgur.com/CCEly6H.jpeg" },
