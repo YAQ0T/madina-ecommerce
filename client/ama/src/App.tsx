@@ -16,6 +16,7 @@ import OfferDialog from "./components/common/OfferDialog";
 import { useEffect, useState } from "react";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import ReturnsPolicy from "./pages/ReturnsPolicy";
+import AdminHomeCollections from "./pages/AdminHomeCollections";
 
 function App() {
   const [open, setOpen] = useState(false);
@@ -45,6 +46,10 @@ function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/my-orders/:orderId" element={<UserOrderDetails />} />
         <Route path="/checkout/success" element={<CheckoutSuccess />} />
+        <Route
+          path="/admin/home-collections"
+          element={<AdminHomeCollections />}
+        />
       </Routes>
     </>
   );

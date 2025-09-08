@@ -135,7 +135,7 @@ const VariantManagerDialog: React.FC<Props> = ({
         { headers }
       );
       setVariants((prev) => [data, ...prev]);
-      resetForm();
+      // resetForm();
       onChanged?.(); // حتى تتحدث الإحصاءات في الجداول الأخرى
     } catch (e: any) {
       console.error("❌ Failed to create variant", e);
@@ -157,7 +157,7 @@ const VariantManagerDialog: React.FC<Props> = ({
       setVariants((prev) =>
         prev.map((v) => (v._id === isEditingId ? data : v))
       );
-      resetForm();
+      // resetForm();
       onChanged?.();
     } catch (e: any) {
       console.error("❌ Failed to update variant", e);
@@ -576,6 +576,7 @@ const VariantManagerDialog: React.FC<Props> = ({
             <Button variant="outline" onClick={resetForm}>
               إلغاء
             </Button>
+
             <Button onClick={updateVariant}>حفظ التعديل</Button>
           </>
         ) : (

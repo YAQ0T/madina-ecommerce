@@ -1,0 +1,368 @@
+import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
+import { useAuth } from "@/context/AuthContext";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
+type ProductLite = {
+  _id: string;
+  name: string;
+  images?: string[];
+  mainImage?: string;
+  price?: number;
+};
+
+const getImage = (p: ProductLite) =>
+  p.images?.[0] ||
+  p.mainImage ||
+  "https://placehold.co/300x200/png?text=No+Image";
+
+export default function AdminHomeCollections() {
+  const { token, user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [recommended, setRecommended] = useState<ProductLite[]>([]);
+  const [newArrivals, setNewArrivals] = useState<ProductLite[]>([]);
+
+  // بحث وإضافة
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ProductLite[]>([]);
+  const [tab, setTab] = useState<"recommended" | "new">("recommended");
+
+  const headers = useMemo(
+    () => (token ? { Authorization: `Bearer ${token}` } : undefined),
+    [token]
+  );
+
+  useEffect(() => {
+    // صلاحيات بسيطة (اختياري)
+    if (user && !(user.role === "admin" || user.role === "dealer")) {
+      // ليس أدمن — ممكن نعرض رسالة أو نمنع الوصول
+    }
+  }, [user]);
+
+  // تحميل القوائم الحالية
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const base = import.meta.env.VITE_API_URL;
+        const { data } = await axios.get(`${base}/api/home-collections`, {
+          headers,
+        });
+        if (!live) return;
+        setRecommended(
+          Array.isArray(data?.recommended) ? data.recommended : []
+        );
+        setNewArrivals(
+          Array.isArray(data?.newArrivals) ? data.newArrivals : []
+        );
+      } catch {
+        // تجاهل
+      } finally {
+        if (live) setLoading(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [headers]);
+
+  // بحث سريع عن المنتجات لإضافتها
+  useEffect(() => {
+    let live = true;
+    const t = setTimeout(async () => {
+      if (!query.trim()) {
+        setResults([]);
+        return;
+      }
+      try {
+        const base = import.meta.env.VITE_API_URL;
+        const params = new URLSearchParams();
+        params.set("page", "1");
+        params.set("limit", "12");
+        params.set("q", query.trim());
+        const url = `${base}/api/products/with-stats?${params.toString()}`;
+        const { data } = await axios.get(url, { headers });
+        if (!live) return;
+        const items = Array.isArray(data?.items) ? data.items : [];
+        const mapped: ProductLite[] = items.map((p: any) => ({
+          _id: p._id,
+          name: p.name,
+          images: p.images,
+          mainImage: p.mainImage,
+          price: p.minPrice,
+        }));
+        setResults(mapped);
+      } catch {
+        if (!live) return;
+        setResults([]);
+      }
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      live = false;
+    };
+  }, [query, headers]);
+
+  const addToList = (p: ProductLite) => {
+    const existsInRec = recommended.some((x) => x._id === p._id);
+    const existsInNew = newArrivals.some((x) => x._id === p._id);
+    if (tab === "recommended" && !existsInRec) {
+      setRecommended((prev) => [...prev, p]);
+    }
+    if (tab === "new" && !existsInNew) {
+      setNewArrivals((prev) => [...prev, p]);
+    }
+  };
+
+  const removeFromList = (list: "recommended" | "new", id: string) => {
+    if (list === "recommended") {
+      setRecommended((prev) => prev.filter((x) => x._id !== id));
+    } else {
+      setNewArrivals((prev) => prev.filter((x) => x._id !== id));
+    }
+  };
+
+  const move = (list: "recommended" | "new", index: number, dir: -1 | 1) => {
+    const arr = list === "recommended" ? [...recommended] : [...newArrivals];
+    const newIndex = index + dir;
+    if (newIndex < 0 || newIndex >= arr.length) return;
+    const tmp = arr[index];
+    arr[index] = arr[newIndex];
+    arr[newIndex] = tmp;
+    if (list === "recommended") setRecommended(arr);
+    else setNewArrivals(arr);
+  };
+
+  const save = async () => {
+    try {
+      setSaving(true);
+      const base = import.meta.env.VITE_API_URL;
+      const payload = {
+        recommendedIds: recommended.map((p) => p._id),
+        newArrivalIds: newArrivals.map((p) => p._id),
+      };
+      await axios.put(`${base}/api/home-collections`, payload, { headers });
+      alert("تم الحفظ بنجاح ✅");
+    } catch {
+      alert("فشل الحفظ، حاول مجددًا.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <Navbar />
+      <main className="container mx-auto p-6">
+        <h1 className="text-3xl font-bold mb-6 text-right">
+          إدارة منتجات الصفحة الرئيسية
+        </h1>
+
+        {loading ? (
+          <p className="text-center">جاري التحميل…</p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* القوائم المختارة */}
+            <section className="lg:col-span-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* قائمة المقترحة */}
+                <div className="rounded-2xl border p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="font-semibold text-xl">منتجات مُقترحة لك</h2>
+                    <span className="text-sm text-gray-500">
+                      {recommended.length} منتج
+                    </span>
+                  </div>
+                  <ul className="space-y-3">
+                    {recommended.map((p, idx) => (
+                      <li
+                        key={p._id}
+                        className="flex gap-3 items-center border rounded-lg p-2"
+                      >
+                        <img
+                          src={getImage(p)}
+                          alt={p.name}
+                          className="w-16 h-16 object-cover rounded-md"
+                        />
+                        <div className="flex-1 text-right">
+                          <div className="font-medium line-clamp-1">
+                            {p.name}
+                          </div>
+                          {typeof p.price === "number" && (
+                            <div className="text-sm text-gray-500 mt-0.5">
+                              {p.price} ₪
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => move("recommended", idx, -1)}
+                            title="أعلى"
+                          >
+                            ▲
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => move("recommended", idx, +1)}
+                            title="أسفل"
+                          >
+                            ▼
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={() => removeFromList("recommended", p._id)}
+                          >
+                            إزالة
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* قائمة وصل حديثًا */}
+                <div className="rounded-2xl border p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="font-semibold text-xl">وصل حديثًا</h2>
+                    <span className="text-sm text-gray-500">
+                      {newArrivals.length} منتج
+                    </span>
+                  </div>
+                  <ul className="space-y-3">
+                    {newArrivals.map((p, idx) => (
+                      <li
+                        key={p._id}
+                        className="flex gap-3 items-center border rounded-lg p-2"
+                      >
+                        <img
+                          src={getImage(p)}
+                          alt={p.name}
+                          className="w-16 h-16 object-cover rounded-md"
+                        />
+                        <div className="flex-1 text-right">
+                          <div className="font-medium line-clamp-1">
+                            {p.name}
+                          </div>
+                          {typeof p.price === "number" && (
+                            <div className="text-sm text-gray-500 mt-0.5">
+                              {p.price} ₪
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => move("new", idx, -1)}
+                            title="أعلى"
+                          >
+                            ▲
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => move("new", idx, +1)}
+                            title="أسفل"
+                          >
+                            ▼
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={() => removeFromList("new", p._id)}
+                          >
+                            إزالة
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <Button onClick={save} disabled={saving}>
+                  {saving ? "جارٍ الحفظ…" : "حفظ التغييرات"}
+                </Button>
+              </div>
+            </section>
+
+            {/* البحث والإضافة */}
+            <aside className="rounded-2xl border p-4">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h2 className="font-semibold">البحث عن المنتجات</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    className={`px-3 py-1 rounded ${
+                      tab === "recommended"
+                        ? "bg-black text-white"
+                        : "bg-gray-100"
+                    }`}
+                    onClick={() => setTab("recommended")}
+                  >
+                    أضف إلى المقترحة
+                  </button>
+                  <button
+                    className={`px-3 py-1 rounded ${
+                      tab === "new" ? "bg-black text-white" : "bg-gray-100"
+                    }`}
+                    onClick={() => setTab("new")}
+                  >
+                    أضف إلى وصل حديثًا
+                  </button>
+                </div>
+              </div>
+              <Input
+                type="text"
+                placeholder="اكتب اسم المنتج…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <div className="mt-4 space-y-3 max-h-[60vh] overflow-auto">
+                {results.map((p) => (
+                  <div
+                    key={p._id}
+                    className="flex gap-3 items-center border rounded-lg p-2"
+                  >
+                    <img
+                      src={getImage(p)}
+                      alt={p.name}
+                      className="w-14 h-14 object-cover rounded-md"
+                    />
+                    <div className="flex-1 text-right">
+                      <div className="font-medium line-clamp-1">{p.name}</div>
+                      {typeof p.price === "number" && (
+                        <div className="text-sm text-gray-500 mt-0.5">
+                          {p.price} ₪
+                        </div>
+                      )}
+                    </div>
+                    <Button onClick={() => addToList(p)}>
+                      {tab === "recommended"
+                        ? "إضافة للمقترحة"
+                        : "إضافة لوصل حديثًا"}
+                    </Button>
+                  </div>
+                ))}
+                {!results.length && query.trim() && (
+                  <p className="text-sm text-gray-500 text-center">
+                    لا توجد نتائج مطابقة…
+                  </p>
+                )}
+              </div>
+            </aside>
+          </div>
+        )}
+      </main>
+      <Footer />
+    </>
+  );
+}

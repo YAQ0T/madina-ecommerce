@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import ProductCard from "@/components/ProductCard";
 import CategorySidebar from "@/components/CategorySidebar";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
 
@@ -43,14 +43,10 @@ type ProductItem = {
 type FacetItem = { name: string; slug: string };
 type Facets = { measures: FacetItem[]; colors: FacetItem[] };
 type OwnershipFilter = "all" | "ours" | "local";
-
 type CategoryGroup = { mainCategory: string; subCategories: string[] };
 
-// 🔢 حجم نافذة أرقام الصفحات المرئية على الشاشات >= sm
 const PAGE_WINDOW = 5;
 
-// 🧮 يبني قائمة الصفحات مع نقاط الحذف …
-// مثال: [1, 2, 3, 4, 5, 'ellipsis', 20]
 function buildPageWindow(
   current: number,
   total: number,
@@ -59,33 +55,23 @@ function buildPageWindow(
   if (total <= windowSize) {
     return Array.from({ length: total }, (_, i) => i + 1);
   }
-
   const pages: (number | "ellipsis")[] = [];
   const first = 1;
   const last = total;
-
   const half = Math.floor(windowSize / 2);
   let start = Math.max(first, current - half);
   let end = Math.min(last, start + windowSize - 1);
-
-  if (end - start + 1 < windowSize) {
+  if (end - start + 1 < windowSize)
     start = Math.max(first, end - windowSize + 1);
-  }
-
   if (start > first) {
     pages.push(first);
     if (start > first + 1) pages.push("ellipsis");
   }
-
-  for (let p = start; p <= end; p++) {
-    pages.push(p);
-  }
-
+  for (let p = start; p <= end; p++) pages.push(p);
   if (end < last) {
     if (end < last - 1) pages.push("ellipsis");
     pages.push(last);
   }
-
   return pages;
 }
 
@@ -96,11 +82,9 @@ const Products: React.FC = () => {
   const [selectedMainCategory, setSelectedMainCategory] = useState("الكل");
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
 
-  // 🔎 البحث اليدوي بالاسم:
   const [rawSearch, setRawSearch] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // 💰 السعر الأقصى اليدوي:
   const [rawMaxPrice, setRawMaxPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
 
@@ -117,17 +101,15 @@ const Products: React.FC = () => {
   const [facets, setFacets] = useState<Facets>({ measures: [], colors: [] });
 
   const location = useLocation();
+  const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
 
-  // زر “المحدّثة هذا الأسبوع”
   const [recentDays, setRecentDays] = useState<number | null>(null);
   const [recentTotal, setRecentTotal] = useState<number | null>(null);
 
-  // شجرة التصنيفات الشاملة — تُحمّل مرة عند دخول الصفحة فقط
   const [categoryMenu, setCategoryMenu] = useState<CategoryGroup[]>([]);
   const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
 
-  // اقتراحات البحث بالاسم
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(-1);
@@ -136,28 +118,48 @@ const Products: React.FC = () => {
   const searchBoxWrapperRef = useRef<HTMLDivElement | null>(null);
   const maxPriceRef = useRef<HTMLInputElement | null>(null);
 
-  // عند تثبيت بحث جديد، عد للصفحة الأولى
   useEffect(() => {
     setCurrentPage(1);
     searchRef.current?.focus();
   }, [searchTerm]);
 
-  // منع تغيير فلتر الملكية لغير المصرّح لهم
   useEffect(() => {
     if (!canUseOwnership && ownershipFilter !== "all") {
       setOwnershipFilter("all");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canUseOwnership]);
+  }, [canUseOwnership, ownershipFilter]);
 
-  // قراءة بارام الفئة من المسار
+  // ✅ قراءة بارامات category/sub من الـURL
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const category = params.get("category");
+    const sub = params.get("sub");
     if (category) setSelectedMainCategory(category);
+    if (sub) setSelectedSubCategory(sub);
   }, [location.search]);
 
-  // جلب Facets (ألوان/مقاسات)
+  // ✅ مزامنة الـURL عندما تتغير الفئات (يفيد المشاركة/الرجوع)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (selectedMainCategory && selectedMainCategory !== "الكل") {
+      params.set("category", selectedMainCategory);
+    } else {
+      params.delete("category");
+    }
+    if (selectedSubCategory) {
+      params.set("sub", selectedSubCategory);
+    } else {
+      params.delete("sub");
+    }
+    // لا نلمس باقي البارامات (إن وجدت) للحفاظ على السلوك
+    const next = `?${params.toString()}`;
+    if (next !== location.search) {
+      navigate({ search: next }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMainCategory, selectedSubCategory]);
+
+  // جلب Facets
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -178,7 +180,6 @@ const Products: React.FC = () => {
         const url = `${
           import.meta.env.VITE_API_URL
         }/api/products/facets?${params.toString()}`;
-
         const headers = token
           ? { Authorization: `Bearer ${token}` }
           : undefined;
@@ -233,7 +234,6 @@ const Products: React.FC = () => {
     let ignore = false;
     (async () => {
       setLoading(true);
-
       const params = new URLSearchParams();
       params.set("page", String(currentPage));
       params.set("limit", "9");
@@ -243,11 +243,9 @@ const Products: React.FC = () => {
       if (selectedSubCategory) params.set("subCategory", selectedSubCategory);
       if (searchTerm) params.set("q", searchTerm);
       if (maxPrice) params.set("maxPrice", maxPrice);
-
       if (canUseOwnership && ownershipFilter !== "all") {
         params.set("ownership", ownershipFilter);
       }
-
       const tags: string[] = [];
       if (selectedColorSlug) tags.push(`color:${selectedColorSlug}`);
       if (selectedMeasureSlug) tags.push(`measure:${selectedMeasureSlug}`);
@@ -259,7 +257,6 @@ const Products: React.FC = () => {
           recentDays && recentDays > 0
             ? `${base}/recent-updates?${params.toString()}&days=${recentDays}`
             : `${base}/with-stats?${params.toString()}`;
-
         const headers = token
           ? { Authorization: `Bearer ${token}` }
           : undefined;
@@ -475,7 +472,6 @@ const Products: React.FC = () => {
     searchRef.current?.focus();
   };
 
-  // احتياطي: ليس مصدر القائمة الآن
   const categoryGroups = useMemo(() => {
     return products.reduce((acc, product) => {
       const { mainCategory, subCategory } = product;
@@ -499,14 +495,12 @@ const Products: React.FC = () => {
     }, [] as { mainCategory: string; subCategories: string[] }[]);
   }, [products]);
 
-  // 🔎 تثبيت البحث عند Enter أو الضغط على الأيقونة
   const triggerSearch = () => {
     setSearchTerm(rawSearch.trim());
     setShowSuggestions(false);
     setHighlightIndex(-1);
   };
 
-  // 💰 تثبيت السعر الأقصى عند Enter أو الضغط على زر التطبيق
   const triggerMaxPrice = () => {
     const v = rawMaxPrice.trim();
     setMaxPrice(v);
@@ -514,7 +508,6 @@ const Products: React.FC = () => {
     maxPriceRef.current?.focus();
   };
 
-  // ✅ هاتان الدالتان هما المطلوبتان لمنع خطأ "Cannot find name 'handleSearchKeyDown'"
   const handleSearchKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (
     e
   ) => {
@@ -562,7 +555,6 @@ const Products: React.FC = () => {
     );
   }
 
-  // ⚙️ بيانات الترقيم لنسخة الديسكتوب
   const pageItems = buildPageWindow(currentPage, totalPages, PAGE_WINDOW);
 
   return (
@@ -572,7 +564,6 @@ const Products: React.FC = () => {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-right">جميع المنتجات</h1>
 
-          {/* زر “المحدّثة هذا الأسبوع” + البادج */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
@@ -628,9 +619,7 @@ const Products: React.FC = () => {
           </aside>
 
           <section className="flex-1">
-            {/* شريط الفلاتر العلوية */}
             <div className="flex flex-col sm:flex-row gap-2 mb-4">
-              {/* مجموعة البحث: Input + زر أيقونة + اقتراحات */}
               <div
                 className="relative flex w-full sm:max-w-xl"
                 ref={searchBoxWrapperRef}
@@ -656,7 +645,6 @@ const Products: React.FC = () => {
                   className="absolute inset-y-0 left-0 sm:left-auto sm:right-0 sm:inset-y-0 flex items-center justify-center w-12 bg-black text-white rounded-r-md sm:rounded-l-none sm:rounded-r-md hover:bg-gray-800"
                   title="بحث"
                 >
-                  {/* أيقونة عدسة */}
                   <svg
                     viewBox="0 0 24 24"
                     width="20"
@@ -672,7 +660,6 @@ const Products: React.FC = () => {
                   </svg>
                 </button>
 
-                {/* قائمة الاقتراحات */}
                 {showSuggestions && suggestions.length > 0 && (
                   <ul
                     className="absolute top-full mt-1 w-full z-20 bg-white border rounded-md shadow-lg max-h-64 overflow-auto text-right"
@@ -703,7 +690,6 @@ const Products: React.FC = () => {
                 )}
               </div>
 
-              {/* مجموعة السعر الأقصى: Input + زر تطبيق */}
               <div className="relative flex w-full sm:max-w-xs">
                 <Input
                   ref={maxPriceRef}
@@ -741,7 +727,6 @@ const Products: React.FC = () => {
               )}
             </div>
 
-            {/* فلاتر اللون/المقاس */}
             <div className="flex flex-col sm:flex-row gap-2 mb-6">
               <select
                 className="border rounded px-3 py-2"
@@ -801,9 +786,7 @@ const Products: React.FC = () => {
                   ))}
                 </div>
 
-                {/* ✅ ترقيم متجاوب */}
                 <div className="mt-6 flex flex-col items-center gap-4">
-                  {/* 📱 موبايل: مبسّط (السابق/الحالي/التالي) + Select للقفز */}
                   <div className="sm:hidden w-full">
                     <div className="w-full overflow-x-auto">
                       <Pagination>
@@ -827,7 +810,6 @@ const Products: React.FC = () => {
                             />
                           </PaginationItem>
 
-                          {/* وسم الصفحة الحالية مختصر */}
                           <PaginationItem>
                             <PaginationLink
                               href="#"
@@ -859,7 +841,6 @@ const Products: React.FC = () => {
                       </Pagination>
                     </div>
 
-                    {/* Select للقفز السريع */}
                     <div className="mt-3 flex items-center justify-center gap-2">
                       <span className="text-sm text-gray-700">اذهب إلى:</span>
                       <Select
@@ -883,12 +864,10 @@ const Products: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 💻 ديسكتوب/تابلت: الترقيم الكامل بنافذة 5 + … */}
                   <div className="hidden sm:flex flex-col items-center gap-3 w-full">
                     <div className="w-full overflow-x-auto">
                       <Pagination>
                         <PaginationContent className="rtl:flex-row-reverse justify-center">
-                          {/* السابق */}
                           <PaginationItem>
                             <PaginationPrevious
                               href="#"
@@ -906,7 +885,6 @@ const Products: React.FC = () => {
                             />
                           </PaginationItem>
 
-                          {/* أرقام الصفحات مع … */}
                           {pageItems.map((item, idx) =>
                             item === "ellipsis" ? (
                               <PaginationItem key={`ellipsis-${idx}`}>
@@ -928,7 +906,6 @@ const Products: React.FC = () => {
                             )
                           )}
 
-                          {/* التالي */}
                           <PaginationItem>
                             <PaginationNext
                               href="#"
@@ -951,7 +928,6 @@ const Products: React.FC = () => {
                       </Pagination>
                     </div>
 
-                    {/* Select للقفز السريع (يبقى مفيد حتى على الديسكتوب) */}
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-700">
                         اذهب إلى صفحة:

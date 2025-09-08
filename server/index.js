@@ -216,6 +216,7 @@ const contactRoute = require("./routes/contact");
 const userRoutes = require("./routes/user");
 const discountRulesRoutes = require("./routes/discountRules");
 const discountsRoutes = require("./routes/discounts");
+const homeCollectionsRoutes = require("./routes/homeCollections");
 
 /* 🔎 راوتر المنتجات المحدّثة */
 const productsRecentUpdatesRoutes = require("./routes/products.recent-updates");
@@ -239,6 +240,9 @@ app.use("/api/contact", contactRoute);
 app.use("/api/users", userRoutes);
 app.use("/api/discount-rules", discountRulesRoutes);
 app.use("/api/discounts", discountsRoutes);
+app.use("/api/home-collections", homeCollectionsRoutes);
+app.get("/api/products/recommended", require("./routes/homeCollections"));
+app.get("/api/products/new", require("./routes/homeCollections"));
 
 /* ✅ ربط reCAPTCHA v3 */
 app.use("/api/recaptcha", recaptchaRoutes);
