@@ -4,12 +4,11 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import ProductCard from "@/components/ProductCard";
-import CategorySidebar from "@/components/CategorySidebar";
+import CategoryCircles from "@/components/CategoryCircles";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
 
-// shadcn/ui
 import {
   Pagination,
   PaginationContent,
@@ -110,6 +109,11 @@ const Products: React.FC = () => {
   const [categoryMenu, setCategoryMenu] = useState<CategoryGroup[]>([]);
   const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
 
+  // 👇 جديد: خريطة صور الفروع من البيانات (تلقائيًا)
+  const [subCategoryImagesFromData, setSubCategoryImagesFromData] = useState<
+    Record<string, string>
+  >({});
+
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(-1);
@@ -129,7 +133,6 @@ const Products: React.FC = () => {
     }
   }, [canUseOwnership, ownershipFilter]);
 
-  // ✅ قراءة بارامات category/sub من الـURL
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const category = params.get("category");
@@ -138,7 +141,6 @@ const Products: React.FC = () => {
     if (sub) setSelectedSubCategory(sub);
   }, [location.search]);
 
-  // ✅ مزامنة الـURL عندما تتغير الفئات (يفيد المشاركة/الرجوع)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (selectedMainCategory && selectedMainCategory !== "الكل") {
@@ -151,7 +153,6 @@ const Products: React.FC = () => {
     } else {
       params.delete("sub");
     }
-    // لا نلمس باقي البارامات (إن وجدت) للحفاظ على السلوك
     const next = `?${params.toString()}`;
     if (next !== location.search) {
       navigate({ search: next }, { replace: true });
@@ -159,7 +160,7 @@ const Products: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMainCategory, selectedSubCategory]);
 
-  // جلب Facets
+  // Facets
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -229,7 +230,7 @@ const Products: React.FC = () => {
     selectedMeasureSlug,
   ]);
 
-  // جلب المنتجات
+  // المنتجات
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -289,6 +290,21 @@ const Products: React.FC = () => {
         setProducts(mapped);
         setTotalPages(tp || 1);
 
+        // 👇 دمج صور الفروع من المنتجات المعروضة حالياً (لو في فرع بدون صورة محفوظة)
+        setSubCategoryImagesFromData((prev) => {
+          const next = { ...prev };
+          for (const p of mapped) {
+            if (!p?.mainCategory || !p?.subCategory) continue;
+            const key = `${p.mainCategory}:::${p.subCategory}`;
+            if (!next[key]) {
+              const img =
+                Array.isArray(p.images) && p.images[0] ? p.images[0] : "";
+              if (img) next[key] = img;
+            }
+          }
+          return next;
+        });
+
         if (recentDays && recentDays > 0) {
           setRecentTotal(typeof total === "number" ? total : mapped.length);
         } else {
@@ -318,7 +334,7 @@ const Products: React.FC = () => {
     recentDays,
   ]);
 
-  // حمّل شجرة التصنيفات مرة واحدة فقط عند الدخول
+  // جلب شجرة التصنيفات + بناء صور فرعية تمثيلية من أول منتج يظهر لكل فرع
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -342,13 +358,28 @@ const Products: React.FC = () => {
         const totalPagesAll = Math.max(1, Number(firstData.totalPages) || 1);
 
         const map = new Map<string, Set<string>>();
+        // 👇 خريطة صور الفروع من كامل البيانات (أول صورة لأول منتج يصادفنا)
+        const subImg = new Map<string, string>();
+
         const consume = (items: any[]) => {
           for (const p of items || []) {
             const main = p?.mainCategory;
             const sub = p?.subCategory;
             if (!main) continue;
+
+            // بناء شجرة التصنيفات
             if (!map.has(main)) map.set(main, new Set<string>());
             if (sub) map.get(main)!.add(sub);
+
+            // بناء صورة الفرع
+            if (sub) {
+              const key = `${main}:::${sub}`;
+              if (!subImg.has(key)) {
+                const img =
+                  Array.isArray(p?.images) && p.images[0] ? p.images[0] : "";
+                if (img) subImg.set(key, img);
+              }
+            }
           }
         };
 
@@ -394,6 +425,15 @@ const Products: React.FC = () => {
         );
 
         setCategoryMenu(groups);
+
+        // حفظ صور الفروع المُستخلَصة
+        setSubCategoryImagesFromData((prev) => {
+          const merged = { ...prev };
+          for (const [k, v] of subImg.entries()) {
+            if (!merged[k]) merged[k] = v;
+          }
+          return merged;
+        });
       } catch {
         // تجاهل الخطأ للحفاظ على القائمة الحالية
       } finally {
@@ -451,7 +491,6 @@ const Products: React.FC = () => {
     };
   }, [rawSearch, token]);
 
-  // إغلاق قائمة الاقتراحات عند الضغط خارج صندوق البحث
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       if (!searchBoxWrapperRef.current) return;
@@ -474,7 +513,7 @@ const Products: React.FC = () => {
 
   const categoryGroups = useMemo(() => {
     return products.reduce((acc, product) => {
-      const { mainCategory, subCategory } = product;
+      const { mainCategory, subCategory, images } = product;
       if (!mainCategory) return acc;
 
       const existing = acc.find(
@@ -491,8 +530,24 @@ const Products: React.FC = () => {
           subCategories: subCategory ? [subCategory] : [],
         });
       }
+
+      // 👇 تعزيز صور الفروع أيضًا من المنتجات الحالية
+      if (mainCategory && subCategory) {
+        const key = `${mainCategory}:::${subCategory}`;
+        if (!subCategoryImagesFromData[key]) {
+          const img = Array.isArray(images) && images[0] ? images[0] : "";
+          if (img) {
+            setSubCategoryImagesFromData((prev) => ({
+              ...prev,
+              [key]: img,
+            }));
+          }
+        }
+      }
+
       return acc;
     }, [] as { mainCategory: string; subCategories: string[] }[]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products]);
 
   const triggerSearch = () => {
@@ -561,8 +616,10 @@ const Products: React.FC = () => {
     <>
       <Navbar />
       <main className="container mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-right">جميع المنتجات</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl md:text-3xl font-bold text-right">
+            جميع المنتجات
+          </h1>
 
           <div className="flex items-center gap-2">
             <button
@@ -607,359 +664,354 @@ const Products: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-6">
-          <aside className="w-full lg:w-1/4">
-            <CategorySidebar
-              categories={categoryMenu.length ? categoryMenu : categoryGroups}
-              onFilter={handleCategorySelect}
-              selectedMain={selectedMainCategory}
-              selectedSub={selectedSubCategory}
-              loading={loadingCategories}
-            />
-          </aside>
+        {/* ✅ الدوائر بالأعلى + تمرير صور الفروع التلقائية */}
+        <CategoryCircles
+          categories={categoryMenu.length ? categoryMenu : categoryGroups}
+          onFilter={handleCategorySelect}
+          selectedMain={selectedMainCategory}
+          selectedSub={selectedSubCategory}
+          loading={loadingCategories}
+          subCategoryImages={subCategoryImagesFromData}
+        />
 
-          <section className="flex-1">
-            <div className="flex flex-col sm:flex-row gap-2 mb-4">
-              <div
-                className="relative flex w-full sm:max-w-xl"
-                ref={searchBoxWrapperRef}
-              >
-                <Input
-                  ref={searchRef}
-                  type="text"
-                  placeholder="ابحث باسم المنتج..."
-                  value={rawSearch}
-                  autoComplete="off"
-                  onChange={(e) => {
-                    setRawSearch(e.target.value);
-                    setShowSuggestions(true);
-                    setHighlightIndex(-1);
-                  }}
-                  onKeyDown={handleSearchKeyDown}
-                  onFocus={() => rawSearch && setShowSuggestions(true)}
-                  className="pr-12"
-                />
-                <button
-                  type="button"
-                  onClick={triggerSearch}
-                  className="absolute inset-y-0 left-0 sm:left-auto sm:right-0 sm:inset-y-0 flex items-center justify-center w-12 bg-black text-white rounded-r-md sm:rounded-l-none sm:rounded-r-md hover:bg-gray-800"
-                  title="بحث"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="20"
-                    height="20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                </button>
-
-                {showSuggestions && suggestions.length > 0 && (
-                  <ul
-                    className="absolute top-full mt-1 w-full z-20 bg-white border rounded-md shadow-lg max-h-64 overflow-auto text-right"
-                    role="listbox"
-                  >
-                    {suggestions.map((s, idx) => (
-                      <li
-                        key={`${s}-${idx}`}
-                        role="option"
-                        aria-selected={idx === highlightIndex}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setRawSearch(s);
-                          setShowSuggestions(false);
-                          setHighlightIndex(-1);
-                          setTimeout(() => triggerSearch(), 0);
-                        }}
-                        className={`px-3 py-2 cursor-pointer transition-colors ${
-                          idx === highlightIndex
-                            ? "bg-gray-200"
-                            : "hover:bg-gray-100"
-                        }`}
-                      >
-                        {s}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className="relative flex w-full sm:max-w-xs">
-                <Input
-                  ref={maxPriceRef}
-                  type="number"
-                  placeholder="سعر أقصى"
-                  value={rawMaxPrice}
-                  onChange={(e) => setRawMaxPrice(e.target.value)}
-                  onKeyDown={handleMaxPriceKeyDown}
-                  className="pr-16"
-                />
-                <button
-                  type="button"
-                  onClick={triggerMaxPrice}
-                  className="absolute inset-y-0 left-0 sm:left-auto sm:right-0 sm:inset-y-0 flex items-center justify-center px-3 bg-black text-white rounded-r-md sm:rounded-l-none sm:rounded-r-md hover:bg-gray-800"
-                  title="تطبيق السعر"
-                >
-                  تطبيق
-                </button>
-              </div>
-
-              {canUseOwnership && (
-                <select
-                  className="border rounded px-3 py-2"
-                  value={ownershipFilter}
-                  onChange={(e) => {
-                    setOwnershipFilter(e.target.value as OwnershipFilter);
-                    setCurrentPage(1);
-                  }}
-                  title="مصدر المنتج"
-                >
-                  <option value="all">كل المصادر</option>
-                  <option value="ours">مصدر ١</option>
-                  <option value="local">مصدر ٢</option>
-                </select>
-              )}
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2 mb-6">
-              <select
-                className="border rounded px-3 py-2"
-                value={selectedColorSlug}
+        {/* فلاتر */}
+        <section className="mt-4">
+          <div className="flex flex-col sm:flex-row gap-2 mb-4">
+            <div
+              className="relative flex w-full sm:max-w-xl"
+              ref={searchBoxWrapperRef}
+            >
+              <Input
+                ref={searchRef}
+                type="text"
+                placeholder="ابحث باسم المنتج..."
+                value={rawSearch}
+                autoComplete="off"
                 onChange={(e) => {
-                  setSelectedColorSlug(e.target.value);
-                  setCurrentPage(1);
+                  setRawSearch(e.target.value);
+                  setShowSuggestions(true);
+                  setHighlightIndex(-1);
                 }}
+                onKeyDown={handleSearchKeyDown}
+                onFocus={() => rawSearch && setShowSuggestions(true)}
+                className="pr-12"
+              />
+              <button
+                type="button"
+                onClick={triggerSearch}
+                className="absolute inset-y-0 left-0 sm:left-auto sm:right-0 sm:inset-y-0 flex items-center justify-center w-12 bg-black text-white rounded-r-md sm:rounded-l-none sm:rounded-r-md hover:bg-gray-800"
+                title="بحث"
               >
-                <option value="">كل الألوان</option>
-                {facets.colors.map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                className="border rounded px-3 py-2"
-                value={selectedMeasureSlug}
-                onChange={(e) => {
-                  setSelectedMeasureSlug(e.target.value);
-                  setCurrentPage(1);
-                }}
-              >
-                <option value="">كل المقاسات</option>
-                {facets.measures.map((m) => (
-                  <option key={m.slug} value={m.slug}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-
-              {(selectedColorSlug || selectedMeasureSlug) && (
-                <button
-                  onClick={() => {
-                    setSelectedColorSlug("");
-                    setSelectedMeasureSlug("");
-                    setCurrentPage(1);
-                  }}
-                  className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200"
+                <svg
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  مسح فلاتر اللون/المقاس
-                </button>
-              )}
-            </div>
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </button>
 
-            {products.length === 0 ? (
-              <p className="text-center text-gray-600 text-lg">
-                لا يوجد منتجات مطابقة للبحث
-              </p>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 items-start">
-                  {products.map((product) => (
-                    <ProductCard key={product._id} product={product} />
+              {showSuggestions && suggestions.length > 0 && (
+                <ul
+                  className="absolute top-full mt-1 w-full z-20 bg-white border rounded-md shadow-lg max-h-64 overflow-auto text-right"
+                  role="listbox"
+                >
+                  {suggestions.map((s, idx) => (
+                    <li
+                      key={`${s}-${idx}`}
+                      role="option"
+                      aria-selected={idx === highlightIndex}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setRawSearch(s);
+                        setShowSuggestions(false);
+                        setHighlightIndex(-1);
+                        setTimeout(() => triggerSearch(), 0);
+                      }}
+                      className={`px-3 py-2 cursor-pointer transition-colors ${
+                        idx === highlightIndex
+                          ? "bg-gray-200"
+                          : "hover:bg-gray-100"
+                      }`}
+                    >
+                      {s}
+                    </li>
                   ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="relative flex w-full sm:max-w-xs">
+              <Input
+                ref={maxPriceRef}
+                type="number"
+                placeholder="سعر أقصى"
+                value={rawMaxPrice}
+                onChange={(e) => setRawMaxPrice(e.target.value)}
+                onKeyDown={handleMaxPriceKeyDown}
+                className="pr-16"
+              />
+              <button
+                type="button"
+                onClick={triggerMaxPrice}
+                className="absolute inset-y-0 left-0 sm:left-auto sm:right-0 sm:inset-y-0 flex items-center justify-center px-3 bg-black text-white rounded-r-md sm:rounded-l-none sm:rounded-r-md hover:bg-gray-800"
+                title="تطبيق السعر"
+              >
+                تطبيق
+              </button>
+            </div>
+
+            {canUseOwnership && (
+              <select
+                className="border rounded px-3 py-2"
+                value={ownershipFilter}
+                onChange={(e) => {
+                  setOwnershipFilter(e.target.value as OwnershipFilter);
+                  setCurrentPage(1);
+                }}
+                title="مصدر المنتج"
+              >
+                <option value="all">كل المصادر</option>
+                <option value="ours">مصدر ١</option>
+                <option value="local">مصدر ٢</option>
+              </select>
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 mb-6">
+            <select
+              className="border rounded px-3 py-2"
+              value={selectedColorSlug}
+              onChange={(e) => {
+                setSelectedColorSlug(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="">كل الألوان</option>
+              {facets.colors.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="border rounded px-3 py-2"
+              value={selectedMeasureSlug}
+              onChange={(e) => {
+                setSelectedMeasureSlug(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="">كل المقاسات</option>
+              {facets.measures.map((m) => (
+                <option key={m.slug} value={m.slug}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+
+            {(selectedColorSlug || selectedMeasureSlug) && (
+              <button
+                onClick={() => {
+                  setSelectedColorSlug("");
+                  setSelectedMeasureSlug("");
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200"
+              >
+                مسح فلاتر اللون/المقاس
+              </button>
+            )}
+          </div>
+        </section>
+
+        {products.length === 0 ? (
+          <p className="text-center text-gray-600 text-lg">
+            لا يوجد منتجات مطابقة للبحث
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 items-start">
+              {products.map((product) => (
+                <ProductCard key={product._id} product={product} />
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-col items-center gap-4">
+              <div className="sm:hidden w-full">
+                <div className="w-full overflow-x-auto">
+                  <Pagination>
+                    <PaginationContent className="justify-center">
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          aria-disabled={currentPage === totalPages}
+                          className={
+                            currentPage === totalPages
+                              ? "pointer-events-none opacity-50"
+                              : ""
+                          }
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage < totalPages)
+                              setCurrentPage((p) =>
+                                Math.min(totalPages, p + 1)
+                              );
+                          }}
+                        />
+                      </PaginationItem>
+
+                      <PaginationItem>
+                        <PaginationLink
+                          href="#"
+                          isActive
+                          onClick={(e) => e.preventDefault()}
+                          className="text-xs px-2"
+                        >
+                          {currentPage} / {totalPages}
+                        </PaginationLink>
+                      </PaginationItem>
+
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          aria-disabled={currentPage === 1}
+                          className={
+                            currentPage === 1
+                              ? "pointer-events-none opacity-50"
+                              : ""
+                          }
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage > 1)
+                              setCurrentPage((p) => Math.max(1, p - 1));
+                          }}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
                 </div>
 
-                <div className="mt-6 flex flex-col items-center gap-4">
-                  <div className="sm:hidden w-full">
-                    <div className="w-full overflow-x-auto">
-                      <Pagination>
-                        <PaginationContent className="justify-center">
-                          <PaginationItem>
-                            <PaginationNext
-                              href="#"
-                              aria-disabled={currentPage === totalPages}
-                              className={
-                                currentPage === totalPages
-                                  ? "pointer-events-none opacity-50"
-                                  : ""
-                              }
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (currentPage < totalPages)
-                                  setCurrentPage((p) =>
-                                    Math.min(totalPages, p + 1)
-                                  );
-                              }}
-                            />
-                          </PaginationItem>
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  <span className="text-sm text-gray-700">اذهب إلى:</span>
+                  <Select
+                    value={String(currentPage)}
+                    onValueChange={(v) => setCurrentPage(Number(v))}
+                  >
+                    <SelectTrigger className="w-28">
+                      <SelectValue placeholder="اختر صفحة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                        (p) => (
+                          <SelectItem key={p} value={String(p)}>
+                            {p}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-                          <PaginationItem>
+              <div className="hidden sm:flex flex-col items-center gap-3 w-full">
+                <div className="w-full overflow-x-auto">
+                  <Pagination>
+                    <PaginationContent className="rtl:flex-row-reverse justify-center">
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          aria-disabled={currentPage === 1}
+                          className={
+                            currentPage === 1
+                              ? "pointer-events-none opacity-50"
+                              : ""
+                          }
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage > 1)
+                              setCurrentPage((p) => Math.max(1, p - 1));
+                          }}
+                        />
+                      </PaginationItem>
+
+                      {pageItems.map((item, idx) =>
+                        item === "ellipsis" ? (
+                          <PaginationItem key={`ellipsis-${idx}`}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        ) : (
+                          <PaginationItem key={item}>
                             <PaginationLink
                               href="#"
-                              isActive
-                              onClick={(e) => e.preventDefault()}
-                              className="text-xs px-2"
+                              isActive={currentPage === item}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setCurrentPage(item);
+                              }}
                             >
-                              {currentPage} / {totalPages}
+                              {item}
                             </PaginationLink>
                           </PaginationItem>
+                        )
+                      )}
 
-                          <PaginationItem>
-                            <PaginationPrevious
-                              href="#"
-                              aria-disabled={currentPage === 1}
-                              className={
-                                currentPage === 1
-                                  ? "pointer-events-none opacity-50"
-                                  : ""
-                              }
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (currentPage > 1)
-                                  setCurrentPage((p) => Math.max(1, p - 1));
-                              }}
-                            />
-                          </PaginationItem>
-                        </PaginationContent>
-                      </Pagination>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-center gap-2">
-                      <span className="text-sm text-gray-700">اذهب إلى:</span>
-                      <Select
-                        value={String(currentPage)}
-                        onValueChange={(v) => setCurrentPage(Number(v))}
-                      >
-                        <SelectTrigger className="w-28">
-                          <SelectValue placeholder="اختر صفحة" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.from(
-                            { length: totalPages },
-                            (_, i) => i + 1
-                          ).map((p) => (
-                            <SelectItem key={p} value={String(p)}>
-                              {p}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="hidden sm:flex flex-col items-center gap-3 w-full">
-                    <div className="w-full overflow-x-auto">
-                      <Pagination>
-                        <PaginationContent className="rtl:flex-row-reverse justify-center">
-                          <PaginationItem>
-                            <PaginationPrevious
-                              href="#"
-                              aria-disabled={currentPage === 1}
-                              className={
-                                currentPage === 1
-                                  ? "pointer-events-none opacity-50"
-                                  : ""
-                              }
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (currentPage > 1)
-                                  setCurrentPage((p) => Math.max(1, p - 1));
-                              }}
-                            />
-                          </PaginationItem>
-
-                          {pageItems.map((item, idx) =>
-                            item === "ellipsis" ? (
-                              <PaginationItem key={`ellipsis-${idx}`}>
-                                <PaginationEllipsis />
-                              </PaginationItem>
-                            ) : (
-                              <PaginationItem key={item}>
-                                <PaginationLink
-                                  href="#"
-                                  isActive={currentPage === item}
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    setCurrentPage(item);
-                                  }}
-                                >
-                                  {item}
-                                </PaginationLink>
-                              </PaginationItem>
-                            )
-                          )}
-
-                          <PaginationItem>
-                            <PaginationNext
-                              href="#"
-                              aria-disabled={currentPage === totalPages}
-                              className={
-                                currentPage === totalPages
-                                  ? "pointer-events-none opacity-50"
-                                  : ""
-                              }
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (currentPage < totalPages)
-                                  setCurrentPage((p) =>
-                                    Math.min(totalPages, p + 1)
-                                  );
-                              }}
-                            />
-                          </PaginationItem>
-                        </PaginationContent>
-                      </Pagination>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-700">
-                        اذهب إلى صفحة:
-                      </span>
-                      <Select
-                        value={String(currentPage)}
-                        onValueChange={(v) => setCurrentPage(Number(v))}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue placeholder="اختر صفحة" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.from(
-                            { length: totalPages },
-                            (_, i) => i + 1
-                          ).map((p) => (
-                            <SelectItem key={p} value={String(p)}>
-                              {p}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <span className="text-sm text-gray-500">
-                        من أصل {totalPages}
-                      </span>
-                    </div>
-                  </div>
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          aria-disabled={currentPage === totalPages}
+                          className={
+                            currentPage === totalPages
+                              ? "pointer-events-none opacity-50"
+                              : ""
+                          }
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (currentPage < totalPages)
+                              setCurrentPage((p) =>
+                                Math.min(totalPages, p + 1)
+                              );
+                          }}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
                 </div>
-              </>
-            )}
-          </section>
-        </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700">اذهب إلى صفحة:</span>
+                  <Select
+                    value={String(currentPage)}
+                    onValueChange={(v) => setCurrentPage(Number(v))}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue placeholder="اختر صفحة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                        (p) => (
+                          <SelectItem key={p} value={String(p)}>
+                            {p}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-gray-500">
+                    من أصل {totalPages}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </main>
       <Footer />
     </>
