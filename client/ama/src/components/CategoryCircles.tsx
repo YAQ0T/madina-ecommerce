@@ -71,7 +71,7 @@ function CircleItem({
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center text-center focus:outline-none"
+      className="group flex flex-col items-center text-center focus:outline-none p-1"
       aria-pressed={active}
       title={title}
     >
