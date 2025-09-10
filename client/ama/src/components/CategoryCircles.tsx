@@ -22,27 +22,23 @@ type Props = {
 
 // صور للأقسام الرئيسية (اختياري)
 const CATEGORY_IMAGES: Record<string, string> = {
-  "لوازم نجارين": "https://i.imgur.com/CntFVhx.png",
+  "لوازم نجارين": "https://i.imgur.com/aPYhaQW.png",
   "لوازم منجدين": "https://i.imgur.com/S9rjrsh.png",
-  "مقابض ابواب": "https://i.imgur.com/O9xXLeu.png",
+  "مقابض ابواب": "https://i.imgur.com/UskLo6H.png",
   "مقابض خزائن": "https://i.imgur.com/AEyMjHc.png",
   "اكسسوارات مطابخ": "https://i.imgur.com/hlpu1oK.png",
   "اكسسوارات غرف نوم": "https://i.imgur.com/ZMr397G.png",
-  "عدد وماكنات يدوية": "https://i.imgur.com/9uHUSt5.png",
-  "مفصلات نجارين والامنيوم": "https://i.imgur.com/HXFqGsN.png",
-  "جوارير وسكك جوارير": "https://i.imgur.com/rJmoFBE.png",
+  "عدة وأدوات": "https://i.imgur.com/Hf5NvqJ.png",
+  "مفصلات نجارين والامنيوم": "https://i.imgur.com/XHNtA14.png",
+  "جوارير وسكك جوارير ومفصلات": "https://i.imgur.com/fE6zgKp.png",
   "أقمشة كنب": "https://i.imgur.com/bf8geWx.jpeg",
   "أصناف اضافية": "https://www.svgrepo.com/show/491692/plus-circle.svg", // احتياطي
-  "لوازم أبواب": "https://i.imgur.com/Xv8HlDi.png", // احتياطي
+  "لوازم أبواب": "https://i.imgur.com/UskLo6H.png", // احتياطي
+  "كبسات مسامير و براغي": "https://i.imgur.com/CntFVhx.png", // احتياطي
 };
 
 // 👇 هنا تقدر تضيف صور التصنيفات الفرعية يدويًا (اختياري تمامًا)
-// الصيغة: "MAIN:::SUB": "IMAGE_URL"
-const SUBCATEGORY_IMAGES: Record<string, string> = {
-  // مثال:
-  // "إكسسوارات مطابخ:::سلال مطبخ": "https://link.to/your-image.png",
-  // "مقابض خزائن:::ذهبي مطفي": "https://link.to/your-image2.jpg",
-};
+const SUBCATEGORY_IMAGES: Record<string, string> = {};
 
 const DEFAULT_MAIN_IMG =
   "https://placehold.co/240x240/png?text=%D8%AA%D8%B5%D9%86%D9%8A%D9%81";
@@ -67,6 +63,9 @@ function CircleItem({
       ? "w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 xl:w-28 xl:h-28"
       : "w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16";
 
+  // ✅ تحديد البوردر راديوس حسب النوع
+  const radius = size === "lg" ? "rounded-md" : "rounded-full";
+
   return (
     <button
       type="button"
@@ -77,7 +76,8 @@ function CircleItem({
     >
       <span
         className={[
-          "rounded-full overflow-hidden bg-white dark:bg-gray-900",
+          radius,
+          "overflow-hidden bg-white dark:bg-gray-900",
           "transition-all duration-300",
           active
             ? "ring-2 ring-black/20 dark:ring-white/30 scale-[1.03] shadow"
@@ -112,10 +112,13 @@ function SkeletonCircle({ size = "lg" }: { size?: "lg" | "sm" }) {
     size === "lg"
       ? "w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 xl:w-28 xl:h-28"
       : "w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16";
+
+  const radius = size === "lg" ? "rounded-md" : "rounded-full";
+
   return (
     <div className="flex flex-col items-center text-center animate-pulse">
       <div
-        className={["rounded-full bg-gray-200 dark:bg-gray-800", dim].join(" ")}
+        className={[radius, "bg-gray-200 dark:bg-gray-800", dim].join(" ")}
       />
       <div className="mt-2 h-3 w-16 rounded bg-gray-200 dark:bg-gray-800" />
     </div>
@@ -148,7 +151,7 @@ const CategoryCircles: React.FC<Props> = ({
       ? normalized.find((g) => g.mainCategory === selectedMain)
       : undefined;
 
-  // دمج صور الفروع: Prop (قادمة من الصفحة) ← ثابت محلي ← لا شيء
+  // دمج صور الفروع
   const getSubImage = (main: string, sub: string): string | undefined => {
     const key = `${main}:::${sub}`;
     return subCategoryImages[key] || SUBCATEGORY_IMAGES[key] || undefined;

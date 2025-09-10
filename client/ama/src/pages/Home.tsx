@@ -20,16 +20,24 @@ type Product = {
 
 // ====== الأقسام الرئيسية (دوائر) — سنستخدم title نفسه كاسم الفئة ======
 const categories = [
-  { title: "لوازم نجارين", img: "https://i.imgur.com/CntFVhx.png" },
+  { title: "لوازم نجارين", img: "https://i.imgur.com/aPYhaQW.png" },
   { title: "لوازم منجدين", img: "https://i.imgur.com/S9rjrsh.png" },
   { title: "مقابض ابواب", img: "https://i.imgur.com/O9xXLeu.png" },
   { title: "مقابض خزائن", img: "https://i.imgur.com/AEyMjHc.png" },
-  { title: "إكسسوارات مطابخ", img: "https://i.imgur.com/hlpu1oK.png" },
+  { title: "اكسسوارات مطابخ", img: "https://i.imgur.com/hlpu1oK.png" },
   { title: "إكسسوارات غرف نوم", img: "https://i.imgur.com/ZMr397G.png" },
-  { title: "عدد وماكنات يدوية", img: "https://i.imgur.com/9uHUSt5.png" },
-  { title: "مفصلات نجارين والامنيوم", img: "https://i.imgur.com/HXFqGsN.png" },
-  { title: "جوارير وسكك جوارير", img: "https://i.imgur.com/rJmoFBE.png" },
+  { title: "عدة وأدوات", img: "https://i.imgur.com/Hf5NvqJ.png" },
+  {
+    title: "جوارير وسكك جوارير ومفصلات",
+    img: "https://i.imgur.com/fE6zgKp.png",
+  },
   { title: "أقمشة كنب", img: "https://i.imgur.com/bf8geWx.jpeg" },
+  {
+    title: "كبسات مسامير و براغي",
+    img: "https://i.imgur.com/CntFVhx.png",
+  },
+  { title: "لوازم أبواب", img: "https://i.imgur.com/UskLo6H.png" }, // احتياطي
+  // { title: "مفصلات نجارين والامنيوم", img: "https://i.imgur.com/XHNtA14.png" }, // احتياطي
 ];
 
 // ====== بطاقات المزايا 4 ======
@@ -37,7 +45,7 @@ const benefits = [
   {
     icon: "https://www.svgrepo.com/show/467670/delivery-truck.svg",
     title: "توصيل إلى كافة المدن",
-    desc: "الضفة الغربية وداخل الخط الأخضر • توصيل سريع وفي الموعد",
+    desc: "توصيل سريع وفي الموعد",
   },
   {
     icon: "https://www.svgrepo.com/show/469025/headset-alt.svg",
@@ -246,7 +254,7 @@ const Home: React.FC = () => {
           </div>
         </section>
 
-        {/* الأقسام الرئيسية (دوائر) — أحجام أصغر للموبايل */}
+        {/* الأقسام الرئيسية () — أحجام أصغر للموبايل */}
         <section className="mt-2">
           <h2 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 text-right">
             تصفّح حسب الفئة
@@ -265,7 +273,7 @@ const Home: React.FC = () => {
                     md:w-28 md:h-28
                     lg:w-32 lg:h-32
                     xl:w-36 xl:h-36
-                    rounded-full overflow-hidden
+                    rounded-md overflow-hidden
                     bg-white dark:bg-gray-900
                     border border-gray-200 dark:border-gray-700
                     shadow-sm hover:shadow-md transition-shadow duration-300

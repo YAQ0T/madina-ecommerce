@@ -984,7 +984,6 @@ const Products: React.FC = () => {
                     </PaginationContent>
                   </Pagination>
                 </div>
-
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-700">اذهب إلى صفحة:</span>
                   <Select
@@ -994,7 +993,7 @@ const Products: React.FC = () => {
                     <SelectTrigger className="w-32">
                       <SelectValue placeholder="اختر صفحة" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-40 overflow-y-auto">
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                         (p) => (
                           <SelectItem key={p} value={String(p)}>
