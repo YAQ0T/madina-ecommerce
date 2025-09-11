@@ -334,7 +334,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             alt={product.name}
             className={clsx(
               // ملء الحاوية كاملة مع الحفاظ على الصورة كاملة بدون قص
-              "absolute inset-0 w-full h-full object-contain transition-all duration-500 pointer-events-none",
+              "absolute inset-0 w-full h-full object-contain transition-all duration-500 ",
               {
                 "opacity-100 translate-x-0 z-10": index === currentImage,
                 "opacity-0 translate-x-full z-0": index > currentImage,

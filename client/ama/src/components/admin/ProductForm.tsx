@@ -103,14 +103,14 @@ const ProductForm: React.FC<ProductFormProps> = ({
       }
 
       // إعادة تعيين الحقول
-      setNewProduct({
-        name: "",
-        mainCategory: "",
-        subCategory: "",
-        description: "",
-        images: [],
-        ownershipType: "ours", // 👈 نرجعها للوضع الافتراضي
-      });
+      // setNewProduct({
+      //   name: "",
+      //   mainCategory: "",
+      //   subCategory: "",
+      //   description: "",
+      //   images: [],
+      //   ownershipType: "ours", // 👈 نرجعها للوضع الافتراضي
+      // });
     } catch (err) {
       console.error("❌ Error adding product", err);
       alert("فشل في إضافة المنتج");
