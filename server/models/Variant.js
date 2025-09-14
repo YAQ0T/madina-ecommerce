@@ -22,6 +22,7 @@ const VariantSchema = new Schema(
 
     // الأبعاد القابلة للفلترة
     measure: { type: String, required: true, trim: true },
+    measureUnit: { type: String, trim: true, default: "" }, // ✅ جديد: وحدة القياس (cm, ml, kg...)
     measureSlug: { type: String, index: true },
     color: {
       name: { type: String, required: true, trim: true },
@@ -63,7 +64,6 @@ VariantSchema.index(
 );
 VariantSchema.index({ "price.amount": 1 });
 VariantSchema.index({ "stock.inStock": 1 });
-// ✅ فهارس للتحديثات والخصومات لتسريع الاستعلامات
 VariantSchema.index({ updatedAt: -1 });
 VariantSchema.index({ "price.discount.startAt": 1 });
 VariantSchema.index({ "price.discount.endAt": 1 });
@@ -102,9 +102,10 @@ VariantSchema.pre("save", function (next) {
   if (this.colorSlug) tagSet.add(`color:${this.colorSlug}`);
   if (this.color?.code)
     tagSet.add(`color_code:${String(this.color.code).toLowerCase()}`);
+  // ✅ ممكن تفعّل هذا السطر لو بدك تحفظ الوحدة كوسم:
+  // if (this.measureUnit) tagSet.add(`measure_unit:${String(this.measureUnit).toLowerCase()}`);
   this.tags = Array.from(tagSet);
 
-  // إن لم تُرسل compareAt نغطيها بالسعر الأساسي
   if (this.price && this.price.compareAt == null) {
     this.price.compareAt = this.price.amount;
   }
@@ -174,6 +175,10 @@ VariantSchema.pre("findOneAndUpdate", async function (next) {
     if (finalColorSlug) filtered.push(`color:${finalColorSlug}`);
     if (finalColorCode)
       filtered.push(`color_code:${String(finalColorCode).toLowerCase()}`);
+
+    // ✅ لو بدك تحفظ وسماً للوحدة عند التعديل (اختياري):
+    // const unit = $set.measureUnit ?? current?.measureUnit ?? null;
+    // if (unit) filtered.push(`measure_unit:${String(unit).toLowerCase()}`);
 
     $set.tags = Array.from(new Set(filtered));
   }

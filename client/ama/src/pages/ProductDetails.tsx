@@ -11,6 +11,7 @@ type Variant = {
   _id: string;
   product: string;
   measure: string;
+  measureUnit?: string; // ✅ جديد
   measureSlug: string;
   color: { name: string; code?: string; images?: string[] };
   colorSlug: string;
@@ -26,7 +27,6 @@ type Variant = {
   };
   stock: { inStock: number; sku: string };
   tags: string[];
-  // محسوبة من /api/variants
   finalAmount?: number;
   isDiscountActive?: boolean;
   displayCompareAt?: number | null;
@@ -47,27 +47,26 @@ const formatTimeLeft = (ms: number) => {
   return `${minutes}د ${seconds}ث`;
 };
 
+const normalize = (s?: string) =>
+  (s || "").trim().replace(/\s+/g, "").toLowerCase();
+const isUnified = (s?: string) => normalize(s) === normalize("موحد");
+
 const ProductDetails: React.FC = () => {
   const { addToCart } = useCart();
   const { id } = useParams();
 
-  // بيانات المنتج والمتغيّرات
   const [product, setProduct] = useState<any>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
 
-  // حالة السلايدر
   const [currentImage, setCurrentImage] = useState(0);
 
-  // اختيارات المستخدم (slugs)
   const [measure, setMeasure] = useState<string>("");
   const [color, setColor] = useState<string>("");
 
-  // ⏳ حالات التايمر/التقدم للخصم
   const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
   const [progressPct, setProgressPct] = useState<number | null>(null);
   const [showDiscountTimer, setShowDiscountTimer] = useState(false);
 
-  // جلب المنتج + المتغيّرات
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -85,7 +84,6 @@ const ProductDetails: React.FC = () => {
         const vs: Variant[] = Array.isArray(varsRes.data) ? varsRes.data : [];
         setVariants(vs);
 
-        // افتراضات: أول variant
         if (vs.length > 0) {
           setMeasure(vs[0].measureSlug || "");
           setColor(vs[0].colorSlug || "");
@@ -104,11 +102,17 @@ const ProductDetails: React.FC = () => {
     };
   }, [id]);
 
-  // خرائط عرضية للأسماء بدلاً من السلوغ
-  const measureLabelBySlug = useMemo(() => {
-    const map = new Map<string, string>();
+  // خرائط عرضية للأسماء + الوحدة
+  const measureInfoBySlug = useMemo(() => {
+    const map = new Map<string, { label: string; unit?: string }>();
     for (const v of variants) {
-      if (v.measureSlug && v.measure) map.set(v.measureSlug, v.measure);
+      if (v.measureSlug && v.measure) {
+        const existing = map.get(v.measureSlug);
+        map.set(v.measureSlug, {
+          label: v.measure,
+          unit: existing?.unit ?? (v.measureUnit || undefined),
+        });
+      }
     }
     return map;
   }, [variants]);
@@ -121,23 +125,20 @@ const ProductDetails: React.FC = () => {
     return map;
   }, [variants]);
 
-  // قائمة المقاسات المتاحة (سلوغ + label)
+  // المقاسات (مع استبعاد "موحّد")
   const measures = useMemo(() => {
-    return Array.from(measureLabelBySlug.entries()).map(([slug, label]) => ({
-      slug,
-      label,
-    }));
-  }, [measureLabelBySlug]);
+    return Array.from(measureInfoBySlug.entries())
+      .map(([slug, info]) => ({ slug, ...info }))
+      .filter((m) => !isUnified(m.label));
+  }, [measureInfoBySlug]);
 
-  // جميع الألوان (سنُعطّل غير المتاح للمقاس المختار)
+  // الألوان (مع استبعاد "موحّد")
   const allColors = useMemo(() => {
-    return Array.from(colorLabelBySlug.entries()).map(([slug, name]) => ({
-      slug,
-      name,
-    }));
+    return Array.from(colorLabelBySlug.entries())
+      .map(([slug, name]) => ({ slug, name }))
+      .filter((c) => !isUnified(c.name));
   }, [colorLabelBySlug]);
 
-  // خريطة: المقاس -> مجموعة الألوان المتاحة له
   const colorsByMeasure = useMemo(() => {
     const m = new Map<string, Set<string>>();
     for (const v of variants) {
@@ -148,13 +149,11 @@ const ProductDetails: React.FC = () => {
     return m;
   }, [variants]);
 
-  // الألوان المتاحة للمقاس الحالي
   const availableColorsForMeasure = useMemo(() => {
     if (!measure) return new Set<string>();
     return colorsByMeasure.get(measure) || new Set<string>();
   }, [colorsByMeasure, measure]);
 
-  // المتغيّر الحالي
   const currentVariant = useMemo(() => {
     if (!variants.length || !measure || !color) return null;
     return (
@@ -164,7 +163,6 @@ const ProductDetails: React.FC = () => {
     );
   }, [variants, measure, color]);
 
-  // عندما يتغيّر المقاس: عيّن لوناً متاحاً إن كان اللون الحالي غير متاح
   useEffect(() => {
     if (!measure) {
       setColor("");
@@ -176,12 +174,10 @@ const ProductDetails: React.FC = () => {
       return;
     }
     if (!color || !allowed.has(color)) {
-      setColor(Array.from(allowed)[0]); // أول لون متاح
+      setColor(Array.from(allowed)[0]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [measure, colorsByMeasure]);
+  }, [measure, colorsByMeasure]); // intentionally omit `color`
 
-  // صور اللون المختار أو صور المنتج العامة
   const images =
     currentVariant?.color?.images && currentVariant.color.images.length > 0
       ? currentVariant.color.images
@@ -197,7 +193,6 @@ const ProductDetails: React.FC = () => {
   const compareAt = currentVariant?.displayCompareAt ?? null;
   const inStock = currentVariant?.stock?.inStock ?? 0;
 
-  // نسبة الخصم
   const discountPercent =
     typeof finalAmount === "number" &&
     typeof compareAt === "number" &&
@@ -206,7 +201,6 @@ const ProductDetails: React.FC = () => {
       ? Math.round(((compareAt - finalAmount) / compareAt) * 100)
       : null;
 
-  // 🕒 إدارة ظهور شريط التقدم والعدّاد — يظهر فقط عند خصم فعلي نشط
   useEffect(() => {
     const d = currentVariant?.price?.discount;
     if (!d?.endAt) {
@@ -217,7 +211,8 @@ const ProductDetails: React.FC = () => {
     }
 
     const now = Date.now();
-    const end = new Date(d.endAt).getTime();
+    const end = new Date(d.endAt).toISOString();
+    const endMs = new Date(end).getTime();
     const start = d.startAt ? new Date(d.startAt).getTime() : now;
 
     const hasRealDiscount =
@@ -226,7 +221,7 @@ const ProductDetails: React.FC = () => {
       compareAt > 0 &&
       finalAmount < compareAt;
 
-    const isActive = hasRealDiscount && now >= start && now < end;
+    const isActive = hasRealDiscount && now >= start && now < endMs;
 
     if (!isActive) {
       setShowDiscountTimer(false);
@@ -239,16 +234,14 @@ const ProductDetails: React.FC = () => {
 
     const update = () => {
       const t = Date.now();
-      const left = end - t;
+      const left = endMs - t;
       setTimeLeftMs(left > 0 ? left : 0);
 
-      const duration = Math.max(1, end - start);
+      const duration = Math.max(1, endMs - start);
       const progress = ((t - start) / duration) * 100;
       setProgressPct(clamp(progress));
 
-      if (t >= end) {
-        setShowDiscountTimer(false);
-      }
+      if (t >= endMs) setShowDiscountTimer(false);
     };
 
     update();
@@ -264,6 +257,10 @@ const ProductDetails: React.FC = () => {
   if (!product) {
     return <p className="text-center mt-10">جاري تحميل تفاصيل المنتج...</p>;
   }
+
+  // إخفاء UI المقاس إن لم يتبقى إلا "موحّد"
+  const showMeasureUI = measures.length > 0;
+  const showColorsUI = allColors.length > 0;
 
   return (
     <>
@@ -317,8 +314,8 @@ const ProductDetails: React.FC = () => {
             <h1 className="text-3xl font-bold mb-4">{product.name}</h1>
             <p className="text-gray-700 mb-4">{product.description}</p>
 
-            {/* اختيار المقاس */}
-            {measures.length > 0 && (
+            {/* المقاس + الوحدة */}
+            {showMeasureUI && (
               <div className="mb-4">
                 <label className="block mb-1">المقاس</label>
                 <select
@@ -326,17 +323,20 @@ const ProductDetails: React.FC = () => {
                   value={measure}
                   onChange={(e) => setMeasure(e.target.value)}
                 >
-                  {measures.map((m) => (
-                    <option key={m.slug} value={m.slug}>
-                      {m.label}
-                    </option>
-                  ))}
+                  {measures.map((m) => {
+                    const text = m.unit ? `${m.label} ${m.unit}` : m.label;
+                    return (
+                      <option key={m.slug} value={m.slug}>
+                        {text}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             )}
 
-            {/* اختيار اللون — نعرض كل الألوان لكن نُعطّل غير المتاح للمقاس الحالي */}
-            {allColors.length > 0 && (
+            {/* اللون (مع إخفاء موحّد) */}
+            {showColorsUI && (
               <div className="mb-4">
                 <label className="block mb-1">اللون</label>
                 <select
@@ -357,7 +357,7 @@ const ProductDetails: React.FC = () => {
               </div>
             )}
 
-            {/* السعر مع سعر مقارن وقت الخصم */}
+            {/* السعر */}
             <div className="mb-2">
               {typeof compareAt === "number" &&
               typeof finalAmount === "number" &&
@@ -379,7 +379,6 @@ const ProductDetails: React.FC = () => {
               )}
             </div>
 
-            {/* ⏰ شريط تقدّم ووقت متبقّي — يظهر فقط عند خصم نشط */}
             {showDiscountTimer &&
               progressPct !== null &&
               timeLeftMs !== null && (
@@ -422,6 +421,7 @@ const ProductDetails: React.FC = () => {
                   selectedVariantId: currentVariant._id,
                   selectedSku: currentVariant.stock.sku,
                   selectedMeasure: currentVariant.measure,
+                  selectedMeasureUnit: currentVariant.measureUnit || undefined, // ✅
                   selectedColor: currentVariant.color?.name,
                   price:
                     typeof currentVariant.finalAmount === "number"

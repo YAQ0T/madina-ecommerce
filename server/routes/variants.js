@@ -4,7 +4,7 @@ const router = express.Router();
 const Variant = require("../models/Variant");
 const { verifyToken, isAdmin } = require("../middleware/authMiddleware");
 
-// دالة مساعدة لحساب finalAmount (توازي منطق الموديل)
+// دوال مساعدة
 function isDiscountActive(discount = {}) {
   if (!discount || !discount.value) return false;
   const now = new Date();
@@ -22,16 +22,16 @@ function computeFinalAmount(price = {}) {
     : Math.max(0, amount - discount.value);
 }
 
-// ✅ لم نعد نكتب facets داخل Product حتى لا نضيف حقول غير موجودة
+// ✅ لم نعد نكتب facets داخل Product
 async function recomputeProductFacets(_productId) {
-  // No-op: نحافظ على الأداء بدون لمس Product
   return true;
 }
 
 // إنشاء متغير
 router.post("/", verifyToken, isAdmin, async (req, res) => {
   try {
-    const { product, measure, color, price, stock, tags } = req.body;
+    const { product, measure, measureUnit, color, price, stock, tags } =
+      req.body;
 
     if (!product || !measure || !color?.name || !price?.amount || !stock?.sku) {
       return res.status(400).json({
@@ -43,6 +43,7 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
     const created = await Variant.create({
       product,
       measure,
+      measureUnit: measureUnit || "", // ✅ جديد
       color,
       price,
       stock,
@@ -136,7 +137,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// جلب متغير واحد بالـ SKU أو بالتركيبة
+// جلب متغير واحد
 router.get("/one", async (req, res) => {
   try {
     const { sku, product, measure, color } = req.query;
@@ -175,7 +176,7 @@ router.get("/one", async (req, res) => {
   }
 });
 
-// ✅ ضبط خصم لمتغير محدد (أدمن)
+// خصم لمتغير محدد
 router.post("/:id/discount", verifyToken, isAdmin, async (req, res) => {
   try {
     const { type = "percent", value = 0, startAt, endAt } = req.body || {};
@@ -213,7 +214,7 @@ router.post("/:id/discount", verifyToken, isAdmin, async (req, res) => {
 // تعديل متغير
 router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
-    const payload = req.body || {};
+    const payload = req.body || {}; // ✅ يقبل measureUnit ضمنياً
 
     const updated = await Variant.findByIdAndUpdate(
       req.params.id,

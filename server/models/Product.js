@@ -13,8 +13,16 @@ const ProductSchema = new Schema(
     // فلتر الملكية
     ownershipType: {
       type: String,
-      enum: ["ours", "local"], // ours = على اسمنا ، local = نشتريه محلي
+      enum: ["ours", "local"],
       default: "ours",
+    },
+
+    // ✅ أولوية الظهور
+    priority: {
+      type: String,
+      enum: ["A", "B", "C"],
+      default: "C",
+      index: true,
     },
   },
   { timestamps: true }
@@ -22,6 +30,9 @@ const ProductSchema = new Schema(
 
 // فهرس نصي للبحث العام
 ProductSchema.index({ name: "text", description: "text" });
+
+// فهرس مفيد للفرز الافتراضي
+ProductSchema.index({ priority: 1, createdAt: -1 });
 
 module.exports =
   mongoose.models.Product || mongoose.model("Product", ProductSchema);

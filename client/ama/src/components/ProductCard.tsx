@@ -10,7 +10,7 @@ interface Props {
     _id: string;
     name: string;
     description: string;
-    price: number; // أقل سعر محسوب من with-stats (finalAmount الأدنى)
+    price: number;
     images?: string[];
     subCategory?: string;
   };
@@ -20,6 +20,7 @@ type Variant = {
   _id: string;
   product: string;
   measure: string;
+  measureUnit?: string; // ✅ جديد
   measureSlug: string;
   color: { name: string; code?: string; images?: string[] };
   colorSlug: string;
@@ -29,20 +30,20 @@ type Variant = {
     discount?: {
       type?: "percent" | "amount";
       value?: number;
-      startAt?: string; // ISO
-      endAt?: string; // ISO
+      startAt?: string;
+      endAt?: string;
     };
   };
   stock: { inStock: number; sku: string };
   tags?: string[];
-  // حقول محسوبة من API/variants
   finalAmount?: number;
   isDiscountActive?: boolean;
   displayCompareAt?: number | null;
 };
 
-const slugify = (s: string) =>
-  (s || "").toString().trim().toLowerCase().replace(/\s+/g, "-");
+const normalize = (s?: string) =>
+  (s || "").trim().replace(/\s+/g, "").toLowerCase();
+const isUnified = (s?: string) => normalize(s) === normalize("موحد");
 
 const formatTimeLeft = (ms: number) => {
   if (ms <= 0) return "انتهى الخصم";
@@ -62,26 +63,19 @@ const clamp = (n: number, min = 0, max = 100) =>
 const ProductCard: React.FC<Props> = ({ product }) => {
   const { addToCart } = useCart();
 
-  // 🖼️ مؤشر الصورة الحالية
   const [currentImage, setCurrentImage] = useState(0);
-
-  // متغيّرات المنتج
   const [variants, setVariants] = useState<Variant[]>([]);
   const [vLoading, setVLoading] = useState(true);
 
-  // اختيارات المستخدم (slugs)
   const [selectedMeasure, setSelectedMeasure] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
 
-  // إشعار الإضافة
   const [showAdded, setShowAdded] = useState(false);
 
-  // ⏳ حالات التايمر/التقدم
   const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
   const [progressPct, setProgressPct] = useState<number | null>(null);
   const [showDiscountTimer, setShowDiscountTimer] = useState(false);
 
-  // جلب المتغيّرات
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -95,7 +89,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         const vs: Variant[] = Array.isArray(data) ? data : [];
         setVariants(vs);
 
-        // افتراض: أول متغيّر
         if (vs.length > 0) {
           setSelectedMeasure(vs[0].measureSlug || "");
           setSelectedColor(vs[0].colorSlug || "");
@@ -111,16 +104,26 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     };
   }, [product._id]);
 
-  // اشتقاق المقاسات من الـ variants
+  // اشتقاق المقاسات من المتغيرات مع الوحدة
   const measuresFromVariants = useMemo(() => {
-    const map = new Map<string, string>(); // slug -> label
+    const map = new Map<string, { label: string; unit?: string }>();
     for (const v of variants) {
-      if (v.measureSlug && v.measure) map.set(v.measureSlug, v.measure);
+      if (v.measureSlug && v.measure) {
+        const existing = map.get(v.measureSlug);
+        // إن وُجدت وحدة، خزنها؛ إن وُجد اختلاف نخلي أول وحدة متاحة
+        map.set(v.measureSlug, {
+          label: v.measure,
+          unit: existing?.unit ?? (v.measureUnit || undefined),
+        });
+      }
     }
-    return Array.from(map.entries()).map(([slug, label]) => ({ slug, label }));
+    return Array.from(map.entries()).map(([slug, { label, unit }]) => ({
+      slug,
+      label,
+      unit,
+    }));
   }, [variants]);
 
-  // كل الألوان المعرفة عبر كل المتغيرات (عرضها بالكلمات)
   const allColorsFromVariants = useMemo(() => {
     const map = new Map<string, { slug: string; name: string }>();
     for (const v of variants) {
@@ -134,7 +137,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     return Array.from(map.values());
   }, [variants]);
 
-  // خريطة توفّر الألوان حسب المقاس: measureSlug -> Set(colorSlug)
   const colorsByMeasure = useMemo(() => {
     const m = new Map<string, Set<string>>();
     for (const v of variants) {
@@ -145,13 +147,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     return m;
   }, [variants]);
 
-  // قائمة الألوان المتاحة للمقاس المختار
   const availableColorSlugsForSelectedMeasure = useMemo(() => {
     if (!selectedMeasure) return new Set<string>();
     return colorsByMeasure.get(selectedMeasure) || new Set<string>();
   }, [colorsByMeasure, selectedMeasure]);
 
-  // المتغيّر المطابق للاختيار
   const currentVariant = useMemo(() => {
     if (!variants.length || !selectedMeasure || !selectedColor) return null;
     return (
@@ -162,19 +162,15 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     );
   }, [variants, selectedMeasure, selectedColor]);
 
-  // ✅ الصور المعروضة بناءً على الاختيار الحالي
   const displayedImages = useMemo(() => {
     const variantColorImages =
       currentVariant?.color?.images?.filter(Boolean) ?? [];
     if (variantColorImages.length > 0) return variantColorImages;
-
     const productImages = product.images?.filter(Boolean) ?? [];
     if (productImages.length > 0) return productImages;
-
     return ["https://i.imgur.com/PU1aG4t.jpeg"];
   }, [currentVariant?.color?.images, product.images]);
 
-  // عند تغيير المقاس: لو اللون الحالي غير متاح، اختَر أول لون متاح
   useEffect(() => {
     if (variants.length === 0) return;
     if (!selectedMeasure) return;
@@ -188,20 +184,17 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       const first = Array.from(allowed)[0];
       setSelectedColor(first);
     }
-  }, [selectedMeasure, colorsByMeasure, variants.length]); // لا تضف selectedColor هنا
+  }, [selectedMeasure, colorsByMeasure, variants.length]);
 
-  // ✅ كلما تغيّرت الصور نتيجة تغيير (المقاس/اللون)، أعد ضبط المؤشر للصفر
   useEffect(() => {
     setCurrentImage(0);
   }, [displayedImages]);
 
-  // السعر المعروض
   const variantFinal = currentVariant?.finalAmount;
   const variantCompare = currentVariant?.displayCompareAt ?? null;
   const displayPrice =
     typeof variantFinal === "number" ? variantFinal : product.price ?? 0;
 
-  // نسبة الخصم
   const discountPercent =
     typeof variantFinal === "number" &&
     typeof variantCompare === "number" &&
@@ -210,7 +203,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       ? Math.round(((variantCompare - variantFinal) / variantCompare) * 100)
       : null;
 
-  // 🕒 شريط التقدم والوقت المتبقي
   useEffect(() => {
     const d = currentVariant?.price?.discount;
     if (!d?.endAt) {
@@ -249,9 +241,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       const duration = Math.max(1, end - start);
       const progress = ((t - start) / duration) * 100;
       setProgressPct(clamp(progress));
-      if (t >= end) {
-        setShowDiscountTimer(false);
-      }
+      if (t >= end) setShowDiscountTimer(false);
     };
 
     update();
@@ -264,8 +254,18 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     variantCompare,
   ]);
 
+  // استبعاد "موحّد"
+  const measuresForUI = useMemo(() => {
+    return measuresFromVariants.filter((m) => !isUnified(m.label));
+  }, [measuresFromVariants]);
+  const showMeasuresUI = measuresForUI.length > 0;
+
+  const colorsForUI = useMemo(() => {
+    return allColorsFromVariants.filter((c) => !isUnified(c.name));
+  }, [allColorsFromVariants]);
+  const showColorsUI = colorsForUI.length > 0;
+
   const handleAddToCart = () => {
-    // لو عندنا Variants: تأكد من اختيار متغيّر صالح
     if (variants.length > 0) {
       if (!currentVariant) {
         alert("يرجى اختيار المقاس واللون المتاحين قبل الإضافة للسلة");
@@ -280,7 +280,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         image: displayedImages?.[0] || "https://i.imgur.com/PU1aG4t.jpeg",
         selectedVariantId: currentVariant._id,
         selectedSku: currentVariant.stock?.sku,
-        selectedMeasure: currentVariant.measure,
+        selectedMeasure: currentVariant.measure, // القيمة النصية (بدون وحدة)
+        selectedMeasureUnit: currentVariant.measureUnit || undefined, // ✅ نرسلها أيضاً لو حبيت تستخدمها في السلة/الفاتورة
         selectedColor: currentVariant.color?.name,
         price:
           typeof currentVariant.finalAmount === "number"
@@ -312,20 +313,34 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       (prev) => (prev - 1 + displayedImages.length) % displayedImages.length
     );
 
-  // ✨ كلاسات مشتركة وأخرى استجابة (Responsive) لسلوك الأسهم:
   const arrowBase =
-    "absolute top-1/2 -translate-y-1/2 z-20 rounded-full border border-white/40 shadow-lg " +
-    "transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white/50 " +
-    // موبايل: تظهر دائمًا بنعومة
-    "opacity-80 bg-black/20 backdrop-blur-sm active:scale-95 " +
-    // كمبيوتر: مخفية إلا عند الـ hover على الـ group
-    "md:opacity-0 md:bg-white/60 md:text-black md:group-hover:opacity-100";
+    "absolute top-1/2 -translate-y-1/2 z-20 rounded-full border border-white/40 shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white/50 opacity-80 bg-black/20 backdrop-blur-sm active:scale-95 md:opacity-0 md:bg-white/60 md:text-black md:group-hover:opacity-100";
   const arrowSize = "w-10 h-10 md:w-9 md:h-9 flex items-center justify-center";
   const arrowIcon = "pointer-events-none select-none";
+  if (vLoading) {
+    return (
+      <div className="group border rounded-lg p-4 text-right relative h-full animate-pulse">
+        <div className="w-full aspect-[3/4] mb-3 rounded bg-gray-200" />
+        <div className="h-5 w-2/3 bg-gray-200 rounded mb-2" />
+        <div className="h-4 w-1/3 bg-gray-200 rounded mb-3" />
+        <div className="flex gap-2 mb-2">
+          <div className="h-8 w-16 bg-gray-200 rounded" />
+          <div className="h-8 w-20 bg-gray-200 rounded" />
+          <div className="h-8 w-14 bg-gray-200 rounded" />
+        </div>
+        <div className="flex gap-2 mb-3">
+          <div className="h-8 w-16 bg-gray-200 rounded" />
+          <div className="h-8 w-20 bg-gray-200 rounded" />
+        </div>
+        <div className="h-5 w-24 bg-gray-200 rounded mb-3" />
+        <div className="h-10 w-full bg-gray-200 rounded mb-2" />
+        <div className="h-10 w-full bg-gray-200 rounded" />
+      </div>
+    );
+  }
 
   return (
     <div className="group border rounded-lg p-4 text-right hover:shadow relative flex flex-col justify-between h-full">
-      {/* ✅ الصورة — نسبة 3:4 وعرض كامل، مع object-contain لرؤية الصورة كاملة */}
       <div className="relative w-full aspect-[3/4] mb-3 overflow-hidden rounded bg-white">
         {displayedImages.map((src, index) => (
           <img
@@ -333,7 +348,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             src={src}
             alt={product.name}
             className={clsx(
-              // ملء الحاوية كاملة مع الحفاظ على الصورة كاملة بدون قص
               "absolute inset-0 w-full h-full object-contain transition-all duration-500 ",
               {
                 "opacity-100 translate-x-0 z-10": index === currentImage,
@@ -350,7 +364,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
         {displayedImages.length > 1 && (
           <>
-            {/* ◀ يسار */}
             <button
               onClick={prevImage}
               aria-label="الصورة السابقة"
@@ -372,7 +385,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               </svg>
             </button>
 
-            {/* ▶ يمين */}
             <button
               onClick={nextImage}
               aria-label="الصورة التالية"
@@ -396,7 +408,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           </>
         )}
 
-        {/* بادج خصم إن وُجد */}
         {discountPercent !== null && (
           <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-20">
             -{discountPercent}%
@@ -404,45 +415,45 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         )}
       </div>
 
-      {/* ✅ العنوان */}
       <h3 className="text-lg font-medium mb-1">{product.name}</h3>
 
-      {/* ✅ القائمة الفرعية */}
       {product.subCategory && (
         <p className="text-sm text-gray-500 mb-2">{product.subCategory}</p>
       )}
 
-      {/* ✅ اختيار المقاس (من الـ Variants أو fallback) */}
-      {measuresFromVariants.length > 0 && (
+      {/* ✅ المقاسات كأزرار + عرض الوحدة */}
+      {showMeasuresUI && (
         <div className="mb-2">
           <span className="text-sm font-medium">المقاسات: </span>
-          <select
-            value={selectedMeasure}
-            onChange={(e) =>
-              setSelectedMeasure(
-                measuresFromVariants.length > 0
-                  ? e.target.value // slug
-                  : slugify(e.target.value) // fallback
-              )
-            }
-            className="border rounded px-2 py-1 text-sm"
-          >
-            <option value="">{vLoading ? "تحميل..." : "اختر المقاس"}</option>
-            {measuresFromVariants.map((m) => (
-              <option key={m.slug} value={m.slug}>
-                {m.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex gap-2 mt-1 flex-wrap">
+            {measuresForUI.map((m) => {
+              const labelWithUnit = m.unit ? `${m.label} ${m.unit}` : m.label;
+              return (
+                <button
+                  key={m.slug}
+                  title={labelWithUnit}
+                  onClick={() => setSelectedMeasure(m.slug)}
+                  className={clsx(
+                    "px-3 py-1 text-sm rounded border transition",
+                    selectedMeasure === m.slug
+                      ? "border-black font-bold"
+                      : "border-gray-300"
+                  )}
+                >
+                  {labelWithUnit}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {/* ✅ اختيار اللون (كلمات بدل hex) */}
-      {allColorsFromVariants.length > 0 && (
+      {/* ✅ الألوان (مع إخفاء "موحّد") */}
+      {showColorsUI && (
         <div className="mb-2">
           <span className="text-sm font-medium">الألوان: </span>
           <div className="flex gap-2 mt-1 flex-wrap">
-            {allColorsFromVariants.map((c) => {
+            {colorsForUI.map((c) => {
               const isAvailable =
                 selectedMeasure &&
                 availableColorSlugsForSelectedMeasure.has(c.slug);
@@ -473,7 +484,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         </div>
       )}
 
-      {/* ✅ السعر (مع عرض سعر مقارن أثناء الخصم) */}
       <div className="mb-2">
         {typeof variantCompare === "number" && variantCompare > displayPrice ? (
           <div className="flex items-baseline gap-2">
@@ -487,7 +497,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         )}
       </div>
 
-      {/* ⏰ شريط تقدّم الخصم — يظهر فقط إذا الخصم نشط */}
       {showDiscountTimer && progressPct !== null && timeLeftMs !== null && (
         <div className="mb-3">
           <div
@@ -510,13 +519,20 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         </div>
       )}
 
-      {/* ✅ الأزرار */}
       <div className="mt-auto">
-        <Button onClick={handleAddToCart} className="w-full">
+        <Button
+          disabled={vLoading}
+          onClick={handleAddToCart}
+          className="w-full"
+        >
           إضافة للسلة
         </Button>
         <Link to={`/products/${product._id}`}>
-          <Button variant="secondary" className="w-full mt-2">
+          <Button
+            variant="secondary"
+            className="w-full mt-2"
+            disabled={vLoading}
+          >
             عرض التفاصيل
           </Button>
         </Link>

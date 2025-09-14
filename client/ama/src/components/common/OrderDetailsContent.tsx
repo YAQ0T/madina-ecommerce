@@ -11,6 +11,10 @@ type OrderItem = {
   price: number; // سعر الوحدة النهائي وقت الشراء
   color?: string | null;
   measure?: string | null;
+  // 👇 وحدات القياس الجديدة/القديمة المحتملة
+  measureUnit?: string | null;
+  selectedMeasureUnit?: string | null;
+
   sku?: string | null;
   image?: string | null;
 };
@@ -53,6 +57,66 @@ type Order = {
 const currency = (n: number | undefined | null) =>
   typeof n === "number" ? `₪${n.toFixed(2)}` : "₪0.00";
 
+// 🧠 استنتاج وحدة من نص المقاس (احتياطي إذا لم تصل من الـ API)
+function inferUnitFromMeasure(raw?: string | null): string {
+  const s = String(raw || "")
+    .toLowerCase()
+    .trim();
+
+  // أحجام السوائل
+  if (/\b(ml|مل)\b/.test(s)) return "ml";
+  if (/\b(لتر|ltr|l)\b/.test(s)) return "L";
+
+  // أوزان
+  if (/\b(kg|كجم|كغ|كيلو)\b/.test(s)) return "kg";
+  if (/\b(g|جم|غ|جرام)\b/.test(s)) return "g";
+
+  // أطوال/أبعاد
+  if (/\b(cm|سم)\b/.test(s)) return "cm";
+  if (/\b(mm|ملم)\b/.test(s)) return "mm";
+  if (/\b(m|م)\b/.test(s)) return "m";
+
+  // قطع/وحدات
+  if (/(قطعة|حبة|pcs|pc|pack|علبة)/.test(s)) return "قطعة";
+
+  return "";
+}
+
+// 🧩 تنسيق المقاس + الوحدة للعرض (يدمج من حقول الطلب أو يستنتج)
+function formatMeasureWithUnit(item: OrderItem): string {
+  const measure = (item.measure || "").trim();
+  const unit =
+    (item.measureUnit || item.selectedMeasureUnit || "").trim() ||
+    inferUnitFromMeasure(measure);
+
+  // لو المقاس فارغ تمامًا
+  if (!measure) return unit ? `— (${unit})` : "غير محدد";
+
+  // لو المقاس أصلاً يحتوي الوحدة (مثال: "500 ml" أو "500 مل") لا نكرّرها
+  const mLow = measure.toLowerCase();
+  if (
+    unit &&
+    (mLow.endsWith(` ${unit.toLowerCase()}`) ||
+      mLow.includes(` ${unit.toLowerCase()}`))
+  ) {
+    return measure;
+  }
+
+  // مثال نِسَب الملابس (S/M/L) غالبًا بلا وحدة
+  if (!unit) return measure;
+
+  return `${measure} ${unit}`;
+}
+
+// 🔒 دالة صغيرة لتأمين النص داخل HTML
+function escapeHtml(str: string) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
   const { user: authUser } = useAuth();
 
@@ -64,11 +128,8 @@ const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
   // ✅ من هو الأدمن؟
   const isAdmin = useMemo(() => {
     const r = (authUser as any)?.role;
-
     return r === "admin";
   }, [authUser]);
-
-  // ✅ هل هذا الطلب لتاجر؟
 
   // ✅ طباعة نسخة للتاجر (عمود ملاحظات فارغ) عبر iframe
   const handlePrintDealer = () => {
@@ -85,15 +146,16 @@ const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
         const qty = item.quantity ?? 1;
         const unitPrice = item.price ?? 0;
         const line = qty * unitPrice;
+        const measureTxt = formatMeasureWithUnit(item);
         return `
           <tr>
-            <td>${item.sku || ""}</td>
+            <td>${escapeHtml(item.sku || "")}</td>
             <td>${escapeHtml(item.name || "منتج")}</td>
-            <td>${item.color || "-"}</td>
-            <td>${item.measure || "-"}</td>
-            <td>${currency(unitPrice)}</td>
+            <td>${escapeHtml(item.color || "-")}</td>
+            <td>${escapeHtml(measureTxt)}</td>
+            <td>${escapeHtml(currency(unitPrice))}</td>
             <td>${qty}</td>
-            <td>${currency(line)}</td>
+            <td>${escapeHtml(currency(line))}</td>
             <td></td>
           </tr>
         `;
@@ -113,7 +175,7 @@ const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
             : ""
         }
           </td>
-          <td>-${currency(order?.discount?.amount || 0)}</td>
+          <td>-${escapeHtml(currency(order?.discount?.amount || 0))}</td>
           <td></td>
         </tr>`
       : "";
@@ -157,7 +219,7 @@ const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
       <div><strong>الحالة:</strong> ${escapeHtml(order?.status || "-")}</div>
       <div><strong>تاريخ الإنشاء:</strong> ${
         order?.createdAt
-          ? new Date(order.createdAt).toLocaleString("ar-EG")
+          ? escapeHtml(new Date(order.createdAt).toLocaleString("ar-EG"))
           : "-"
       }</div>
     </div>
@@ -187,7 +249,7 @@ const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
         <th>SKU</th>
         <th>المنتج</th>
         <th>اللون</th>
-        <th>المقاس</th>
+        <th>المقاس/الوحدة</th>
         <th>سعر الوحدة</th>
         <th>الكمية</th>
         <th>الإجمالي الفرعي</th>
@@ -198,13 +260,13 @@ const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
       ${itemsRows}
       <tr>
         <td colspan="6" class="ta-left"><strong>المجموع قبل الخصم</strong></td>
-        <td><strong>${currency(order?.subtotal)}</strong></td>
+        <td><strong>${escapeHtml(currency(order?.subtotal))}</strong></td>
         <td></td>
       </tr>
       ${discountRow}
       <tr>
         <td colspan="6" class="ta-left"><strong>الإجمالي النهائي</strong></td>
-        <td><strong>${currency(order?.total)}</strong></td>
+        <td><strong>${escapeHtml(currency(order?.total))}</strong></td>
         <td></td>
       </tr>
     </tbody>
@@ -306,63 +368,82 @@ const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
         <strong className="block mb-2 text-lg">المنتجات:</strong>
         <ul className="space-y-3">
           {Array.isArray(order?.items) &&
-            order.items.map((item: OrderItem, i: number) => (
-              <li
-                key={i}
-                className="p-3 rounded-lg border border-gray-200 bg-gray-50 shadow-sm"
-              >
-                {item?.productId ? (
-                  <div className="flex gap-3">
-                    {item?.image ? (
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-14 h-14 rounded-lg object-cover border"
-                      />
-                    ) : null}
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-800">
-                        {item.name || "منتج"}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        الكمية:{" "}
-                        <span className="font-medium">
-                          {item.quantity ?? 1}
-                        </span>
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        اللون:{" "}
-                        <span
-                          className="inline-block w-4 h-4 rounded-full border mr-1 align-middle"
-                          style={{ backgroundColor: item.color || "#ccc" }}
-                        ></span>
-                        {item.color || "غير محدد"}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        المقاس:{" "}
-                        <span className="font-medium">
-                          {item.measure || "غير محدد"}
-                        </span>
-                      </p>
-                      <p className="text-sm">
-                        سعر الوحدة:{" "}
-                        <span className="font-medium">
-                          {currency(item.price)}
-                        </span>{" "}
-                        | الإجمالي:{" "}
-                        <strong>
-                          {currency((item.quantity ?? 1) * (item.price ?? 0))}
-                        </strong>
-                      </p>
+            order.items.map((item: OrderItem, i: number) => {
+              const measureTxt = formatMeasureWithUnit(item);
+              const qty = item.quantity ?? 1;
+              const unitTotal = qty * (item.price ?? 0);
+
+              // لون الدائرة: إن كان اسم عربي/غير صالح كـ CSS، ستظهر رمادية
+              const cssColor =
+                /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(
+                  String(item.color || "").trim()
+                ) ||
+                /^rgb/i.test(String(item.color || "")) ||
+                /^[a-z]+$/i.test(String(item.color || "")) // قد ينجح مع أسماء إنجليزية شائعة
+                  ? (item.color as string)
+                  : "#ccc";
+
+              return (
+                <li
+                  key={i}
+                  className="p-3 rounded-lg border border-gray-200 bg-gray-50 shadow-sm"
+                >
+                  {item?.productId ? (
+                    <div className="flex gap-3">
+                      {item?.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-14 h-14 rounded-lg object-cover border"
+                        />
+                      ) : null}
+                      <div className="flex-1">
+                        <p className="font-semibold text-gray-800">
+                          {item.name || "منتج"}
+                        </p>
+
+                        <p className="text-sm text-gray-600">
+                          الكمية: <span className="font-medium">{qty}</span>
+                        </p>
+
+                        <p className="text-sm text-gray-600">
+                          اللون:{" "}
+                          <span
+                            className="inline-block w-4 h-4 rounded-full border mr-1 align-middle"
+                            style={{ backgroundColor: cssColor }}
+                            title={item.color || "غير محدد"}
+                          ></span>
+                          {item.color || "غير محدد"}
+                        </p>
+
+                        <p className="text-sm text-gray-600">
+                          المقاس/الوحدة:{" "}
+                          <span className="font-medium">{measureTxt}</span>
+                        </p>
+
+                        {item.sku ? (
+                          <p className="text-xs text-gray-500">
+                            SKU: {item.sku}
+                          </p>
+                        ) : null}
+
+                        <p className="text-sm">
+                          سعر الوحدة:{" "}
+                          <span className="font-medium">
+                            {currency(item.price)}
+                          </span>{" "}
+                          | الإجمالي: <strong>{currency(unitTotal)}</strong>
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-red-500">
-                    منتج محذوف × {item?.quantity ?? 1}
-                  </p>
-                )}
-              </li>
-            ))}
+                  ) : (
+                    <p className="text-sm text-red-500">
+                      منتج محذوف × {item?.quantity ?? 1}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
         </ul>
       </div>
 
@@ -414,14 +495,5 @@ const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
     </div>
   );
 };
-
-// 🔒 دالة صغيرة لتأمين النص داخل HTML
-function escapeHtml(str: string) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 export default OrderDetailsContent;

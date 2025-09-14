@@ -1,4 +1,3 @@
-// src/components/admin/VariantManagerDialog.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,13 +24,13 @@ type Variant = {
   _id?: string;
   product: string;
   measure: string;
+  measureUnit?: string; // ✅ جديد
   measureSlug?: string;
   color: { name: string; code?: string; images?: string[] };
   colorSlug?: string;
   price: Price;
   stock: Stock;
   tags?: string[];
-  // حقول محسوبة من API
   finalAmount?: number;
   isDiscountActive?: boolean;
   displayCompareAt?: number | null;
@@ -41,12 +40,13 @@ interface Props {
   product: any;
   token: string;
   onClose: () => void;
-  onChanged?: () => void; // لإعادة جلب منتجات الأدمن مع الإحصاءات
+  onChanged?: () => void;
 }
 
 const emptyForm = (productId: string): Variant => ({
   product: productId,
   measure: "",
+  measureUnit: "", // ✅
   color: { name: "", code: "", images: [] },
   price: { amount: 0, compareAt: undefined, currency: "USD" },
   stock: { inStock: 0, sku: "" },
@@ -65,14 +65,13 @@ const VariantManagerDialog: React.FC<Props> = ({
   const [isEditingId, setIsEditingId] = useState<string | null>(null);
   const [newColorImage, setNewColorImage] = useState("");
 
-  // حقول إدارة الخصم (للمتغير المحدد ضمن الجدول)
   const [discountTargetId, setDiscountTargetId] = useState<string | null>(null);
   const [discountType, setDiscountType] = useState<"percent" | "amount">(
     "percent"
   );
   const [discountValue, setDiscountValue] = useState<number>(0);
-  const [discountStart, setDiscountStart] = useState<string>(""); // datetime-local
-  const [discountEnd, setDiscountEnd] = useState<string>(""); // datetime-local
+  const [discountStart, setDiscountStart] = useState<string>("");
+  const [discountEnd, setDiscountEnd] = useState<string>("");
   const [applyingDiscount, setApplyingDiscount] = useState<boolean>(false);
 
   const headers = useMemo(
@@ -87,7 +86,6 @@ const VariantManagerDialog: React.FC<Props> = ({
         `${import.meta.env.VITE_API_URL}/api/variants`,
         { params: { product: product._id, limit: 500 }, headers }
       );
-      // API يرجّع finalAmount, isDiscountActive, displayCompareAt
       setVariants(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("❌ Failed to fetch variants", e);
@@ -135,8 +133,7 @@ const VariantManagerDialog: React.FC<Props> = ({
         { headers }
       );
       setVariants((prev) => [data, ...prev]);
-      // resetForm();
-      onChanged?.(); // حتى تتحدث الإحصاءات في الجداول الأخرى
+      onChanged?.();
     } catch (e: any) {
       console.error("❌ Failed to create variant", e);
       alert(
@@ -157,7 +154,6 @@ const VariantManagerDialog: React.FC<Props> = ({
       setVariants((prev) =>
         prev.map((v) => (v._id === isEditingId ? data : v))
       );
-      // resetForm();
       onChanged?.();
     } catch (e: any) {
       console.error("❌ Failed to update variant", e);
@@ -185,6 +181,7 @@ const VariantManagerDialog: React.FC<Props> = ({
     setForm({
       product: v.product,
       measure: v.measure,
+      measureUnit: v.measureUnit || "", // ✅
       color: {
         name: v.color?.name || "",
         code: v.color?.code || "",
@@ -203,17 +200,14 @@ const VariantManagerDialog: React.FC<Props> = ({
     });
   };
 
-  // تهيئة نموذج الخصم عند النقر على "خصم"
   const openDiscountEditor = (v: Variant) => {
     setDiscountTargetId(v._id!);
     const d = v.price?.discount || {};
     setDiscountType((d.type as "percent" | "amount") || "percent");
     setDiscountValue(typeof d.value === "number" ? d.value : 0);
 
-    // نحول ISO -> datetime-local إن وجد
     const toLocalDT = (iso?: string) => {
       if (!iso) return "";
-      // قصّ الثواني والـ Z ليتوافق مع input[type=datetime-local]
       const d = new Date(iso);
       const pad = (n: number) => String(n).padStart(2, "0");
       const yyyy = d.getFullYear();
@@ -236,16 +230,12 @@ const VariantManagerDialog: React.FC<Props> = ({
     setDiscountEnd("");
   };
 
-  // تطبيق/تحديث الخصم
   const applyDiscount = async () => {
     if (!discountTargetId) return;
     try {
       setApplyingDiscount(true);
-
-      // datetime-local -> ISO
       const toISO = (local: string) => {
         if (!local) return undefined;
-        // يُعتبر الوقت المدخل محليًا؛ نحوله لـ Date ثم ISO
         const date = new Date(local);
         return date.toISOString();
       };
@@ -267,7 +257,6 @@ const VariantManagerDialog: React.FC<Props> = ({
         { headers }
       );
 
-      // تحديث الصف في الجدول
       setVariants((prev) =>
         prev.map((v) => (v._id === discountTargetId ? data : v))
       );
@@ -281,7 +270,6 @@ const VariantManagerDialog: React.FC<Props> = ({
     }
   };
 
-  // إلغاء الخصم (نجعله 0 ونزيل المواعيد)
   const clearDiscount = async (id: string) => {
     const ok = confirm("إلغاء الخصم لهذا المتغيّر؟");
     if (!ok) return;
@@ -289,7 +277,7 @@ const VariantManagerDialog: React.FC<Props> = ({
       setApplyingDiscount(true);
       const { data } = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/variants/${id}/discount`,
-        { type: "percent", value: 0 }, // نوع افتراضي وقيمة صفر
+        { type: "percent", value: 0 },
         { headers }
       );
       setVariants((prev) => prev.map((v) => (v._id === id ? data : v)));
@@ -316,6 +304,8 @@ const VariantManagerDialog: React.FC<Props> = ({
             <tr>
               <th className="px-3 py-2 border">SKU</th>
               <th className="px-3 py-2 border">المقاس</th>
+              <th className="px-3 py-2 border">الوحدة</th>
+              {/* ✅ جديد */}
               <th className="px-3 py-2 border">اللون</th>
               <th className="px-3 py-2 border">السعر الأساسي</th>
               <th className="px-3 py-2 border">سعر مقارن</th>
@@ -329,14 +319,14 @@ const VariantManagerDialog: React.FC<Props> = ({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} className="px-3 py-4 text-center">
+                <td colSpan={11} className="px-3 py-4 text-center">
                   تحميل…
                 </td>
               </tr>
             ) : variants.length === 0 ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={11}
                   className="px-3 py-4 text-center text-gray-500"
                 >
                   لا توجد متغيّرات بعد
@@ -347,6 +337,10 @@ const VariantManagerDialog: React.FC<Props> = ({
                 <tr key={v._id}>
                   <td className="px-3 py-2 border">{v.stock?.sku}</td>
                   <td className="px-3 py-2 border">{v.measure}</td>
+                  <td className="px-3 py-2 border">
+                    {v.measureUnit || "—"}
+                  </td>{" "}
+                  {/* ✅ */}
                   <td className="px-3 py-2 border">
                     {v.color?.name}
                     {v.color?.code ? ` (${v.color.code})` : ""}
@@ -469,14 +463,13 @@ const VariantManagerDialog: React.FC<Props> = ({
             </Button>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            تلميح: لخصم مدته 24 ساعة، اختر وقت البداية الآن، ووقت النهاية +24
-            ساعة.
+            تلميح: لخصم 24 ساعة، البداية الآن والنهاية بعد 24 ساعة.
           </p>
         </div>
       )}
 
       {/* النموذج (إضافة/تعديل) */}
-      <div className="grid md:grid-cols-2 gap-3">
+      <div className="grid md:grid-cols-3 gap-3">
         <Input
           placeholder="SKU"
           value={form.stock.sku}
@@ -485,10 +478,16 @@ const VariantManagerDialog: React.FC<Props> = ({
           }
         />
         <Input
-          placeholder="المقاس (مثال: M، 42)"
+          placeholder="المقاس (مثال: 500)"
           value={form.measure}
           onChange={(e) => setForm({ ...form, measure: e.target.value })}
         />
+        <Input
+          placeholder="الوحدة (مثال: ml, cm, kg) — اختياري"
+          value={form.measureUnit || ""}
+          onChange={(e) => setForm({ ...form, measureUnit: e.target.value })}
+        />
+
         <Input
           placeholder="اللون (مثال: Black)"
           value={form.color.name}
@@ -576,7 +575,6 @@ const VariantManagerDialog: React.FC<Props> = ({
             <Button variant="outline" onClick={resetForm}>
               إلغاء
             </Button>
-
             <Button onClick={updateVariant}>حفظ التعديل</Button>
           </>
         ) : (

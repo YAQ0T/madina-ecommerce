@@ -1,6 +1,7 @@
 // server/routes/products.js
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const Variant = require("../models/Variant");
 const {
@@ -9,7 +10,6 @@ const {
   verifyTokenOptional,
 } = require("../middleware/authMiddleware");
 
-// ------- أدوات مساعدة -------
 const slugify = (s) =>
   (s || "").toString().trim().toLowerCase().replace(/\s+/g, "-");
 
@@ -35,33 +35,24 @@ function buildWantedTags(query = {}) {
   return Array.from(new Set(wanted));
 }
 
-/**
- * ✅ فلترة الملكية:
- * - تُفعّل فقط عندما يكون المستخدم أدمن أو تاجر (canUseOwnership = true)
- * - غير ذلك يتم تجاهل بارامتر ownership/isLocal
- */
 function readOwnershipFilterFromQuery(query = {}, canUseOwnership = false) {
   if (!canUseOwnership) return {};
-
-  // ownership=ours|local
   if (query.ownership && ["ours", "local"].includes(String(query.ownership))) {
     return { ownershipType: String(query.ownership) };
   }
-
-  // isLocal=true|false  => local/ours
   if (typeof query.isLocal !== "undefined") {
     const val = String(query.isLocal).toLowerCase();
     if (["true", "1", "yes"].includes(val)) return { ownershipType: "local" };
     if (["false", "0", "no"].includes(val)) return { ownershipType: "ours" };
   }
-
   return {};
 }
 
-// ⬇️ نفعّل قراءة التوكن اختياريًا لكل مسارات هذا الراوتر
 router.use(verifyTokenOptional);
 
-// ✅ إنشاء منتج (أدمن فقط)
+// =============================
+// CREATE (يدعم priority)
+// =============================
 router.post("/", verifyToken, isAdmin, async (req, res) => {
   try {
     const {
@@ -71,7 +62,8 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
       subCategory,
       description,
       images,
-      // اختياري: ownershipType
+      ownershipType,
+      priority,
     } = req.body;
 
     if (
@@ -87,36 +79,43 @@ router.post("/", verifyToken, isAdmin, async (req, res) => {
       });
     }
 
-    let ownershipPatch = {};
-    // التحقق من قيمة ownershipType من البودي (لو أرسلت)
-    const { ownershipType } = req.body || {};
+    const createData = {
+      name: String(name).trim(),
+      category: category ? String(category).trim() : undefined,
+      mainCategory: String(mainCategory).trim(),
+      subCategory: String(subCategory).trim(),
+      description: description ? String(description).trim() : undefined,
+      images: images.map((u) => String(u)),
+    };
+
     if (typeof ownershipType !== "undefined") {
       const v = String(ownershipType);
       if (!["ours", "local"].includes(v)) {
-        return res.status(400).json({
-          error: "قيمة ownershipType غير صحيحة. القيم: ours | local",
-        });
+        return res
+          .status(400)
+          .json({ error: "قيمة ownershipType غير صحيحة: ours | local" });
       }
-      ownershipPatch.ownershipType = v;
+      createData.ownershipType = v;
     }
 
-    const product = await Product.create({
-      name,
-      category,
-      mainCategory,
-      subCategory,
-      description,
-      images,
-      ...ownershipPatch,
-    });
+    if (typeof priority !== "undefined") {
+      const pv = String(priority).toUpperCase();
+      if (!["A", "B", "C"].includes(pv)) {
+        return res.status(400).json({ error: "قيمة priority: A | B | C" });
+      }
+      createData.priority = pv;
+    }
 
+    const product = await Product.create(createData);
     res.status(201).json(product);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ /with-stats — مع حساب finalAmount ضمن نافذة الخصم + دعم فلترة الملكية (أدمن/تاجر فقط)
+// =============================
+// READ with-stats (يحترم priority)
+// =============================
 router.get("/with-stats", async (req, res) => {
   try {
     const {
@@ -131,7 +130,6 @@ router.get("/with-stats", async (req, res) => {
 
     const wantedTags = buildWantedTags(req.query);
 
-    // فلترة الملكية من الاستعلام — فقط لو أدمن/تاجر
     const role = req.user?.role;
     const canUseOwnership = role === "admin" || role === "dealer";
     const ownershipFilter = readOwnershipFilterFromQuery(
@@ -149,14 +147,29 @@ router.get("/with-stats", async (req, res) => {
     const lim = Math.max(parseInt(limit, 10) || 9, 1);
     const skip = (pageNum - 1) * lim;
 
-    let $sortStage = { createdAt: -1 };
-    if (sort === "priceAsc") $sortStage = { minPrice: 1, createdAt: -1 };
-    if (sort === "priceDesc") $sortStage = { minPrice: -1, createdAt: -1 };
+    const priorityRankExpr = {
+      $switch: {
+        branches: [
+          { case: { $eq: ["$priority", "A"] }, then: 1 },
+          { case: { $eq: ["$priority", "B"] }, then: 2 },
+          { case: { $eq: ["$priority", "C"] }, then: 3 },
+        ],
+        default: 4,
+      },
+    };
+
+    let $sortStage = { priorityRank: 1, createdAt: -1 };
+    if (sort === "priceAsc")
+      $sortStage = { priorityRank: 1, minPrice: 1, createdAt: -1 };
+    if (sort === "priceDesc")
+      $sortStage = { priorityRank: 1, minPrice: -1, createdAt: -1 };
 
     const now = new Date();
 
     const pipeline = [
       { $match },
+
+      { $addFields: { priorityRank: priorityRankExpr } },
 
       {
         $lookup: {
@@ -191,7 +204,7 @@ router.get("/with-stats", async (req, res) => {
         ? [{ $match: { "vars.0": { $exists: true } } }]
         : []),
 
-      // احسب finalAmount لكل variant حسب نافذة الخصم
+      // final prices per variant with discount window
       {
         $addFields: {
           _finalPrices: {
@@ -325,7 +338,8 @@ router.get("/with-stats", async (req, res) => {
                 createdAt: 1,
                 minPrice: 1,
                 totalStock: 1,
-                ownershipType: 1, // 👈 نرجعه للواجهة
+                ownershipType: 1,
+                priority: 1,
               },
             },
           ],
@@ -351,57 +365,9 @@ router.get("/with-stats", async (req, res) => {
   }
 });
 
-// ✅ Facets عامة (name/slug) — تدعم فلترة الملكية للأدمن/التاجر فقط
-router.get("/facets", async (req, res) => {
-  try {
-    const { mainCategory, subCategory, q } = req.query;
-
-    const role = req.user?.role;
-    const canUseOwnership = role === "admin" || role === "dealer";
-    const ownershipFilter = readOwnershipFilterFromQuery(
-      req.query,
-      canUseOwnership
-    );
-
-    const productMatch = { ...ownershipFilter };
-    if (mainCategory) productMatch.mainCategory = mainCategory;
-    if (subCategory) productMatch.subCategory = subCategory;
-    if (q) productMatch.$text = { $search: q };
-
-    const pipeline = [
-      { $match: productMatch },
-      {
-        $lookup: {
-          from: "variants",
-          localField: "_id",
-          foreignField: "product",
-          as: "vars",
-        },
-      },
-      { $unwind: "$vars" },
-      {
-        $group: {
-          _id: null,
-          measures: {
-            $addToSet: { name: "$vars.measure", slug: "$vars.measureSlug" },
-          },
-          colors: {
-            $addToSet: { name: "$vars.color.name", slug: "$vars.colorSlug" },
-          },
-        },
-      },
-      { $project: { _id: 0 } },
-    ];
-
-    const [facets] = await Product.aggregate(pipeline);
-    res.json(facets || { measures: [], colors: [] });
-  } catch (err) {
-    console.error("facets error:", err);
-    res.status(500).json({ error: "Server error in /facets" });
-  }
-});
-
-// ✅ جلب كل المنتجات (عام) + دعم فلترة الملكية للأدمن/التاجر فقط
+// =============================
+// READ all (يحترم priority)
+// =============================
 router.get("/", async (req, res) => {
   try {
     const { mainCategory, subCategory, q, limit = 50, page = 1 } = req.query;
@@ -419,6 +385,7 @@ router.get("/", async (req, res) => {
 
     const skip = (Number(page) - 1) * Number(limit);
     const products = await Product.find(filter)
+      .sort({ priority: 1, createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))
       .lean();
@@ -429,10 +396,17 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ منتج واحد (withVariants اختياري) — نرجع ownershipType أيضاً
+// =============================
+// READ one
+// =============================
 router.get("/:id", async (req, res) => {
   try {
     const withVariants = req.query.withVariants === "1";
+
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: "معرّف غير صالح" });
+    }
+
     const product = await Product.findById(req.params.id).lean();
 
     if (!product) return res.status(404).json({ message: "المنتج غير موجود" });
@@ -446,35 +420,17 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// ✅ Facets لمنتج معيّن — لا تحتاج تعديل
-router.get("/:id/facets", async (req, res) => {
-  try {
-    const productId = req.params.id;
-    const facets = await Variant.aggregate([
-      {
-        $match: {
-          product:
-            Product.db.base.Types.ObjectId.createFromHexString(productId),
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          measures: { $addToSet: { name: "$measure", slug: "$measureSlug" } },
-          colors: { $addToSet: { name: "$color.name", slug: "$colorSlug" } },
-        },
-      },
-      { $project: { _id: 0 } },
-    ]);
-    res.json(facets[0] || { measures: [], colors: [] });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ✅ تعديل/حذف منتج (أدمن) + دعم تحديث الملكية
+// =============================
+// UPDATE (يشمل priority)
+// =============================
 router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: "معرّف غير صالح" });
+    }
+
     const {
       name,
       category,
@@ -482,47 +438,107 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
       subCategory,
       description,
       images,
-      ownershipType, // اختياري
+      ownershipType,
+      priority,
     } = req.body;
 
-    const updateData = {
-      ...(name && { name }),
-      ...(category && { category }),
-      ...(mainCategory && { mainCategory }),
-      ...(subCategory && { subCategory }),
-      ...(description && { description }),
-      ...(Array.isArray(images) && images.length > 0 && { images }),
-    };
+    const updateData = {};
 
+    if (typeof name !== "undefined") updateData.name = String(name).trim();
+    if (typeof category !== "undefined")
+      updateData.category = String(category).trim();
+    if (typeof mainCategory !== "undefined")
+      updateData.mainCategory = String(mainCategory).trim();
+    if (typeof subCategory !== "undefined")
+      updateData.subCategory = String(subCategory).trim();
+    if (typeof description !== "undefined")
+      updateData.description = String(description).trim();
+    if (typeof images !== "undefined") {
+      if (!Array.isArray(images))
+        return res
+          .status(400)
+          .json({ error: "images يجب أن تكون مصفوفة سلاسل" });
+      updateData.images = images.map((u) => String(u));
+    }
     if (typeof ownershipType !== "undefined") {
-      if (!["ours", "local"].includes(String(ownershipType))) {
-        return res.status(400).json({
-          error:
-            "قيمة ownershipType غير صحيحة. القيم المسموح بها: ours | local",
-        });
+      const v = String(ownershipType);
+      if (!["ours", "local"].includes(v)) {
+        return res
+          .status(400)
+          .json({ error: "قيمة ownershipType غير صحيحة: ours | local" });
       }
-      updateData.ownershipType = String(ownershipType);
+      updateData.ownershipType = v;
+    }
+    if (typeof priority !== "undefined") {
+      const pv = String(priority).toUpperCase();
+      if (!["A", "B", "C"].includes(pv)) {
+        return res.status(400).json({ error: "قيمة priority: A | B | C" });
+      }
+      updateData.priority = pv;
     }
 
-    const updated = await Product.findByIdAndUpdate(req.params.id, updateData, {
+    const updated = await Product.findByIdAndUpdate(id, updateData, {
       new: true,
-    });
+      runValidators: true,
+    }).lean();
+
     if (!updated) return res.status(404).json({ error: "المنتج غير موجود" });
 
-    res.status(200).json(updated);
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// =============================
+// PATCH priority فقط (اختياري)
+// =============================
+router.patch("/:id/priority", verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { priority } = req.body;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: "معرّف غير صالح" });
+    }
+
+    const pv = String(priority || "C").toUpperCase();
+    if (!["A", "B", "C"].includes(pv)) {
+      return res.status(400).json({ error: "قيمة priority: A | B | C" });
+    }
+
+    const updated = await Product.findByIdAndUpdate(
+      id,
+      { priority: pv },
+      { new: true, runValidators: true }
+    ).lean();
+
+    if (!updated) return res.status(404).json({ error: "المنتج غير موجود" });
+
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =============================
+// DELETE
+// =============================
 router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
-    const deleted = await Product.findByIdAndDelete(req.params.id);
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: "معرّف غير صالح" });
+    }
+
+    const deleted = await Product.findByIdAndDelete(id).lean();
     if (!deleted) return res.status(404).json({ error: "المنتج غير موجود" });
 
-    await Variant.deleteMany({ product: deleted._id });
+    // حذف متغيراته (اختياري)
+    await Variant.deleteMany({ product: id });
 
-    res.status(200).json({ message: "تم حذف المنتج ومتغيراته" });
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

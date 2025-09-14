@@ -49,13 +49,18 @@ const renderItemsSummary = (items: any[] = [], notes: string | undefined) => {
         const name = it?.name || it?.productName || "منتج";
         const color = it?.color || it?.selectedColor;
         const measure = it?.measure || it?.selectedMeasure;
+        const unit = it?.measureUnit || it?.selectedMeasureUnit;
+
         const qty = it?.quantity ?? 1;
         return (
           <div key={i} className="text-sm">
             <span className="font-medium">{name}</span>{" "}
             <span className="text-gray-500">
               {color ? `| اللون: ${color} ` : ""}
-              {measure ? `| المقاس: ${measure} ` : ""}| الكمية: {qty}
+              {measure
+                ? `| المقاس: ${measure}${unit ? ` ${unit}` : ""} `
+                : ""}{" "}
+              {/* ✅ */}| الكمية: {qty}
             </span>
           </div>
         );

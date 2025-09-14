@@ -13,9 +13,9 @@ import React, { useState, useMemo } from "react";
 
 interface ProductFormProps {
   newProduct: any;
-  setNewProduct: (data: any) => void;
+  setNewProduct: React.Dispatch<React.SetStateAction<any>>; // ✅ تصحيح النوع
   productsState: any[];
-  setProductsState: (data: any[]) => void;
+  setProductsState: React.Dispatch<React.SetStateAction<any[]>>; // ✅ تصحيح النوع
   token: string;
   onSuccess?: () => void; // لإعادة الجلب بعد النجاح (اختياري)
 }
@@ -50,25 +50,34 @@ const ProductForm: React.FC<ProductFormProps> = ({
     { value: "local", label: "شراء محلي" },
   ] as const;
 
+  // ✅ خيارات الأولوية
+  const priorityOptions = [
+    { value: "A", label: "A - أولوية عالية" },
+    { value: "B", label: "B - أولوية متوسطة" },
+    { value: "C", label: "C - أولوية عادية" },
+  ] as const;
+
   // إضافة صورة
   const handleAddImage = () => {
     if (newImage.trim()) {
-      setNewProduct({
-        ...newProduct,
-        images: [...(newProduct.images || []), newImage.trim()],
-      });
+      setNewProduct((prev: any) => ({
+        ...prev,
+        images: [...(prev.images || []), newImage.trim()],
+      }));
       setNewImage("");
     }
   };
 
   // حذف عنصر من مصفوفة
   const handleRemoveItem = (index: number) => {
-    const updated = [...(newProduct.images || [])];
-    updated.splice(index, 1);
-    setNewProduct({ ...newProduct, images: updated });
+    setNewProduct((prev: any) => {
+      const updated = [...(prev.images || [])];
+      updated.splice(index, 1);
+      return { ...prev, images: updated };
+    });
   };
 
-  // إرسال المنتج (يتضمن ownershipType)
+  // إرسال المنتج (يتضمن ownershipType + priority)
   const handleSubmit = async () => {
     try {
       const ownershipType = ["ours", "local"].includes(
@@ -77,13 +86,18 @@ const ProductForm: React.FC<ProductFormProps> = ({
         ? String(newProduct.ownershipType)
         : "ours";
 
+      const priority = ["A", "B", "C"].includes(String(newProduct.priority))
+        ? String(newProduct.priority)
+        : "C";
+
       const payload = {
         name: newProduct.name?.trim(),
         mainCategory: newProduct.mainCategory?.trim(),
         subCategory: newProduct.subCategory?.trim(),
         description: newProduct.description?.trim(),
         images: Array.isArray(newProduct.images) ? newProduct.images : [],
-        ownershipType, // 👈 إضافة نوع الملكية
+        ownershipType,
+        priority,
       };
 
       const res = await axios.post(
@@ -92,25 +106,14 @@ const ProductForm: React.FC<ProductFormProps> = ({
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // إمّا نحدّث الحالة محليًا أو نعيد الجلب
       if (onSuccess) {
         onSuccess();
       } else {
-        setProductsState([
-          ...productsState,
+        setProductsState((prev) => [
+          ...prev,
           { ...res.data, price: 0, quantity: 0 },
         ]);
       }
-
-      // إعادة تعيين الحقول
-      // setNewProduct({
-      //   name: "",
-      //   mainCategory: "",
-      //   subCategory: "",
-      //   description: "",
-      //   images: [],
-      //   ownershipType: "ours", // 👈 نرجعها للوضع الافتراضي
-      // });
     } catch (err) {
       console.error("❌ Error adding product", err);
       alert("فشل في إضافة المنتج");
@@ -131,7 +134,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           placeholder="اسم المنتج"
           value={newProduct.name ?? ""}
           onChange={(e) =>
-            setNewProduct({ ...newProduct, name: e.target.value })
+            setNewProduct((prev: any) => ({ ...prev, name: e.target.value }))
           }
         />
 
@@ -140,7 +143,10 @@ const ProductForm: React.FC<ProductFormProps> = ({
           placeholder="التصنيف الرئيسي"
           value={newProduct.mainCategory ?? ""}
           onChange={(e) =>
-            setNewProduct({ ...newProduct, mainCategory: e.target.value })
+            setNewProduct((prev: any) => ({
+              ...prev,
+              mainCategory: e.target.value,
+            }))
           }
         />
         <datalist id="main-categories">
@@ -154,7 +160,10 @@ const ProductForm: React.FC<ProductFormProps> = ({
           placeholder="التصنيف الفرعي"
           value={newProduct.subCategory ?? ""}
           onChange={(e) =>
-            setNewProduct({ ...newProduct, subCategory: e.target.value })
+            setNewProduct((prev: any) => ({
+              ...prev,
+              subCategory: e.target.value,
+            }))
           }
         />
         <datalist id="sub-categories">
@@ -170,7 +179,10 @@ const ProductForm: React.FC<ProductFormProps> = ({
             className="border rounded-md p-2 bg-background"
             value={newProduct.ownershipType ?? "ours"}
             onChange={(e) =>
-              setNewProduct({ ...newProduct, ownershipType: e.target.value })
+              setNewProduct((prev: any) => ({
+                ...prev,
+                ownershipType: e.target.value,
+              }))
             }
           >
             {ownershipOptions.map((opt) => (
@@ -184,11 +196,38 @@ const ProductForm: React.FC<ProductFormProps> = ({
           </p>
         </div>
 
+        {/* ✅ الأولوية */}
+        <div className="grid gap-2">
+          <label className="text-sm font-medium">أولوية الظهور</label>
+          <select
+            className="border rounded-md p-2 bg-background"
+            value={newProduct.priority ?? "C"}
+            onChange={(e) =>
+              setNewProduct((prev: any) => ({
+                ...prev,
+                priority: e.target.value,
+              }))
+            }
+          >
+            {priorityOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            ترتيب العرض في القوائم: A أعلى، ثم B، ثم C.
+          </p>
+        </div>
+
         <Textarea
           placeholder="وصف المنتج"
           value={newProduct.description ?? ""}
           onChange={(e) =>
-            setNewProduct({ ...newProduct, description: e.target.value })
+            setNewProduct((prev: any) => ({
+              ...prev,
+              description: e.target.value,
+            }))
           }
         />
 
