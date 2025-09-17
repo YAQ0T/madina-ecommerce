@@ -1,5 +1,7 @@
+// src/components/common/CategoryCircles.tsx
 import React, { useMemo } from "react";
 
+/** مجموعة التصنيفات */
 type CategoryGroup = {
   mainCategory: string;
   subCategories: string[];
@@ -13,12 +15,50 @@ type Props = {
   loading?: boolean;
 
   /**
-   * خريطة صور التصنيفات الفرعية (اختياري):
-   * المفتاح: "MAIN:::SUB"
-   * القيمة: رابط صورة
+   * صور التصنيفات الفرعية (اختياري)
+   * يدعم المفاتيح التالية:
+   *  - "MAIN:::SUB" (اسم الرئيسي:::اسم الفرعي)
+   *  - "SUB" فقط (بالاسم نصاً)
+   * أمثلة:
+   *  {
+   *    "لوازم نجارين:::مفصلات": "https://example.com/hinge.png",
+   *    "مفصلات": "https://example.com/hinge-fallback.png"
+   *  }
    */
   subCategoryImages?: Record<string, string>;
 };
+
+/* =========================
+   أدوات تطبيع النص العربي
+   ========================= */
+function normalizeArabic(input: string): string {
+  if (!input) return "";
+  let s = input.trim();
+
+  // إزالة التشكيل والتمطيط
+  // التشكيل: 064B-0652 ، همزات الوصل الصغيرة… الخ
+  s = s.replace(/[\u064B-\u0652\u0670\u0640]/g, "");
+
+  // توحيد الهمزات والألفات والياء/الألف المقصورة والتاء المربوطة
+  s = s.replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه");
+
+  // مسافات موحّدة + حروف صغيرة (مع أن العربية ما فيها case بس للاتينية الاختيارية)
+  s = s.replace(/\s+/g, " ").toLowerCase();
+
+  return s;
+}
+
+function normKey(raw: string): string {
+  return normalizeArabic(raw);
+}
+
+function normComposite(main: string, sub: string): string {
+  return `${normKey(main)}:::${normKey(sub)}`;
+}
+
+/* =========================
+   صور افتراضية/افتراضي
+   ========================= */
 
 // صور للأقسام الرئيسية (اختياري)
 const CATEGORY_IMAGES: Record<string, string> = {
@@ -30,19 +70,28 @@ const CATEGORY_IMAGES: Record<string, string> = {
   "اكسسوارات غرف نوم": "https://i.imgur.com/ZMr397G.png",
   "عدة وأدوات": "https://i.imgur.com/Hf5NvqJ.png",
   "مفصلات نجارين والامنيوم": "https://i.imgur.com/XHNtA14.png",
-  "جوارير وسكك جوارير ومفصلات": "https://i.imgur.com/fE6zgKp.png",
+  "جوارير وسكك ومفصلات": "https://i.imgur.com/fE6zgKp.png",
   "أقمشة كنب": "https://i.imgur.com/bf8geWx.jpeg",
   "أصناف اضافية": "https://www.svgrepo.com/show/491692/plus-circle.svg", // احتياطي
   "لوازم أبواب": "https://i.imgur.com/UskLo6H.png", // احتياطي
   "كبسات مسامير و براغي": "https://i.imgur.com/CntFVhx.png", // احتياطي
 };
 
-// 👇 هنا تقدر تضيف صور التصنيفات الفرعية يدويًا (اختياري تمامًا)
-const SUBCATEGORY_IMAGES: Record<string, string> = {};
+// يمكنك (اختياريًا) وضع صور افتراضية لبعض الفروع بالاسم
+// إما "MAIN:::SUB" أو "SUB"
+const SUBCATEGORY_IMAGES_DEFAULT: Record<string, string> = {
+  // أمثلة:
+  // "لوازم نجارين:::مفصلات": "https://example.com/hinges-main.png",
+  "أرجل طاولات": "https://i.imgur.com/25nxJlt.png",
+};
 
 const DEFAULT_MAIN_IMG =
   "https://placehold.co/240x240/png?text=%D8%AA%D8%B5%D9%86%D9%8A%D9%81";
 const DEFAULT_SUB_IMG = "https://i.imgur.com/G9rP8ht.png";
+
+/* =========================
+   عناصر العرض
+   ========================= */
 
 function CircleItem({
   title,
@@ -125,6 +174,10 @@ function SkeletonCircle({ size = "lg" }: { size?: "lg" | "sm" }) {
   );
 }
 
+/* =========================
+   المكوّن الرئيسي
+   ========================= */
+
 const CategoryCircles: React.FC<Props> = ({
   categories,
   onFilter,
@@ -133,6 +186,38 @@ const CategoryCircles: React.FC<Props> = ({
   loading = false,
   subCategoryImages = {},
 }) => {
+  // بناء خرائط مطبّعة لسرعة الوصول
+  const { mainImgByExact, mainImgByNorm, subImgByExact, subImgByNorm } =
+    useMemo(() => {
+      // رئيسي: جهّز خريطتين (نصيّة ومطبّعة)
+      const mainExact = new Map<string, string>();
+      const mainNorm = new Map<string, string>();
+      Object.entries(CATEGORY_IMAGES).forEach(([k, v]) => {
+        mainExact.set(k, v);
+        mainNorm.set(normKey(k), v);
+      });
+
+      // فرعي: ادمج الافتراضي مع الممرَّر من الـ props (props تغلب الافتراضي عند التعارض)
+      const mergedSubs: Record<string, string> = {
+        ...SUBCATEGORY_IMAGES_DEFAULT,
+        ...subCategoryImages,
+      };
+
+      const subExact = new Map<string, string>();
+      const subNorm = new Map<string, string>();
+      Object.entries(mergedSubs).forEach(([k, v]) => {
+        subExact.set(k, v);
+        subNorm.set(normKey(k), v);
+      });
+
+      return {
+        mainImgByExact: mainExact,
+        mainImgByNorm: mainNorm,
+        subImgByExact: subExact,
+        subImgByNorm: subNorm,
+      };
+    }, [subCategoryImages]);
+
   // ترتيب عربي + إزالة التكرار
   const normalized = useMemo(() => {
     const list = [...(categories || [])].map((c) => ({
@@ -151,10 +236,39 @@ const CategoryCircles: React.FC<Props> = ({
       ? normalized.find((g) => g.mainCategory === selectedMain)
       : undefined;
 
-  // دمج صور الفروع
+  // صورة الرئيسي: جرّب المطابقة النصية ثم المطبّعة
+  const getMainImage = (main: string): string => {
+    return (
+      mainImgByExact.get(main) ||
+      mainImgByNorm.get(normKey(main)) ||
+      DEFAULT_MAIN_IMG
+    );
+  };
+
+  /**
+   * إحضار صورة الفرعي حسب:
+   *  1) "MAIN:::SUB" (دقيق)
+   *  2) "SUB" فقط (بالاسم)
+   *  3) طُرق مطبّعة لكلا الحالتين
+   * يرجّع undefined إذا لم تُوجد أي مطابقة، ليسمح بفallback لاحقاً.
+   */
   const getSubImage = (main: string, sub: string): string | undefined => {
-    const key = `${main}:::${sub}`;
-    return subCategoryImages[key] || SUBCATEGORY_IMAGES[key] || undefined;
+    if (!sub) return undefined;
+
+    const compositeRaw = `${main}:::${sub}`;
+    const compositeNorm = normComposite(main, sub);
+    const subNormOnly = normKey(sub);
+
+    // 1) مطابقة مركّبة نصية ثم مطبّعة
+    const byComposite =
+      subImgByExact.get(compositeRaw) || subImgByNorm.get(compositeNorm);
+    if (byComposite) return byComposite;
+
+    // 2) مطابقة باسم الفرعي فقط (نصي ثم مطبّع)
+    const bySubOnly = subImgByExact.get(sub) || subImgByNorm.get(subNormOnly);
+    if (bySubOnly) return bySubOnly;
+
+    return undefined;
   };
 
   return (
@@ -187,7 +301,7 @@ const CategoryCircles: React.FC<Props> = ({
             : normalized.map((group) => {
                 const main = group.mainCategory;
                 const active = selectedMain === main;
-                const img = CATEGORY_IMAGES[main] || DEFAULT_MAIN_IMG;
+                const img = getMainImage(main);
                 return (
                   <div key={main} className="snap-start shrink-0">
                     <CircleItem
@@ -238,7 +352,10 @@ const CategoryCircles: React.FC<Props> = ({
                   </div>
                 ))
               : (activeGroup?.subCategories || []).map((sub) => {
-                  const img = getSubImage(selectedMain, sub) || DEFAULT_SUB_IMG;
+                  // أولاً حاول نجيب صورة بالاسم/المركّب من الخرائط
+                  const mapped = getSubImage(selectedMain, sub);
+                  const img = mapped || DEFAULT_SUB_IMG;
+
                   return (
                     <div key={sub} className="snap-start shrink-0">
                       <CircleItem

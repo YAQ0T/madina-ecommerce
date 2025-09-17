@@ -28,7 +28,7 @@ const categories = [
   { title: "إكسسوارات غرف نوم", img: "https://i.imgur.com/ZMr397G.png" },
   { title: "عدة وأدوات", img: "https://i.imgur.com/Hf5NvqJ.png" },
   {
-    title: "جوارير وسكك جوارير ومفصلات",
+    title: "جوارير وسكك ومفصلات",
     img: "https://i.imgur.com/fE6zgKp.png",
   },
   { title: "أقمشة كنب", img: "https://i.imgur.com/bf8geWx.jpeg" },
