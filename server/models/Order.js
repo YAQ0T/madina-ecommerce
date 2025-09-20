@@ -15,7 +15,7 @@ const OrderItemSchema = new mongoose.Schema(
     },
     name: { type: String, required: true },
     quantity: { type: Number, min: 1, required: true },
-    price: { type: Number, min: 0, required: true }, // سعر الوحدة النهائي وقت الشراء
+    price: { type: Number, min: 0, required: true },
     color: { type: String },
     measure: { type: String },
     sku: { type: String },
@@ -30,19 +30,22 @@ const OrderSchema = new mongoose.Schema(
       _id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: true,
+        required: false,
       },
       name: String,
       phone: String,
       email: String,
     },
+    guestInfo: {
+      name: { type: String, default: "" },
+      phone: { type: String, default: "" },
+      email: { type: String, default: "" },
+      address: { type: String, default: "" },
+    },
+    isGuest: { type: Boolean, default: false, index: true },
 
     items: { type: [OrderItemSchema], required: true },
-
-    // إجمالي قبل الخصم
     subtotal: { type: Number, min: 0, required: true },
-
-    // تفاصيل الخصم (إن وجد)
     discount: {
       applied: { type: Boolean, default: false },
       ruleId: {
@@ -56,13 +59,8 @@ const OrderSchema = new mongoose.Schema(
       threshold: { type: Number, min: 0, default: 0 },
       name: { type: String, default: "" },
     },
-
-    // الإجمالي بعد الخصم
     total: { type: Number, min: 0, required: true },
-
     address: { type: String, required: true },
-
-    // حالة الطلب التشغيلية
     status: {
       type: String,
       enum: [
@@ -75,8 +73,6 @@ const OrderSchema = new mongoose.Schema(
       default: "waiting_confirmation",
       index: true,
     },
-
-    // ✅ معلومات الدفع
     paymentMethod: {
       type: String,
       enum: ["card", "cod"],
@@ -89,11 +85,7 @@ const OrderSchema = new mongoose.Schema(
       default: "unpaid",
       index: true,
     },
-
-    // مرجع منصة الدفع (من لَهْزة) — نربط به الطلب
     reference: { type: String, index: true, default: null },
-
-    // ملاحظات العميل
     notes: { type: String, default: "" },
   },
   { timestamps: true }

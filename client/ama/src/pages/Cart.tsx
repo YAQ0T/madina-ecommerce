@@ -65,6 +65,7 @@ const CartPageContent: React.FC = () => {
     name: "",
     phone: "",
     address: "",
+    email: "",
   });
   const [paymentMethod, setPaymentMethod] = useState<"card" | "cod">("card");
   const [notes, setNotes] = useState("");
@@ -85,6 +86,7 @@ const CartPageContent: React.FC = () => {
         ...prev,
         name: (user as any).name || "",
         phone: (user as any).phone || "",
+        email: (user as any).email || "",
       }));
     }
   }, [user]);
@@ -179,7 +181,11 @@ const CartPageContent: React.FC = () => {
   };
 
   const handleCreateCOD = async () => {
-    if (!user) return alert("يجب تسجيل الدخول");
+    // الدفع عند التوصيل: يتطلب حساب
+    if (!user) {
+      setPolicyError("الدفع عند التوصيل يتطلب تسجيل الدخول.");
+      return;
+    }
     if (!userData.address.trim()) return alert("الرجاء تعبئة العنوان");
     if (cart.length === 0) return alert("السلة فارغة");
 
@@ -226,11 +232,13 @@ const CartPageContent: React.FC = () => {
     }
   };
 
-  /** الدفع بالبطاقة (Card): حضّر طلب -> هيّئ دفعة -> Redirect */
+  /** الدفع بالبطاقة (Card) متاح للزوار أيضًا */
   const handlePayCardRedirect = async () => {
-    if (!user) return alert("يجب تسجيل الدخول قبل الدفع");
+    // السماح للزوار: لا نتحقق من وجود user
     if (!userData.address.trim())
       return alert("الرجاء تعبئة العنوان قبل الدفع.");
+    if (!userData.phone.trim())
+      return alert("الرجاء إدخال رقم الهاتف للتواصل.");
     if (cart.length === 0) return alert("سلة الشراء فارغة");
 
     // تأكد من قبول السياسات
@@ -248,12 +256,22 @@ const CartPageContent: React.FC = () => {
       }
 
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
       // 1) إنشاء طلب مبدئي (pending/unpaid)
       const prep = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/orders/prepare-card`,
         {
           address: userData.address,
           notes,
+          // في حال الزائر، نرسل guestInfo ليستخدمه السيرفر (اختياري/غير كسّار)
+          guestInfo: !user
+            ? {
+                name: userData.name || undefined,
+                phone: userData.phone || undefined,
+                email: userData.email || undefined,
+                address: userData.address || undefined,
+              }
+            : undefined,
           items: cart.map((it) => ({
             productId: it._id,
             name: it.name,
@@ -282,7 +300,7 @@ const CartPageContent: React.FC = () => {
           orderId,
           amountMinor,
           currency: "ILS",
-          email: (user as any)?.email || undefined,
+          email: (user as any)?.email || userData.email || undefined,
           name: userData.name || (user as any)?.name || undefined,
           mobile,
           metadata: {
@@ -292,6 +310,8 @@ const CartPageContent: React.FC = () => {
             discount: summary.discountAmount,
             finalTotal: summary.total,
             address: userData.address || "",
+            // إشارة أن العملية تمت كضيف (للاستخدام التحليلي/الدعائي)
+            guestCheckout: !user,
           },
           callback_url,
         },
@@ -316,6 +336,8 @@ const CartPageContent: React.FC = () => {
     }
   };
 
+  const isGuest = !user;
+
   return (
     <>
       <Navbar />
@@ -323,7 +345,7 @@ const CartPageContent: React.FC = () => {
         <h1 className="text-3xl font-bold mb-6">سلة المشتريات</h1>
 
         {/* بيانات العميل */}
-        <div className="grid md:grid-cols-3 gap-4 my-6">
+        <div className="grid md:grid-cols-4 gap-4 my-6">
           <input
             className="border p-2 rounded"
             placeholder="اسمك"
@@ -340,6 +362,18 @@ const CartPageContent: React.FC = () => {
               setUserData({ ...userData, phone: e.target.value })
             }
           />
+          {/* بريد إلكتروني يظهر للزائرين فقط (مفيد لإيصالات الدفع) */}
+          {!user && (
+            <input
+              className="border p-2 rounded"
+              type="email"
+              placeholder="البريد الإلكتروني (اختياري للإيصال)"
+              value={userData.email}
+              onChange={(e) =>
+                setUserData({ ...userData, email: e.target.value })
+              }
+            />
+          )}
           <input
             className="border p-2 rounded"
             placeholder="العنوان"
@@ -555,6 +589,7 @@ const CartPageContent: React.FC = () => {
           <div className="border rounded p-4 space-y-3">
             <h3 className="font-semibold">طريقة الدفع</h3>
 
+            {/* الدفع بالبطاقة: متاح للجميع (زوار + مسجلين) */}
             <label className="flex items-start gap-2 cursor-pointer">
               <input
                 type="radio"
@@ -567,23 +602,57 @@ const CartPageContent: React.FC = () => {
                   💳 الدفع بالبطاقة (فيزا/ماستر)
                 </div>
                 <div className="text-sm text-green-700">
-                  ملاحظة: <strong>أسرع ومُستحسن</strong> — يُسرِّع معالجة الطلب.
+                  متاح للزوار بدون إنشاء حساب — الأسرع لمعالجة الطلب.
                 </div>
               </div>
             </label>
 
-            <label className="flex items-start gap-2 cursor-pointer">
+            {/* الدفع عند التوصيل: يظهر لكنه معطّل للزوار */}
+            <label
+              className={`flex items-start gap-2 ${
+                isGuest ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
+              }`}
+            >
               <input
                 type="radio"
                 name="pay"
+                disabled={isGuest}
                 checked={paymentMethod === "cod"}
                 onChange={() => setPaymentMethod("cod")}
               />
               <div>
                 <div className="font-medium">🚚 الدفع عند التوصيل (COD)</div>
                 <div className="text-sm text-amber-700">
-                  ملاحظة: قد يتم <strong>إجراءات إضافية</strong> للتحقق عند
-                  اختيارك لهذا الخيار (تأكيد هاتفي/عربون).
+                  {isGuest ? (
+                    <>
+                      هذا الخيار متاح فقط للمستخدمين المسجّلين.{" "}
+                      <a
+                        href="/login"
+                        className="underline text-blue-600"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
+                        سجّل الدخول
+                      </a>{" "}
+                      أو{" "}
+                      <a
+                        href="/register"
+                        className="underline text-blue-600"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
+                        أنشئ حسابًا
+                      </a>{" "}
+                      لتفعيله.
+                    </>
+                  ) : (
+                    <>
+                      قد يتم <strong>إجراءات إضافية</strong> للتحقق (تأكيد
+                      هاتفي/عربون).
+                    </>
+                  )}
                 </div>
               </div>
             </label>
@@ -627,7 +696,7 @@ const CartPageContent: React.FC = () => {
             )}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
             {paymentMethod === "card" ? (
               <Button
                 onClick={handlePayCardRedirect}
@@ -639,10 +708,22 @@ const CartPageContent: React.FC = () => {
               <Button
                 onClick={handleCreateCOD}
                 variant="outline"
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 || isGuest}
+                title={
+                  isGuest ? "سجّل الدخول لتفعيل الدفع عند التوصيل" : undefined
+                }
               >
                 إنشاء طلب دفع عند التوصيل
               </Button>
+            )}
+
+            {/* تلميحات للزائر */}
+            {isGuest && (
+              <p className="text-xs text-muted-foreground">
+                تذكير: يمكنك إتمام الطلب كـ <strong>ضيف</strong> باستخدام الدفع
+                بالبطاقة. لإتاحة الدفع عند التوصيل، يرجى تسجيل الدخول أو إنشاء
+                حساب.
+              </p>
             )}
           </div>
         </div>

@@ -1,7 +1,7 @@
 // server/routes/payments.js
 const express = require("express");
 const axios = require("axios");
-const { verifyToken } = require("../middleware/authMiddleware");
+const { verifyTokenOptional } = require("../middleware/authMiddleware");
 const Order = require("../models/Order");
 
 const router = express.Router();
@@ -24,13 +24,11 @@ function splitName(fullName = "") {
 
 /**
  * POST /api/payments/create
- * body: {
- *   orderId, amountMinor, currency, email, name, mobile, callback_url, metadata?
- * }
- * - يهيّئ معاملة على Lahza ويرجع authorization_url + reference
- * - يربط reference بالطلب orderId مباشرة بعد نجاح initialize
+ * body: { orderId, amountMinor, currency, email, name, mobile, callback_url, metadata? }
+ * - متاح للضيف (بدون توكن) أو للمستخدم المسجّل
+ * - يربط reference بالطلب (لو وُجد orderId) بدون وسمه "paid"
  */
-router.post("/create", verifyToken, async (req, res) => {
+router.post("/create", verifyTokenOptional, async (req, res) => {
   try {
     if (!LAHZA_SECRET_KEY) {
       return res.status(500).json({ error: "LAHZA secret key is missing" });
@@ -53,16 +51,13 @@ router.post("/create", verifyToken, async (req, res) => {
         .json({ error: "amountMinor, currency, callback_url are required" });
     }
 
-    // (اختياري) تأكيد orderId مبدئيًا
-    let orderDoc = null;
+    // (اختياري) تأكيد orderId
     if (orderId) {
-      if (!orderId || !/^[a-f\d]{24}$/i.test(orderId)) {
+      if (!/^[a-f\d]{24}$/i.test(orderId)) {
         return res.status(400).json({ error: "orderId غير صالح" });
       }
-      orderDoc = await Order.findById(orderId).lean();
-      if (!orderDoc) {
-        return res.status(404).json({ error: "الطلب غير موجود" });
-      }
+      const exists = await Order.findById(orderId).lean();
+      if (!exists) return res.status(404).json({ error: "الطلب غير موجود" });
     }
 
     const { first_name, last_name } = splitName(name);
@@ -103,14 +98,19 @@ router.post("/create", verifyToken, async (req, res) => {
       });
     }
 
-    // ✅ ربط reference بالطلب إن وُجد orderId
+    // ربط المرجع بالطلب (بدون وسمه مدفوع)
     if (orderId) {
-      await Order.findByIdAndUpdate(orderId, {
-        $set: {
-          paymentStatus: "paid", // حالة الدفع تصبح "مدفوع"
-          reference,
+      await Order.findByIdAndUpdate(
+        orderId,
+        {
+          $set: {
+            reference,
+            paymentMethod: "card",
+            // paymentStatus يبقى "unpaid" لحد ما يتأكد الدفع (Webhook/verify)
+          },
         },
-      }).lean();
+        { new: true }
+      ).lean();
     }
 
     return res.json({ authorization_url, reference });
@@ -124,7 +124,8 @@ router.post("/create", verifyToken, async (req, res) => {
 
 /**
  * GET /api/payments/status/:reference
- * يتحقق من حالة معاملة عبر Verify API
+ * يتحقق من حالة المعاملة
+ * - عند نجاح الدفع، استدعِ PATCH /api/orders/by-reference/:reference/pay
  */
 router.get("/status/:reference", async (req, res) => {
   try {

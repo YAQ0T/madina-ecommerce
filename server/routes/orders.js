@@ -2,7 +2,11 @@
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
-const { verifyToken, isAdmin } = require("../middleware/authMiddleware");
+const {
+  verifyToken,
+  verifyTokenOptional,
+  isAdmin,
+} = require("../middleware/authMiddleware");
 
 const Order = require("../models/Order");
 const Product = require("../models/Product");
@@ -193,7 +197,7 @@ async function decrementStock(cleanItems) {
 }
 
 /* =====================================================
- *  1) إنشاء طلب COD (مباشر)
+ *  1) إنشاء طلب COD (مباشر) — يتطلب حساب
  * ===================================================== */
 router.post("/", verifyToken, async (req, res) => {
   try {
@@ -244,6 +248,7 @@ router.post("/", verifyToken, async (req, res) => {
     // إنشاء الطلب
     const orderDoc = await Order.create({
       user: orderUser,
+      isGuest: false,
       address,
       status,
       items: cleanItems,
@@ -267,28 +272,11 @@ router.post("/", verifyToken, async (req, res) => {
 });
 
 /* =====================================================
- *  2) تحضير طلب بطاقة (Card) قبل التحويل للدفع
- *     - ننشئ طلب paymentMethod=card, paymentStatus=unpaid, status=pending
- *     - لا نخصم المخزون الآن
+ *  2) تحضير طلب بطاقة (Card) قبل التحويل للدفع — يدعم الضيف
  * ===================================================== */
-router.post("/prepare-card", verifyToken, async (req, res) => {
+router.post("/prepare-card", verifyTokenOptional, async (req, res) => {
   try {
     const body = req.body || {};
-    const authUserId = req.user?.id || req.user?._id;
-    if (!authUserId || !mongoose.isValidObjectId(authUserId)) {
-      return res.status(401).json({ message: "مصادقة غير صالحة." });
-    }
-
-    const realUser = await User.findById(authUserId);
-    if (!realUser)
-      return res.status(401).json({ message: "المستخدم غير موجود." });
-
-    const orderUser = {
-      _id: realUser._id,
-      name: realUser.name || "",
-      phone: realUser.phone || "",
-      email: realUser.email || "",
-    };
 
     const address = toCleanString(body.address);
     if (!address) return res.status(400).json({ message: "العنوان مطلوب." });
@@ -298,16 +286,58 @@ router.post("/prepare-card", verifyToken, async (req, res) => {
     if (!items.length)
       return res.status(400).json({ message: "عناصر الطلب مطلوبة." });
 
+    // من العميل: guestInfo اختياري للزوار
+    const guestInfo = body.guestInfo || {};
+    const guestName = toCleanString(guestInfo.name);
+    const guestPhone = toCleanString(guestInfo.phone);
+    const guestEmail = toCleanString(guestInfo.email);
+    const guestAddress = toCleanString(guestInfo.address);
+
+    // لو المستخدم مسجّل، استخدم بياناته؛ غير ذلك خزّن guestInfo
+    let orderUser = null;
+    let isGuest = true;
+
+    const authUserId = req.user?.id || req.user?._id;
+    if (authUserId && mongoose.isValidObjectId(authUserId)) {
+      const realUser = await User.findById(authUserId);
+      if (realUser) {
+        orderUser = {
+          _id: realUser._id,
+          name: realUser.name || "",
+          phone: realUser.phone || "",
+          email: realUser.email || "",
+        };
+        isGuest = false;
+      }
+    }
+
     const { cleanItems, serverSubtotal } = await buildOrderItemsFromClientItems(
       items
     );
     const discountInfo = await computeOrderDiscount(serverSubtotal);
     const finalTotal = Math.max(0, serverSubtotal - discountInfo.amount);
 
+    // ✅ الجديد: لو ضيف، نخزّن بياناته داخل user (بدون _id) ليظهر الاسم/الهاتف في الواجهة الحالية
+    const userForDoc = orderUser || {
+      name: guestName || "",
+      phone: guestPhone || "",
+      email: guestEmail || "",
+      // لا نضع _id هنا
+    };
+
     const orderDoc = await Order.create({
-      user: orderUser,
-      address,
-      status: "pending", // بانتظار الدفع/التأكيد
+      user: userForDoc, // ← هيك الواجهة رح تشوف user.name/phone
+      guestInfo: isGuest
+        ? {
+            name: guestName,
+            phone: guestPhone,
+            email: guestEmail,
+            address: guestAddress || address,
+          }
+        : undefined,
+      isGuest,
+      address, // عنوان الشحن الفعلي
+      status: "pending",
       items: cleanItems,
       subtotal: serverSubtotal,
       discount: discountInfo,
@@ -326,8 +356,7 @@ router.post("/prepare-card", verifyToken, async (req, res) => {
 });
 
 /* =====================================================
- *  3) ربط مرجع الدفع (reference) بالطلب بعد تهيئة الدفع
- *     - تُستدعى من راوتر payments بعد الحصول على reference
+ *  3) ربط مرجع الدفع
  * ===================================================== */
 router.patch("/:id/attach-reference", verifyToken, async (req, res) => {
   try {
@@ -352,8 +381,7 @@ router.patch("/:id/attach-reference", verifyToken, async (req, res) => {
 });
 
 /* =====================================================
- *  4) وسم الطلب كـ Paid via Reference (بديل إضافي/يدوي)
- *     - يمكن استدعاؤه من Webhook/Verify أو لأغراض صيانة
+ *  4) وسم الطلب مدفوعًا عبر المرجع (Webhook/Manual)
  * ===================================================== */
 router.patch("/by-reference/:reference/pay", async (req, res) => {
   try {
@@ -420,7 +448,7 @@ router.patch("/:id/status", verifyToken, isAdmin, async (req, res) => {
         {
           $set: {
             status,
-            paymentStatus: "paid", // تحديث حالة الدفع إلى "مدفوع"
+            paymentStatus: "paid",
           },
         },
         { new: true }
