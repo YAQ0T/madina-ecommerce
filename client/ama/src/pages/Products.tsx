@@ -46,6 +46,12 @@ type CategoryGroup = { mainCategory: string; subCategories: string[] };
 
 const PAGE_WINDOW = 5;
 
+/** ✅ دالة مساعدة: ما بتضيف ? إلا إذا فيه باراميترات */
+function withQuery(base: string, params: URLSearchParams) {
+  const qs = params.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+
 function buildPageWindow(
   current: number,
   total: number,
@@ -98,6 +104,8 @@ const Products: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const [facets, setFacets] = useState<Facets>({ measures: [], colors: [] });
+  const [loadingFacets, setLoadingFacets] = useState(false);
+  const [facetsError, setFacetsError] = useState<string | null>(null);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -160,27 +168,42 @@ const Products: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMainCategory, selectedSubCategory]);
 
+  // ✅ Scroll لأعلى عند تغيير الصفحة
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [currentPage]);
+
+  // Facets
+  // ⬇️ أضف أعلى الملف مع بقية الـuseState
+  // const [loadingFacets, setLoadingFacets] = useState(false);
+  // const [facetsError, setFacetsError] = useState<string | null>(null);
+
+  // Facets
+
   // Facets
   useEffect(() => {
     let ignore = false;
     (async () => {
+      setLoadingFacets(true);
+      setFacetsError(null);
       try {
         const params = new URLSearchParams();
+
         if (selectedMainCategory && selectedMainCategory !== "الكل") {
           params.set("mainCategory", selectedMainCategory);
         }
         if (selectedSubCategory) params.set("subCategory", selectedSubCategory);
         if (searchTerm) params.set("q", searchTerm);
-        if (maxPrice) params.set("maxPrice", maxPrice);
         if (canUseOwnership && ownershipFilter !== "all") {
           params.set("ownership", ownershipFilter);
         }
-        if (recentDays && recentDays > 0)
-          params.set("days", String(recentDays));
+        // (اختياري) لو بدك يقيدها بأيام التحديث:
+        // if (recentDays && recentDays > 0) params.set("days", String(recentDays));
 
-        const url = `${
-          import.meta.env.VITE_API_URL
-        }/api/products/facets?${params.toString()}`;
+        const base = `${import.meta.env.VITE_API_URL}/api/products/facets`;
+        const url = withQuery(base, params);
         const headers = token
           ? { Authorization: `Bearer ${token}` }
           : undefined;
@@ -210,10 +233,14 @@ const Products: React.FC = () => {
         ) {
           setSelectedMeasureSlug("");
         }
-      } catch {
+      } catch (e) {
+        setFacetsError("تعذر تحميل خيارات الألوان والمقاسات.");
         setFacets({ measures: [], colors: [] });
+      } finally {
+        setLoadingFacets(false);
       }
     })();
+
     return () => {
       ignore = true;
     };
@@ -221,11 +248,10 @@ const Products: React.FC = () => {
     selectedMainCategory,
     selectedSubCategory,
     searchTerm,
-    maxPrice,
     ownershipFilter,
     canUseOwnership,
     token,
-    recentDays,
+    // recentDays, // إذا فعّلتها فوق أضِفها هنا أيضاً
     selectedColorSlug,
     selectedMeasureSlug,
   ]);
@@ -251,13 +277,18 @@ const Products: React.FC = () => {
       if (selectedColorSlug) tags.push(`color:${selectedColorSlug}`);
       if (selectedMeasureSlug) tags.push(`measure:${selectedMeasureSlug}`);
       if (tags.length) params.set("tags", tags.join(","));
+      if (recentDays && recentDays > 0) {
+        params.set("days", String(recentDays));
+      }
 
       try {
         const base = `${import.meta.env.VITE_API_URL}/api/products`;
-        const url =
+        const endpoint =
           recentDays && recentDays > 0
-            ? `${base}/recent-updates?${params.toString()}&days=${recentDays}`
-            : `${base}/with-stats?${params.toString()}`;
+            ? `${base}/recent-updates`
+            : `${base}/with-stats`;
+        const url = withQuery(endpoint, params);
+
         const headers = token
           ? { Authorization: `Bearer ${token}` }
           : undefined;
@@ -464,9 +495,9 @@ const Products: React.FC = () => {
         params.set("limit", "10");
         params.set("q", rawSearch.trim());
 
-        const url = `${
-          import.meta.env.VITE_API_URL
-        }/api/products/with-stats?${params.toString()}`;
+        const base = `${import.meta.env.VITE_API_URL}/api/products/with-stats`;
+        const url = withQuery(base, params);
+
         const res = await axios.get(url, { headers });
         if (!active) return;
 
@@ -792,8 +823,24 @@ const Products: React.FC = () => {
                 setSelectedColorSlug(e.target.value);
                 setCurrentPage(1);
               }}
+              disabled={
+                loadingFacets || (!!facetsError && facets.colors.length === 0)
+              }
+              title={
+                loadingFacets
+                  ? "جاري تحميل الألوان..."
+                  : facetsError && facets.colors.length === 0
+                  ? "اختر فئة أو ابحث أولاً لعرض الألوان"
+                  : undefined
+              }
             >
-              <option value="">كل الألوان</option>
+              <option value="">
+                {loadingFacets
+                  ? "جاري التحميل..."
+                  : facets.colors.length
+                  ? "كل الألوان"
+                  : "اختر فئة/بحث لعرض الألوان"}
+              </option>
               {facets.colors.map((c) => (
                 <option key={c.slug} value={c.slug}>
                   {c.name}
@@ -808,8 +855,24 @@ const Products: React.FC = () => {
                 setSelectedMeasureSlug(e.target.value);
                 setCurrentPage(1);
               }}
+              disabled={
+                loadingFacets || (!!facetsError && facets.measures.length === 0)
+              }
+              title={
+                loadingFacets
+                  ? "جاري تحميل المقاسات..."
+                  : facetsError && facets.measures.length === 0
+                  ? "اختر فئة أو ابحث أولاً لعرض المقاسات"
+                  : undefined
+              }
             >
-              <option value="">كل المقاسات</option>
+              <option value="">
+                {loadingFacets
+                  ? "جاري التحميل..."
+                  : facets.measures.length
+                  ? "كل المقاسات"
+                  : "اختر فئة/بحث لعرض المقاسات"}
+              </option>
               {facets.measures.map((m) => (
                 <option key={m.slug} value={m.slug}>
                   {m.name}
@@ -838,7 +901,8 @@ const Products: React.FC = () => {
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 items-start">
+            {/* ✅ عمودين على الموبايل، 3 أعمدة من md وفوق */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 items-start">
               {products.map((product) => (
                 <ProductCard key={product._id} product={product} />
               ))}
