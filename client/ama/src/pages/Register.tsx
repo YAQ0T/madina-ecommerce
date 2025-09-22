@@ -8,49 +8,48 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 
 const Register: React.FC = () => {
-  const { login, user } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState(""); // اختياري
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // منع الوصول إذا المستخدم مسجّل بالفعل
   useEffect(() => {
-    if (user) {
-      navigate("/");
-    }
+    if (user) navigate("/");
   }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
     try {
-      // نسجل المستخدم كـ role: "user"
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/signup`, {
-        name,
-        phone,
-        email,
-        password,
-        role: "user",
-      });
-
-      // بعد النجاح، نعمل تسجيل دخول مباشر
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/auth/login`,
+        `${import.meta.env.VITE_API_URL}/api/auth/signup`,
         {
-          email,
+          name,
+          phone,
+          email: email || undefined,
           password,
+          role: "user",
         }
       );
 
-      login(res.data.user, res.data.token);
-      navigate("/");
+      // الانتقال لصفحة التحقق
+      const { userId, phone: normalized } = res.data;
+      navigate(
+        `/verify-phone?userId=${encodeURIComponent(
+          userId
+        )}&phone=${encodeURIComponent(normalized)}`
+      );
     } catch (err: any) {
       setError(err?.response?.data?.message || "فشل في إنشاء الحساب");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -67,37 +66,35 @@ const Register: React.FC = () => {
               الاسم الكامل
             </label>
             <Input
-              type="text"
               id="name"
-              placeholder="اسمك"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              placeholder="اسمك"
             />
           </div>
 
           <div>
             <label htmlFor="phone" className="block mb-1 font-medium">
-              رقم الهاتف
+              رقم الهاتف (مطلوب)
             </label>
             <Input
-              type="text"
               id="phone"
-              placeholder="0599999999"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              placeholder="059XXXXXXX"
             />
           </div>
 
           <div>
             <label htmlFor="email" className="block mb-1 font-medium">
-              البريد الإلكتروني
+              البريد الإلكتروني (اختياري)
             </label>
             <Input
-              type="email"
               id="email"
-              placeholder="example@example.com"
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="example@example.com"
             />
           </div>
 
@@ -106,16 +103,18 @@ const Register: React.FC = () => {
               كلمة المرور
             </label>
             <Input
-              type="password"
               id="password"
-              placeholder="••••••••"
+              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
             />
           </div>
 
           <div className="text-left">
-            <Button type="submit">تسجيل</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "جاري..." : "تسجيل"}
+            </Button>
           </div>
         </form>
       </main>

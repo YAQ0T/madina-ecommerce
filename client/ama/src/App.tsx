@@ -17,19 +17,18 @@ import { useEffect, useState } from "react";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import ReturnsPolicy from "./pages/ReturnsPolicy";
 import AdminHomeCollections from "./pages/AdminHomeCollections";
+import VerifyPhone from "./pages/VerifyPhone";
 
 function App() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    // افتح الدايالوج أول ما يدخل المستخدم
     setOpen(true);
   }, []);
 
   return (
     <>
       <OfferDialog open={open} onClose={() => setOpen(false)} />
-
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/products" element={<Products />} />
@@ -39,6 +38,7 @@ function App() {
         <Route path="/account" element={<Account />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-phone" element={<VerifyPhone />} />
         <Route path="/products/:id" element={<ProductDetails />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/returnes" element={<ReturnsPolicy />} />

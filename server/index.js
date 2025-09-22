@@ -263,6 +263,7 @@ app.use((err, req, res, next) => {
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
+/* ---------- auth ---------- */
 
 /* ---------- Graceful Shutdown ---------- */
 const shutdown = () => {

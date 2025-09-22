@@ -6,21 +6,17 @@ import { Input } from "@/components/ui/input";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import {} from "react";
 
 const Login: React.FC = () => {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState(""); // هاتف أو بريد
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const { user } = useAuth();
 
   useEffect(() => {
-    if (user) {
-      navigate("/");
-    }
+    if (user) navigate("/");
   }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,19 +24,16 @@ const Login: React.FC = () => {
     setError("");
 
     try {
+      const body = /^\d+$/.test(identifier.replace(/[^\d]/g, "")) // إذا أرقام فقط نتعامل معه كجوّال
+        ? { phone: identifier, password }
+        : { email: identifier, password };
+
       const res = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/auth/login`,
-        {
-          email,
-          password,
-        }
+        body
       );
-      login(res.data.user, res.data.token); // ⬅️ تحديث الـ context
-      if (res.data.user.role === "admin") {
-        navigate("/admin");
-      } else {
-        navigate("/");
-      }
+      login(res.data.user, res.data.token);
+      navigate("/");
     } catch (err: any) {
       setError(err?.response?.data?.message || "فشل تسجيل الدخول");
     }
@@ -55,31 +48,26 @@ const Login: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4 text-right">
           <div>
-            <label htmlFor="email" className="block mb-1 font-medium">
-              البريد الإلكتروني
+            <label className="block mb-1 font-medium">
+              رقم الهاتف أو البريد
             </label>
             <Input
-              type="email"
-              id="email"
-              placeholder="example@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="059XXXXXXX أو email@example.com"
             />
           </div>
           <div>
-            <label htmlFor="password" className="block mb-1 font-medium">
-              كلمة المرور
-            </label>
+            <label className="block mb-1 font-medium">كلمة المرور</label>
             <Input
               type="password"
-              id="password"
-              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
             />
           </div>
           <div className="text-left">
-            <Button type="submit">تسجيل الدخول</Button>
+            <Button type="submit">دخول</Button>
           </div>
         </form>
       </main>
