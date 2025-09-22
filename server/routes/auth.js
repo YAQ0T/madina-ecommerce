@@ -97,7 +97,7 @@ router.post("/signup", async (req, res) => {
     await user.save();
 
     // أرسل الكود
-    const msg = `رمز التحقق من مدينا: ${code} (صالح 10 دقائق)`;
+    const msg = `رمز التحقق من Dikori: ${code} (صالح 10 دقائق)`;
     await sendSMS({ to: user.phone, msg });
 
     return res.status(201).json({

@@ -3,8 +3,8 @@ const axios = require("axios");
 const qs = require("querystring");
 
 const HTD_BASE = "http://sms.htd.ps/API";
-const HTD_ID = process.env.SMS_HTD_ID; // مثال: ded7c741e13cb12db1519e4403ab7c2c
-const HTD_SENDER = process.env.SMS_HTD_SENDER || "Madina"; // عدّل اسم المرسل
+const HTD_ID = process.env.SMS_HTD_ID;
+const HTD_SENDER = process.env.SMS_HTD_SENDER || "Dikori"; // عدّل اسم المرسل
 
 function buildTo(msisdn) {
   // تأكد من أن الرقم بصيغة 970XXXXXXXXX بدون +
