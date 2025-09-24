@@ -5,11 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import axios from "axios";
-
-const API_BASE =
-  import.meta.env.VITE_API_BASE?.toString().replace(/\/+$/, "") ||
-  "http://localhost:3001/api";
 
 const Login: React.FC = () => {
   const { login, user } = useAuth();
