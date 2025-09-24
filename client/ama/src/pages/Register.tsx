@@ -69,7 +69,10 @@ const Register: React.FC = () => {
       // مباشرةً أرسل كود التوثيق (إن توفر userId و phone) ثم وجّه للصفحة
       if (userId && phone) {
         try {
-          await axios.post(`${API_BASE}/auth/send-sms-code`, { userId, phone });
+          await axios.post(`${API_BASE}/api/auth/send-sms-code`, {
+            userId,
+            phone,
+          });
         } catch {
           // حتى لو فشل الارسال هنا، الصفحة القادمة فيها زر إعادة إرسال
         }

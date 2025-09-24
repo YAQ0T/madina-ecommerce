@@ -27,13 +27,16 @@ const ForgotPassword: React.FC = () => {
 
     try {
       setLoading(true);
-      const res = await axios.post(`${API_BASE}/auth/password/request-reset`, {
-        // نرسل كلاهما، والسيرفر يتعامل مع الموجود منهما
-        email: identifier.includes("@")
-          ? identifier.trim().toLowerCase()
-          : undefined,
-        phone: !identifier.includes("@") ? identifier.trim() : undefined,
-      });
+      const res = await axios.post(
+        `${API_BASE}/api/auth/password/request-reset`,
+        {
+          // نرسل كلاهما، والسيرفر يتعامل مع الموجود منهما
+          email: identifier.includes("@")
+            ? identifier.trim().toLowerCase()
+            : undefined,
+          phone: !identifier.includes("@") ? identifier.trim() : undefined,
+        }
+      );
 
       const userId = res?.data?.userId;
       setOkMsg("إن وُجد حساب سيتم إرسال كود إلى جوالك.");
