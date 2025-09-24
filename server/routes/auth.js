@@ -1,3 +1,4 @@
+// server/routes/auth.js
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -12,12 +13,13 @@ const router = express.Router();
 ========================= */
 const JWT_SECRET = process.env.JWT_SECRET || "changeme_dev_secret";
 const HTD_BASE = "http://sms.htd.ps/API";
-const SMS_HTD_ID = process.env.SMS_HTD_ID || ""; // مثلاً: ded7...
+const SMS_HTD_ID = process.env.SMS_HTD_ID || "";
 const SMS_SENDER = process.env.SMS_HTD_SENDER || "Madina";
 
-function normalizePhone(p) {
-  // إلى صيغة 970XXXXXXXXX بدون +
-  let to = String(p || "").replace(/[^\d]/g, "");
+/* ============== أدوات مساعدة للـ SMS ============== */
+function normalizePhone(msisdn) {
+  let to = String(msisdn || "").replace(/[^\d]/g, "");
+  if (!to) return "";
   if (to.startsWith("0")) to = "970" + to.slice(1);
   if (!to.startsWith("970")) to = "970" + to;
   return to;
@@ -38,83 +40,152 @@ async function sendSMS({ to, msg }) {
 }
 
 async function getCredit() {
-  if (!SMS_HTD_ID) throw new Error("SMS_HTD_ID غير معرّف");
+  if (!SMS_HTD_ID) throw new Error("SMS_HTD_ID غير معرّف في .env");
   const url = `${HTD_BASE}/GetCredit.aspx?id=${encodeURIComponent(SMS_HTD_ID)}`;
   const { status, data } = await axios.get(url, { timeout: 10000 });
   return { ok: status === 200, raw: data };
 }
 
-function generateOTP() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+/* ============== أكواد/حقول OTP ============== */
+// NOTE: نفترض وجود حقول في نموذج المستخدم:
+// phoneVerificationCodeHash, phoneVerificationExpires, phoneVerificationAttempts
+// ويمكنك إضافة مشابه:
+// resetPasswordCodeHash, resetPasswordExpires, resetPasswordAttempts
+// لو ما عندك دوال setPhoneOTP/checkPhoneOTP، نستخدم بديل داخلي هنا:
+async function setPhoneOTPOnUser(user, code) {
+  const hash = await bcrypt.hash(String(code), 10);
+  user.phoneVerificationCodeHash = hash;
+  user.phoneVerificationExpires = new Date(Date.now() + 5 * 60 * 1000);
+  user.phoneVerificationAttempts = 0;
+}
+
+async function checkPhoneOTPOnUser(user, code) {
+  if (!user.phoneVerificationCodeHash || !user.phoneVerificationExpires)
+    return false;
+  if (user.phoneVerificationExpires.getTime() < Date.now()) return false;
+  return bcrypt.compare(String(code), user.phoneVerificationCodeHash);
+}
+
+async function setResetOTPOnUser(user, code) {
+  const hash = await bcrypt.hash(String(code), 10);
+  user.resetPasswordCodeHash = hash;
+  user.resetPasswordExpires = new Date(Date.now() + 5 * 60 * 1000);
+  user.resetPasswordAttempts = 0;
+}
+
+async function checkResetOTPOnUser(user, code) {
+  if (!user.resetPasswordCodeHash || !user.resetPasswordExpires) return false;
+  if (user.resetPasswordExpires.getTime() < Date.now()) return false;
+  return bcrypt.compare(String(code), user.resetPasswordCodeHash);
 }
 
 /* =========================
-   التسجيل: /signup
-   - البريد اختياري
-   - الجوال إجباري وفريد
-   - يرسل OTP عبر SMS
+   ✅ تسجيل مستخدم جديد: /signup
 ========================= */
 router.post("/signup", async (req, res) => {
   try {
-    let { name, phone, email, password, role } = req.body || {};
+    const { name, email, phone, password } = req.body || {};
 
-    if (!phone) return res.status(400).json({ message: "رقم الجوال مطلوب" });
-    if (!password)
-      return res.status(400).json({ message: "كلمة المرور مطلوبة" });
-
-    const phoneNorm = normalizePhone(phone);
-
-    // منع التكرار حسب الهاتف
-    const existingByPhone = await User.findOne({ phone: phoneNorm }).lean();
-    if (existingByPhone) {
-      return res.status(400).json({ message: "رقم الجوال مستخدم بالفعل" });
+    if (!name || !password || (!email && !phone)) {
+      return res.status(400).json({
+        message: "الاسم وكلمة المرور ومُعرّف واحد (بريد أو جوال) مطلوبة",
+      });
     }
 
-    // لو البريد ممرر، افحص تكراره (اختياري)
-    email = email ? String(email).toLowerCase() : undefined;
-    if (email) {
-      const existingByEmail = await User.findOne({ email }).lean();
-      if (existingByEmail) {
-        return res
-          .status(400)
-          .json({ message: "البريد الإلكتروني مستخدم بالفعل" });
-      }
+    const normEmail = email ? String(email).toLowerCase().trim() : null;
+    const normPhone = phone ? normalizePhone(phone) : null;
+
+    const existing = await User.findOne({
+      $or: [
+        ...(normEmail ? [{ email: normEmail }] : []),
+        ...(normPhone ? [{ phone: normPhone }] : []),
+      ],
+    });
+
+    if (existing) {
+      return res
+        .status(409)
+        .json({ message: "المستخدم موجود مسبقًا بالبريد أو الجوال" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(String(password), 10);
 
     const user = new User({
-      name,
-      phone: phoneNorm,
-      email, // ممكن undefined
-      password: hashedPassword,
-      role: role || "user",
+      name: String(name).trim(),
+      email: normEmail || undefined,
+      phone: normPhone || undefined,
+      password: hash,
+      role: "user",
       phoneVerified: false,
+      phoneVerificationAttempts: 0,
     });
 
-    const code = generateOTP();
-    user.setPhoneOTP(code, 10);
+    // لو عندك methods user.setPhoneOTP فاستعملها؛ وإلّا استخدم البديل:
+    if (typeof user.setPhoneOTP === "function") {
+      const code = Math.floor(100000 + Math.random() * 900000);
+      user.setPhoneOTP(code);
+      // إرسال SMS سيتم من الواجهة عبر /send-sms-code
+    }
+
     await user.save();
 
-    // أرسل الكود
-    const msg = `رمز التحقق من Dikori: ${code} (صالح 10 دقائق)`;
-    await sendSMS({ to: user.phone, msg });
-
-    return res.status(201).json({
-      message: "تم إنشاء الحساب وإرسال رمز التحقق عبر SMS",
+    return res.json({
+      ok: true,
+      message: "تم إنشاء الحساب بنجاح. يرجى توثيق رقم الجوال قبل تسجيل الدخول.",
       userId: user._id,
-      phone: user.phone,
+      phone: user.phone || null,
+      needsPhoneVerification: true,
     });
   } catch (err) {
-    console.error("signup error:", err?.response?.data || err.message);
-    return res
-      .status(500)
-      .json({ error: err.message || "فشل في إنشاء الحساب" });
+    console.error("signup error:", err);
+    return res.status(500).json({ error: err.message || "خطأ غير متوقع" });
   }
 });
 
 /* =========================
-   التحقق من كود SMS: /verify-sms
+   إرسال كود SMS للتوثيق
+========================= */
+router.post("/send-sms-code", async (req, res) => {
+  try {
+    const { userId, phone } = req.body || {};
+    if (!userId || !phone) {
+      return res.status(400).json({ message: "بيانات ناقصة" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "المستخدم غير موجود" });
+
+    const normalized = normalizePhone(phone);
+    user.phone = normalized;
+    user.phoneVerified = false;
+
+    const code = Math.floor(100000 + Math.random() * 900000);
+    if (typeof user.setPhoneOTP === "function") {
+      user.setPhoneOTP(code);
+    } else {
+      await setPhoneOTPOnUser(user, code);
+    }
+    await user.save();
+
+    const sms = await sendSMS({
+      to: normalized,
+      msg: `رمز التوثيق: ${code} - صالح لـ 5 دقائق`,
+    });
+    if (!sms.ok) {
+      return res
+        .status(502)
+        .json({ message: "فشل إرسال الرسالة", raw: sms.raw });
+    }
+
+    return res.json({ ok: true, message: "تم إرسال الرمز بنجاح" });
+  } catch (err) {
+    console.error("send-sms-code error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/* =========================
+   التحقق من كود SMS للتوثيق
 ========================= */
 router.post("/verify-sms", async (req, res) => {
   try {
@@ -135,7 +206,14 @@ router.post("/verify-sms", async (req, res) => {
 
     user.phoneVerificationAttempts += 1;
 
-    if (!user.checkPhoneOTP(code)) {
+    let ok = false;
+    if (typeof user.checkPhoneOTP === "function") {
+      ok = user.checkPhoneOTP(code);
+    } else {
+      ok = await checkPhoneOTPOnUser(user, code);
+    }
+
+    if (!ok) {
       await user.save();
       return res.status(400).json({ message: "رمز غير صحيح أو منتهي" });
     }
@@ -144,64 +222,17 @@ router.post("/verify-sms", async (req, res) => {
     user.phoneVerificationCodeHash = undefined;
     user.phoneVerificationExpires = undefined;
     user.phoneVerificationAttempts = 0;
-    user.phoneVerificationResends = 0;
+
     await user.save();
 
     return res.json({ ok: true, message: "تم توثيق رقم الهاتف بنجاح" });
   } catch (err) {
-    console.error("verify-sms error:", err.message);
-    res.status(500).json({ error: "خطأ أثناء التحقق" });
+    res.status(500).json({ error: err.message });
   }
 });
 
 /* =========================
-   إعادة إرسال كود: /resend-sms
-========================= */
-router.post("/resend-sms", async (req, res) => {
-  try {
-    const { userId } = req.body || {};
-    if (!userId) return res.status(400).json({ message: "بيانات ناقصة" });
-
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: "المستخدم غير موجود" });
-    if (user.phoneVerified)
-      return res.status(400).json({ message: "الهاتف موثق بالفعل" });
-
-    if (user.phoneVerificationResends >= 5) {
-      return res.status(429).json({ message: "تجاوزت حد إعادة الإرسال" });
-    }
-
-    const code = generateOTP();
-    user.setPhoneOTP(code, 10);
-    user.phoneVerificationResends += 1;
-    await user.save();
-
-    const msg = `رمز التحقق من مدينا: ${code} (صالح 10 دقائق)`;
-    await sendSMS({ to: user.phone, msg });
-
-    return res.json({ ok: true, message: "تم إرسال رمز جديد" });
-  } catch (err) {
-    console.error("resend-sms error:", err.message);
-    res.status(500).json({ error: "حدث خطأ أثناء إعادة الإرسال" });
-  }
-});
-
-/* =========================
-   الرصيد: /sms-credit (اختياري)
-========================= */
-router.get("/sms-credit", async (req, res) => {
-  try {
-    const c = await getCredit();
-    res.json({ ok: true, credit: c.raw });
-  } catch (err) {
-    res.status(500).json({ error: "تعذر جلب الرصيد" });
-  }
-});
-
-/* =========================
-   تسجيل الدخول: /login
-   - يقبل phone أو email مع password
-   - يشترط phoneVerified=true
+   تسجيل الدخول
 ========================= */
 router.post("/login", async (req, res) => {
   try {
@@ -223,9 +254,12 @@ router.post("/login", async (req, res) => {
     if (!match) return res.status(401).json({ message: "كلمة المرور خاطئة" });
 
     if (!user.phoneVerified) {
-      return res
-        .status(403)
-        .json({ message: "يجب توثيق رقم الجوال قبل تسجيل الدخول" });
+      // 🔴 مهم: نرجع userId و phone لتسهيل تحويل الواجهة لصفحة التوثيق
+      return res.status(403).json({
+        message: "يجب توثيق رقم الجوال قبل تسجيل الدخول",
+        userId: user._id,
+        phone: user.phone || null,
+      });
     }
 
     const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, {
@@ -243,6 +277,93 @@ router.post("/login", async (req, res) => {
         phoneVerified: user.phoneVerified,
       },
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* =========================
+   نسيت كلمة المرور — طلب كود
+========================= */
+router.post("/password/request-reset", async (req, res) => {
+  try {
+    const { phone, email } = req.body || {};
+    if (!phone && !email) {
+      return res.status(400).json({ message: "أدخل البريد أو رقم الجوال" });
+    }
+
+    const query = phone
+      ? { phone: normalizePhone(phone) }
+      : { email: String(email).toLowerCase() };
+    const user = await User.findOne(query);
+    if (!user) {
+      // لأسباب أمنية: لا نفصح إن كان المستخدم موجودًا أو لا
+      return res.json({
+        ok: true,
+        message: "إن وُجد حساب سيتم إرسال كود إليه",
+      });
+    }
+
+    if (!user.phone) {
+      return res.json({
+        ok: true,
+        message: "إن وُجد حساب سيتم إرسال كود إليه",
+      });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000);
+    await setResetOTPOnUser(user, code);
+    await user.save();
+
+    const sms = await sendSMS({
+      to: user.phone,
+      msg: `إعادة تعيين كلمة المرور: ${code} - صالح لـ 5 دقائق`,
+    });
+    if (!sms.ok) {
+      return res.json({ ok: true, message: "تم الإجراء، تحقق من هاتفك" });
+    }
+
+    return res.json({
+      ok: true,
+      message: "تم إرسال كود إعادة التعيين إن كان الحساب موجودًا",
+      userId: user._id, // لمساعدة الواجهة في تعبئة الحقل
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* =========================
+   نسيت كلمة المرور — تعيين كلمة جديدة
+========================= */
+router.post("/password/reset", async (req, res) => {
+  try {
+    const { userId, code, newPassword } = req.body || {};
+    if (!userId || !code || !newPassword) {
+      return res.status(400).json({ message: "بيانات ناقصة" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "المستخدم غير موجود" });
+
+    user.resetPasswordAttempts = (user.resetPasswordAttempts || 0) + 1;
+    if (user.resetPasswordAttempts > 6) {
+      return res.status(429).json({ message: "تجاوزت حد المحاولات" });
+    }
+
+    const valid = await checkResetOTPOnUser(user, code);
+    if (!valid) {
+      await user.save();
+      return res.status(400).json({ message: "رمز غير صحيح أو منتهي" });
+    }
+
+    user.password = await bcrypt.hash(String(newPassword), 10);
+    user.resetPasswordCodeHash = undefined;
+    user.resetPasswordExpires = undefined;
+    user.resetPasswordAttempts = 0;
+
+    await user.save();
+    return res.json({ ok: true, message: "تم تحديث كلمة المرور بنجاح" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

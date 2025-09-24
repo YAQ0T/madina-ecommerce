@@ -3,9 +3,13 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import axios from "axios";
+
+const API_BASE =
+  import.meta.env.VITE_API_BASE?.toString().replace(/\/+$/, "") ||
+  "http://localhost:3001/api";
 
 const Login: React.FC = () => {
   const { login, user } = useAuth();
@@ -14,60 +18,102 @@ const Login: React.FC = () => {
   const [identifier, setIdentifier] = useState(""); // هاتف أو بريد
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [verifyInfo, setVerifyInfo] = useState<{
+    userId?: string;
+    phone?: string;
+  }>({});
 
   useEffect(() => {
-    if (user) navigate("/");
+    if (user) {
+      if (user.role === "admin") navigate("/admin");
+      else navigate("/");
+    }
   }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
+    setVerifyInfo({});
     try {
-      const body = /^\d+$/.test(identifier.replace(/[^\d]/g, "")) // إذا أرقام فقط نتعامل معه كجوّال
-        ? { phone: identifier, password }
-        : { email: identifier, password };
-
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/auth/login`,
-        body
-      );
-      login(res.data.user, res.data.token);
-      navigate("/");
+      await login(identifier.trim(), password);
+      // التوجيه سيتم عبر useEffect
     } catch (err: any) {
-      setError(err?.response?.data?.message || "فشل تسجيل الدخول");
+      const status = err?.response?.status;
+      const data = err?.response?.data || {};
+      const msg = data?.message || err?.message || "تعذر تسجيل الدخول";
+      setError(String(msg));
+
+      if (status === 403 && (data?.userId || data?.phone)) {
+        setVerifyInfo({ userId: data.userId, phone: data.phone });
+      }
     }
   };
 
   return (
     <>
       <Navbar />
-      <main className="container mx-auto p-6 max-w-md">
-        <h1 className="text-3xl font-bold mb-6 text-right">تسجيل الدخول</h1>
-        {error && <p className="text-red-500 text-right">{error}</p>}
+      <main className="container mx-auto max-w-md px-4 py-10">
+        <h1 className="text-2xl font-bold mb-6 text-center">تسجيل الدخول</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-right">
+        {error && (
+          <div className="mb-4 rounded-xl border p-3 text-red-600 bg-red-50">
+            {error}
+          </div>
+        )}
+
+        {verifyInfo.userId && (
+          <div className="mb-4 rounded-xl border p-3 bg-yellow-50 text-yellow-800">
+            لم يتم توثيق رقم جوالك بعد.
+            <div className="mt-2">
+              <Button
+                onClick={() =>
+                  navigate(
+                    `/verify?userId=${encodeURIComponent(
+                      String(verifyInfo.userId)
+                    )}${
+                      verifyInfo.phone
+                        ? `&phone=${encodeURIComponent(verifyInfo.phone)}`
+                        : ""
+                    }`
+                  )
+                }
+              >
+                توثيق الحساب الآن
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div>
-            <label className="block mb-1 font-medium">
-              رقم الهاتف أو البريد
-            </label>
+            <label className="block mb-1">رقم الجوال أو البريد</label>
             <Input
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="059XXXXXXX أو email@example.com"
+              placeholder="059xxxxxxx أو name@example.com"
+              inputMode="email"
+              autoComplete="username"
+              required
             />
           </div>
+
           <div>
-            <label className="block mb-1 font-medium">كلمة المرور</label>
+            <label className="block mb-1">كلمة المرور</label>
             <Input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
               placeholder="••••••••"
             />
           </div>
-          <div className="text-left">
+
+          <div className="flex items-center justify-between">
             <Button type="submit">دخول</Button>
+            <Button variant="link" onClick={() => navigate("/forgot-password")}>
+              نسيت كلمة المرور؟
+            </Button>
           </div>
         </form>
       </main>

@@ -15,155 +15,160 @@ function isDiscountActive(discount = {}) {
   return true;
 }
 
-function computeFinalAmount(price = {}) {
-  const amount = typeof price.amount === "number" ? price.amount : 0;
-  if (!amount) return 0;
-
-  const discount = price.discount || {};
-  if (!isDiscountActive(discount)) return amount;
-
-  return discount.type === "percent"
-    ? Math.max(0, amount - (amount * discount.value) / 100)
-    : Math.max(0, amount - discount.value);
-}
-
 /**
  * GET /api/products/recent-updates
- * يرجّع المنتجات التي لديها Variants تم تحديثها خلال آخر N أيام (افتراض 7)
- * يدعم: mainCategory, subCategory, q, ownership, tags, page, limit, days
+ * - يسترجع المنتجات التي تم تحديثها (product أو variant) خلال X أيام
+ * - يدعم: mainCategory, subCategory, q, ownership, tags, page, limit, days
  */
 router.get("/recent-updates", async (req, res) => {
   try {
     const {
-      days = "7",
-      page = "1",
-      limit = "9",
+      page = 1,
+      limit = 20,
+      days = 14,
+      q,
       mainCategory,
       subCategory,
-      q,
       ownership,
-      tags, // comma-separated: color:red,measure:xl
+      tags,
+      threshold,
     } = req.query;
 
-    const daysNum = Math.max(1, parseInt(days, 10) || 7);
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(60, Math.max(1, parseInt(limit, 10) || 9));
-    const threshold = new Date(Date.now() - daysNum * 24 * 60 * 60 * 1000);
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const daysNum = Math.max(1, parseInt(days, 10) || 14);
 
-    // فلترة الـ Variants التي تعتبر "محدّثة مؤخرًا"
-    const variantMatch = {
+    const sinceDate = new Date(Date.now() - daysNum * 24 * 60 * 60 * 1000);
+
+    // Build product query
+    const productMatch = {
       $or: [
-        { updatedAt: { $gte: threshold } },
-        { "price.discount.startAt": { $gte: threshold } },
-        { "price.discount.endAt": { $gte: threshold } },
+        { updatedAt: { $gte: sinceDate } },
+        { createdAt: { $gte: sinceDate } },
       ],
     };
-
-    // فلترة tags على مستوى الـ Variant (color:xx, measure:yy ...)
-    if (typeof tags === "string" && tags.trim()) {
-      const tagsArray = tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-      if (tagsArray.length) {
-        variantMatch.tags = { $all: tagsArray };
-      }
+    if (q) {
+      productMatch.$text = { $search: String(q) };
     }
-
-    // IDs المنتجات التي لديها أي تحديث خلال الفترة
-    const productIds = await Variant.distinct("product", variantMatch);
-    if (!productIds || productIds.length === 0) {
-      return res.json({
-        items: [],
-        totalPages: 1,
-        total: 0,
-        updatedSinceDays: daysNum,
-        threshold,
-      });
-    }
-
-    // فلترة المنتجات نفسها
-    const productMatch = { _id: { $in: productIds } };
-    if (mainCategory && mainCategory !== "الكل") {
-      productMatch.mainCategory = mainCategory;
-    }
-    if (subCategory) {
-      productMatch.subCategory = subCategory;
-    }
-    if (q && String(q).trim()) {
-      const regex = new RegExp(String(q).trim(), "i");
-      productMatch.$or = [{ name: regex }, { description: regex }];
-    }
-    // ⚠️ عدّل هذا حسب حقل الملكية لديك (مثلاً sourceType أو ownerType)
+    if (mainCategory) productMatch.mainCategory = String(mainCategory);
+    if (subCategory) productMatch.subCategory = String(subCategory);
     if (ownership && ["ours", "local"].includes(String(ownership))) {
-      productMatch.ownership = ownership;
+      // FIX: use schema field ownershipType
+      productMatch.ownershipType = ownership;
+    }
+    if (tags) {
+      const arr =
+        typeof tags === "string"
+          ? tags
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
+          : [];
+      if (arr.length) productMatch.tags = { $in: arr };
     }
 
-    const total = await Product.countDocuments(productMatch);
-
-    // جلب منتجات الصفحة الحالية
-    const products = await Product.find(productMatch, {
-      name: 1,
-      description: 1,
-      images: 1,
-      mainCategory: 1,
-      subCategory: 1,
-    })
-      .skip((pageNum - 1) * limitNum)
-      .limit(limitNum)
-      .lean();
-
-    // جلب Variants لهذه الصفحة فقط
-    const pageProductIds = products.map((p) => p._id);
-    const pageVariants = await Variant.find(
-      { product: { $in: pageProductIds } },
+    const agg = [
+      { $match: productMatch },
       {
-        product: 1,
-        "price.amount": 1,
-        "price.compareAt": 1,
-        "price.discount": 1,
-        "stock.inStock": 1,
+        $lookup: {
+          from: "variants",
+          localField: "_id",
+          foreignField: "productId",
+          as: "variants",
+        },
+      },
+      {
+        $addFields: {
+          anyVariantUpdatedRecently: {
+            $gt: [
+              {
+                $size: {
+                  $filter: {
+                    input: "$variants",
+                    as: "v",
+                    cond: {
+                      $or: [
+                        { $gte: ["$$v.updatedAt", sinceDate] },
+                        { $gte: ["$$v.createdAt", sinceDate] },
+                      ],
+                    },
+                  },
+                },
+              },
+              0,
+            ],
+          },
+        },
+      },
+      {
+        $match: {
+          $or: [
+            { anyVariantUpdatedRecently: true },
+            { updatedAt: { $gte: sinceDate } },
+            { createdAt: { $gte: sinceDate } },
+          ],
+        },
+      },
+      { $sort: { updatedAt: -1, createdAt: -1 } },
+      {
+        $facet: {
+          meta: [{ $count: "total" }],
+          data: [{ $skip: (p - 1) * l }, { $limit: l }],
+        },
+      },
+    ];
+
+    const result = await Product.aggregate(agg);
+    const total = result?.[0]?.meta?.[0]?.total || 0;
+    const totalPages = Math.ceil(total / l);
+
+    // shape output (calculate final price from variant discount/price)
+    const shaped = (result?.[0]?.data || []).map((doc) => {
+      const v = Array.isArray(doc.variants) ? doc.variants[0] : null;
+      let finalPrice = v?.price?.amount ?? null;
+      if (v && v.discount && isDiscountActive(v.discount)) {
+        finalPrice =
+          v.discount.type === "percent"
+            ? Math.max(
+                0,
+                Math.round((v.price.amount * (100 - v.discount.value)) / 100)
+              )
+            : Math.max(0, v.price.amount - v.discount.value);
       }
-    ).lean();
-
-    // حساب minPrice & totalStock لكل منتج
-    const statsByProduct = new Map();
-    for (const v of pageVariants) {
-      const pid = String(v.product);
-      const finalAmount = computeFinalAmount(v.price || {});
-      const stock =
-        v.stock && typeof v.stock.inStock === "number" ? v.stock.inStock : 0;
-
-      if (!statsByProduct.has(pid)) {
-        statsByProduct.set(pid, { minPrice: finalAmount, totalStock: stock });
-      } else {
-        const s = statsByProduct.get(pid);
-        s.minPrice = Math.min(s.minPrice, finalAmount);
-        s.totalStock += stock;
-        statsByProduct.set(pid, s);
-      }
-    }
-
-    const items = products.map((p) => {
-      const s = statsByProduct.get(String(p._id)) || {
-        minPrice: 0,
-        totalStock: 0,
-      };
       return {
-        _id: p._id,
-        name: p.name || "",
-        description: p.description || "",
-        images: Array.isArray(p.images) ? p.images : [],
-        mainCategory: p.mainCategory,
-        subCategory: p.subCategory,
-        minPrice: s.minPrice,
-        totalStock: s.totalStock,
+        _id: doc._id,
+        name: doc.name,
+        images: doc.images || [],
+        mainCategory: doc.mainCategory,
+        subCategory: doc.subCategory,
+        ownershipType: doc.ownershipType || null,
+        tags: doc.tags || [],
+        updatedAt: doc.updatedAt,
+        createdAt: doc.createdAt,
+        firstVariant: v
+          ? {
+              _id: v._id,
+              price: v.price || null,
+              discount: v.discount || null,
+              finalPrice,
+            }
+          : null,
       };
     });
 
-    const totalPages = Math.max(1, Math.ceil(total / limitNum));
-    return res.json({
-      items,
+    // threshold (min final price) optional filter
+    let filtered = shaped;
+    const th = Number(threshold);
+    if (!Number.isNaN(th)) {
+      filtered = shaped.filter(
+        (p) => (p.firstVariant?.finalPrice ?? Infinity) >= th
+      );
+    }
+
+    res.json({
+      page: p,
+      limit: l,
+      data: filtered,
       totalPages,
       total,
       updatedSinceDays: daysNum,

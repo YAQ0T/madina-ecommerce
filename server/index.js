@@ -14,21 +14,16 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 /* ---------- CORS ---------- */
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://madina-ecommerce.vercel.app",
-  "https://dikori.com",
-  "https://www.dikori.com",
-];
-
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error("Not allowed by CORS"));
-    },
+    origin: (origin, cb) => cb(null, true),
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "x-forwarded-for",
+      "x-lahza-signature",
+    ],
     credentials: true,
   })
 );
@@ -87,7 +82,7 @@ app.post(
 
       if (WEBHOOK_IP_WHITELIST && WEBHOOK_ALLOWED_IPS.length) {
         const ip = getClientIp(req);
-        const pass = WEBHOOK_ALLOWED_IPS.some((a) => ip.includes(a));
+        const pass = WEBHOOK_ALLOWED_IPS.some((a) => ip === a);
         if (!pass) {
           console.warn("🚫 Webhook مرفوض من IP غير مسموح:", ip);
           return res.sendStatus(200);
@@ -108,9 +103,10 @@ app.post(
 
       let verified = false;
       try {
-        const a = Buffer.from(computed, "utf8");
-        const b = Buffer.from(signature, "utf8");
-        verified = a.length === b.length && crypto.timingSafeEqual(a, b);
+        verified = crypto.timingSafeEqual(
+          Buffer.from(computed, "hex"),
+          Buffer.from(signature, "hex")
+        );
       } catch {
         verified = false;
       }
@@ -128,60 +124,40 @@ app.post(
         return res.sendStatus(200);
       }
 
-      const type = event?.type || "";
-      const data = event?.data || {};
+      // إذا كان حدث نجاح الدفع
+      if (event?.event === "charge.success" && event?.data?.reference) {
+        const reference = String(event.data.reference).trim();
 
-      if (type === "charge.success") {
-        const reference =
-          data?.reference || data?.ref || data?.transaction_ref || null;
+        // تأكيد من Lahza (تحقق ثانوي)
+        try {
+          const url = `https://api.lahza.io/transaction/verify/${encodeURIComponent(
+            reference
+          )}`;
+          const { data } = await axios.get(url, {
+            headers: {
+              Authorization: `Bearer ${LAHZA_SECRET_KEY}`,
+              "Content-Type": "application/json",
+            },
+            timeout: 15000,
+          });
 
-        if (reference) {
-          try {
-            const url = `https://api.lahza.io/transaction/verify/${encodeURIComponent(
-              reference
-            )}`;
-            const resp = await axios.get(url, {
-              headers: {
-                Authorization: `Bearer ${LAHZA_SECRET_KEY}`,
-                "Content-Type": "application/json",
-              },
-              timeout: 15000,
-            });
-
-            const v = resp?.data || {};
-            const status = v?.data?.status;
-
-            if (String(status).toLowerCase() === "success") {
-              const order = await Order.findOne({ reference }).lean();
-              if (!order) {
-                console.warn("⚠️ لا يوجد طلب مرتبط بهذا المرجع:", reference);
-              } else {
-                if (order.paymentStatus !== "paid") {
-                  await decrementStockByOrderItems(order.items || []);
-                  await Order.findByIdAndUpdate(order._id, {
-                    $set: {
-                      paymentStatus: "paid",
-                      status: "waiting_confirmation",
-                    },
-                  }).lean();
-                  console.log("✅ تم وسم الطلب مدفوعًا:", order._id);
-                } else {
-                  console.log("ℹ️ الطلب مدفوع مسبقًا:", order._id);
-                }
-              }
-            } else {
-              console.warn(
-                "⚠️ verify لم يرجع success لهذه المعاملة:",
-                reference,
-                status
-              );
-            }
-          } catch (err) {
-            console.error(
-              "❌ فشل Verify/تحديث الطلب:",
-              err?.response?.data || err.message
-            );
+          if (String(data?.data?.status || "").toLowerCase() !== "success") {
+            return res.sendStatus(200);
           }
+        } catch (e) {
+          console.warn("⚠️ فشل التحقق من Lahza:", e?.message || e);
+          return res.sendStatus(200);
+        }
+
+        // تحديث الطلب (Idempotent): إن كان غير مدفوع -> مدفوع ثم خصم المخزون
+        const updated = await Order.findOneAndUpdate(
+          { reference, paymentStatus: { $ne: "paid" } },
+          { $set: { paymentStatus: "paid", status: "waiting_confirmation" } },
+          { new: true }
+        ).lean();
+
+        if (updated) {
+          await decrementStockByOrderItems(updated.items || []);
         }
       }
 
@@ -193,77 +169,41 @@ app.post(
   }
 );
 
-/* ---------- Core Middleware (بعد الويبهوك) ---------- */
-app.use(express.json({ limit: "1mb" }));
+/* ---------- JSON parsers بعد الـ webhook ---------- */
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true }));
 
-/* ---------- DB Connection ---------- */
-mongoose.set("strictQuery", true);
+/* ---------- Mongo ---------- */
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 15000,
+    family: 4,
+  })
   .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ DB Error:", err));
-
-/* ---------- Health / Test ---------- */
-app.get("/healthz", (req, res) => res.status(200).json({ ok: true }));
-app.get("/test", (req, res) => res.send("🚀 السيرفر شغال تمام"));
+  .catch((err) => {
+    console.error("❌ Mongo error:", err);
+    process.exit(1);
+  });
 
 /* ---------- Routes ---------- */
-const productRoutes = require("./routes/products");
-const variantsRoutes = require("./routes/variants");
-const orderRoutes = require("./routes/orders");
-const authRoutes = require("./routes/auth");
-const contactRoute = require("./routes/contact");
-const userRoutes = require("./routes/user");
-const discountRulesRoutes = require("./routes/discountRules");
-const discountsRoutes = require("./routes/discounts");
-const homeCollectionsRoutes = require("./routes/homeCollections");
+app.use("/api/contact", require("./routes/contact"));
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/variants", require("./routes/variants"));
+app.use("/api/products", require("./routes/products"));
+app.use("/api/orders", require("./routes/orders"));
+app.use("/api/users", require("./routes/user"));
+app.use("/api/discount-rules", require("./routes/discountRules"));
+app.use("/api/discounts", require("./routes/discounts"));
+app.use("/api/home-collections", require("./routes/homeCollections"));
+app.use("/api/recaptcha", require("./routes/recaptcha"));
+app.use("/api/payments", require("./routes/payments"));
+app.use("/api/orders", require("./routes/order-status"));
 
-/* 🔎 راوتر المنتجات المحدّثة */
-const productsRecentUpdatesRoutes = require("./routes/products.recent-updates");
+/* ---------- health ---------- */
+app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
-/* ✅ راوتر المدفوعات الجديد */
-const paymentsRoutes = require("./routes/payments");
-
-/* ✅ جديد: راوتر reCAPTCHA */
-const recaptchaRoutes = require("./routes/recaptcha");
-
-app.use("/api/auth", authRoutes);
-app.use("/api/payments", paymentsRoutes);
-
-/* ✅ مهم: اربط recent-updates قبل راوتر المنتجات الأساسي */
-app.use("/api/products", productsRecentUpdatesRoutes);
-app.use("/api/products", productRoutes);
-
-app.use("/api/variants", variantsRoutes);
-app.use("/api/orders", orderRoutes);
-app.use("/api/contact", contactRoute);
-app.use("/api/users", userRoutes);
-app.use("/api/discount-rules", discountRulesRoutes);
-app.use("/api/discounts", discountsRoutes);
-app.use("/api/home-collections", homeCollectionsRoutes);
-app.get("/api/products/recommended", require("./routes/homeCollections"));
-app.get("/api/products/new", require("./routes/homeCollections"));
-
-/* ✅ ربط reCAPTCHA v3 */
-app.use("/api/recaptcha", recaptchaRoutes);
-
-/* ---------- 404 ---------- */
-app.use((req, res, next) => {
-  res.status(404).json({ error: "الصفحة غير موجودة" });
-});
-
-/* ---------- Error Handler ---------- */
-app.use((err, req, res, next) => {
-  console.error("🔥 Error:", err.message);
-  const status = err.status || 500;
-  res.status(status).json({ error: err.message || "خطأ في الخادم" });
-});
-
-/* ---------- Server ---------- */
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
-/* ---------- auth ---------- */
+/* ---------- boot ---------- */
+const server = app.listen(PORT, () => console.log(`🚀 Server on :${PORT}`));
 
 /* ---------- Graceful Shutdown ---------- */
 const shutdown = () => {

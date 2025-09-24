@@ -32,15 +32,24 @@ export default function AdminHomeCollections() {
   const [results, setResults] = useState<ProductLite[]>([]);
   const [tab, setTab] = useState<"recommended" | "new">("recommended");
 
-  const headers = useMemo(
-    () => (token ? { Authorization: `Bearer ${token}` } : undefined),
-    [token]
-  );
+  // تنظيف baseURL من أي سلاش زائد
+  const baseURL = useMemo(() => {
+    const raw = import.meta.env.VITE_API_URL || "";
+    return raw.replace(/\/+$/, "");
+  }, []);
+
+  // هيدرز موحّدة
+  const headers = useMemo(() => {
+    const h: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) h.Authorization = `Bearer ${token}`;
+    return h;
+  }, [token]);
 
   useEffect(() => {
     // صلاحيات بسيطة (اختياري)
     if (user && !(user.role === "admin" || user.role === "dealer")) {
-      // ليس أدمن — ممكن نعرض رسالة أو نمنع الوصول
+      // ليس أدمن/تاجر — حسب رغبتك، ممكن تمنعي الوصول أو تعرضي رسالة
+      // alert("ليس لديك صلاحية الوصول");
     }
   }, [user]);
 
@@ -50,19 +59,28 @@ export default function AdminHomeCollections() {
     (async () => {
       try {
         setLoading(true);
-        const base = import.meta.env.VITE_API_URL;
-        const { data } = await axios.get(`${base}/api/home-collections`, {
+        const { data } = await axios.get(`${baseURL}/api/home-collections`, {
           headers,
         });
+
         if (!live) return;
-        setRecommended(
-          Array.isArray(data?.recommended) ? data.recommended : []
-        );
-        setNewArrivals(
-          Array.isArray(data?.newArrivals) ? data.newArrivals : []
-        );
-      } catch {
-        // تجاهل
+
+        const rec = Array.isArray(data?.recommended) ? data.recommended : [];
+        const nea = Array.isArray(data?.newArrivals) ? data.newArrivals : [];
+
+        const toLite = (arr: any[]): ProductLite[] =>
+          arr.map((p: any) => ({
+            _id: p._id,
+            name: p.name,
+            images: p.images,
+            mainImage: p.mainImage,
+            price: p.minPrice ?? p.price,
+          }));
+
+        setRecommended(toLite(rec));
+        setNewArrivals(toLite(nea));
+      } catch (e) {
+        console.error("فشل تحميل home-collections:", e);
       } finally {
         if (live) setLoading(false);
       }
@@ -70,7 +88,7 @@ export default function AdminHomeCollections() {
     return () => {
       live = false;
     };
-  }, [headers]);
+  }, [baseURL, headers]);
 
   // بحث سريع عن المنتجات لإضافتها
   useEffect(() => {
@@ -81,12 +99,11 @@ export default function AdminHomeCollections() {
         return;
       }
       try {
-        const base = import.meta.env.VITE_API_URL;
         const params = new URLSearchParams();
         params.set("page", "1");
         params.set("limit", "12");
         params.set("q", query.trim());
-        const url = `${base}/api/products/with-stats?${params.toString()}`;
+        const url = `${baseURL}/api/products/with-stats?${params.toString()}`;
         const { data } = await axios.get(url, { headers });
         if (!live) return;
         const items = Array.isArray(data?.items) ? data.items : [];
@@ -95,11 +112,12 @@ export default function AdminHomeCollections() {
           name: p.name,
           images: p.images,
           mainImage: p.mainImage,
-          price: p.minPrice,
+          price: p.minPrice ?? p.price,
         }));
         setResults(mapped);
-      } catch {
+      } catch (e) {
         if (!live) return;
+        console.error("فشل البحث عن المنتجات:", e);
         setResults([]);
       }
     }, 250);
@@ -107,7 +125,7 @@ export default function AdminHomeCollections() {
       clearTimeout(t);
       live = false;
     };
-  }, [query, headers]);
+  }, [query, headers, baseURL]);
 
   const addToList = (p: ProductLite) => {
     const existsInRec = recommended.some((x) => x._id === p._id);
@@ -142,15 +160,43 @@ export default function AdminHomeCollections() {
   const save = async () => {
     try {
       setSaving(true);
-      const base = import.meta.env.VITE_API_URL;
+
+      // ✅ مفاتيح متوافقة مع السيرفر
       const payload = {
-        recommendedIds: recommended.map((p) => p._id),
-        newArrivalIds: newArrivals.map((p) => p._id),
+        recommended: recommended.map((p) => p._id),
+        newArrivals: newArrivals.map((p) => p._id),
       };
-      await axios.put(`${base}/api/home-collections`, payload, { headers });
+
+      const { data } = await axios.put(
+        `${baseURL}/api/home-collections`,
+        payload,
+        { headers }
+      );
+
+      // إن رجّع السيرفر بيانات محدثة بعد الحفظ، نحدّث الحالة
+      if (data?.recommended || data?.newArrivals) {
+        const toLite = (arr: any[]): ProductLite[] =>
+          (arr || []).map((p: any) => ({
+            _id: p._id,
+            name: p.name,
+            images: p.images,
+            mainImage: p.mainImage,
+            price: p.minPrice ?? p.price,
+          }));
+        if (Array.isArray(data?.recommended))
+          setRecommended(toLite(data.recommended));
+        if (Array.isArray(data?.newArrivals))
+          setNewArrivals(toLite(data.newArrivals));
+      }
+
       alert("تم الحفظ بنجاح ✅");
-    } catch {
-      alert("فشل الحفظ، حاول مجددًا.");
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "فشل الحفظ، حاول مجددًا.";
+      console.error("فشل حفظ home-collections:", err);
+      alert(msg);
     } finally {
       setSaving(false);
     }

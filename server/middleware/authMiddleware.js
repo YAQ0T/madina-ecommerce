@@ -1,7 +1,8 @@
 // server/middleware/authMiddleware.js
 const jwt = require("jsonwebtoken");
 
-const JWT_SECRET = process.env.JWT_SECRET || "yourSecretKey"; // 👈 وحّد السر
+// ✅ وحّد السر هنا مع نفس السر في routes/auth.js
+const JWT_SECRET = process.env.JWT_SECRET || "changeme_dev_secret";
 
 // ✅ يتحقق من التوكن ويوقف الطلب لو غير موجود/غير صالح
 const verifyToken = (req, res, next) => {
@@ -18,28 +19,31 @@ const verifyToken = (req, res, next) => {
     req.user = decoded; // { id, role }
     next();
   } catch (err) {
-    res.status(403).json({ message: "توكن غير صالح" });
+    return res.status(401).json({ message: "توكن غير صالح أو منتهي" });
   }
 };
 
-// ✅ يقرأ التوكن إن وُجد، ولا يفشل لو غير موجود (مفيد لمسارات عامة)
-const verifyTokenOptional = (req, _res, next) => {
+// ✅ يسمح بالمتابعة بدون توكن لكن يملأ req.user لو وُجد
+const verifyTokenOptional = (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.split(" ")[1];
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      req.user = decoded; // { id, role }
-    } catch (_) {
-      // تجاهل الخطأ، نكمل كزائر
-    }
+  if (!authHeader?.startsWith("Bearer ")) return next();
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // { id, role }
+  } catch {
+    // تجاهل الخطأ هنا لأن التوكن اختياري
   }
   next();
 };
 
+// ✅ أدمن فقط
 const isAdmin = (req, res, next) => {
-  if (req.user?.role !== "admin") {
-    return res.status(403).json({ message: "غير مصرح، فقط الأدمن" });
+  const role = req.user?.role;
+  if (role !== "admin") {
+    return res.status(403).json({ message: "غير مصرح، يتطلب أدمن" });
   }
   next();
 };

@@ -1,61 +1,93 @@
 // src/context/AuthContext.tsx
 import { createContext, useContext, useState, useEffect } from "react";
 import type { ReactNode } from "react";
+import axios from "axios";
 
-type Role = "admin" | "user" | "dealer"; // ✅ أضفنا dealer
+/** الأدوار */
+type Role = "admin" | "user" | "dealer";
 
+/** نموذج المستخدم */
 interface User {
   _id: string;
   name: string;
-  email: string;
-  phone: string;
-  role: Role; // ✅ صار النوع يشمل dealer
+  email: string | null;
+  phone: string | null;
+  role: Role;
+  phoneVerified?: boolean;
 }
 
+/** واجهة السياق */
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (userData: User, token: string) => void;
-  logout: () => void;
   loading: boolean;
+  login: (identifier: string, password: string) => Promise<void>;
+  logout: () => void;
 }
 
+/** إعدادات API */
+const API_BASE =
+  import.meta.env.VITE_API_BASE?.toString().replace(/\/+$/, "") ||
+  "http://localhost:3001/api";
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+/** أدوات مساعدة */
+const isEmail = (v: string) => /\S+@\S+\.\S+/.test(v);
+const normalizePhone = (raw: string) => {
+  // يزيل غير الأرقام ويحوّل 059.. إلى 97059..
+  let to = String(raw || "").replace(/[^\d]/g, "");
+  if (!to) return "";
+  if (to.startsWith("0")) to = "970" + to.slice(1);
+  if (!to.startsWith("970")) to = "970" + to;
+  return to;
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // تحميل الحالة من التخزين
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const storedToken = localStorage.getItem("token");
-
-    if (storedUser && storedToken) {
+    const t = localStorage.getItem("token");
+    const u = localStorage.getItem("user");
+    if (t && u) {
+      setToken(t);
       try {
-        const payload = JSON.parse(atob(storedToken.split(".")[1]));
-        const exp = payload.exp * 1000;
-        if (Date.now() >= exp) {
-          logout();
-        } else {
-          // ✅ تأكد أن `role` المخزّن يطابق النوع Role (admin|user|dealer)
-          const parsed: User = JSON.parse(storedUser);
-          setUser(parsed);
-          setToken(storedToken);
-        }
+        setUser(JSON.parse(u));
       } catch {
-        logout();
+        localStorage.removeItem("user");
       }
     }
-
     setLoading(false);
   }, []);
 
-  const login = (userData: User, jwtToken: string) => {
-    localStorage.setItem("user", JSON.stringify(userData));
-    localStorage.setItem("token", jwtToken);
-    setUser(userData);
-    setToken(jwtToken);
+  // دالة الدخول — هنا الإصلاح الأهم
+  const login = async (identifier: string, password: string) => {
+    // نبني الجسم كما يتوقعه السيرفر: { email,password } أو { phone,password }
+    const payload: Record<string, string> = { password };
+    if (isEmail(identifier)) {
+      payload.email = identifier.trim().toLowerCase();
+    } else {
+      const phone = normalizePhone(identifier);
+      if (!phone) {
+        throw new Error("الرجاء إدخال رقم جوال صحيح أو بريد إلكتروني صالح");
+      }
+      payload.phone = phone;
+    }
+
+    const res = await axios.post(`${API_BASE}/auth/login`, payload, {
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const { token: t, user: u } = res.data;
+    if (!t || !u) throw new Error("استجابة غير متوقعة من الخادم");
+
+    localStorage.setItem("token", t);
+    localStorage.setItem("user", JSON.stringify(u));
+    setToken(t);
+    setUser(u);
   };
 
   const logout = () => {

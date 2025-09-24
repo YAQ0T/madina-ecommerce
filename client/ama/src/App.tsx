@@ -19,6 +19,10 @@ import ReturnsPolicy from "./pages/ReturnsPolicy";
 import AdminHomeCollections from "./pages/AdminHomeCollections";
 import VerifyPhone from "./pages/VerifyPhone";
 
+// ✅ صفحات جديدة لإدارة كلمة المرور (أضف هذين الملفين كما بالأسفل)
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+
 function App() {
   const [open, setOpen] = useState(false);
 
@@ -38,8 +42,12 @@ function App() {
         <Route path="/account" element={<Account />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/verify-phone" element={<VerifyPhone />} />
+
+        {/* ✅ صفحة توثيق الجوال */}
+        <Route path="/verify" element={<VerifyPhone />} />
+
         <Route path="/products/:id" element={<ProductDetails />} />
+
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/returnes" element={<ReturnsPolicy />} />
         <Route path="/terms" element={<Terms />} />
@@ -50,6 +58,10 @@ function App() {
           path="/admin/home-collections"
           element={<AdminHomeCollections />}
         />
+
+        {/* ✅ إدارة كلمة المرور */}
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
     </>
   );

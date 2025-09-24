@@ -1,53 +1,94 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
+
+const API_BASE =
+  import.meta.env.VITE_API_BASE?.toString().replace(/\/+$/, "") ||
+  "http://localhost:3001/api";
+
+const isEmail = (v: string) => /\S+@\S+\.\S+/.test(v);
+const normalizePhone = (raw: string) => {
+  let to = String(raw || "").replace(/[^\d]/g, "");
+  if (!to) return "";
+  if (to.startsWith("0")) to = "970" + to.slice(1);
+  if (!to.startsWith("970")) to = "970" + to;
+  return to;
+};
 
 const Register: React.FC = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState(""); // اختياري
+  const [identifier, setIdentifier] = useState(""); // بريد أو جوال
   const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
   const [error, setError] = useState("");
+  const [okMsg, setOkMsg] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (user) navigate("/");
-  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
+    setOkMsg("");
+
+    if (!name.trim()) return setError("الاسم مطلوب");
+    if (password.length < 6)
+      return setError("كلمة المرور يجب ألا تقل عن 6 أحرف");
+    if (password !== password2) return setError("تأكيد كلمة المرور غير مطابق");
+
+    const payload: Record<string, string> = { name: name.trim(), password };
+    let phoneToUse = "";
+
+    if (isEmail(identifier)) {
+      payload.email = identifier.trim().toLowerCase();
+    } else {
+      const p = normalizePhone(identifier);
+      if (!p) return setError("أدخل بريدًا صحيحًا أو رقم جوال صحيح");
+      payload.phone = p;
+      phoneToUse = p;
+    }
 
     try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/auth/signup`,
-        {
-          name,
-          phone,
-          email: email || undefined,
-          password,
-          role: "user",
-        }
+      setLoading(true);
+      const res = await axios.post(`${API_BASE}/auth/signup`, payload, {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const userId = res?.data?.userId;
+      const phone = res?.data?.phone || phoneToUse;
+
+      setOkMsg(
+        res?.data?.message ||
+          "تم إنشاء الحساب بنجاح. سيتم تحويلك لصفحة توثيق الجوال."
       );
 
-      // الانتقال لصفحة التحقق
-      const { userId, phone: normalized } = res.data;
-      navigate(
-        `/verify-phone?userId=${encodeURIComponent(
-          userId
-        )}&phone=${encodeURIComponent(normalized)}`
-      );
+      // مباشرةً أرسل كود التوثيق (إن توفر userId و phone) ثم وجّه للصفحة
+      if (userId && phone) {
+        try {
+          await axios.post(`${API_BASE}/auth/send-sms-code`, { userId, phone });
+        } catch {
+          // حتى لو فشل الارسال هنا، الصفحة القادمة فيها زر إعادة إرسال
+        }
+        navigate(
+          `/verify?userId=${encodeURIComponent(
+            userId
+          )}&phone=${encodeURIComponent(phone)}`
+        );
+      } else {
+        // احتياط
+        setTimeout(() => navigate("/verify"), 800);
+      }
     } catch (err: any) {
-      setError(err?.response?.data?.message || "فشل في إنشاء الحساب");
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "فشل إنشاء الحساب";
+      setError(String(msg));
     } finally {
       setLoading(false);
     }
@@ -56,64 +97,69 @@ const Register: React.FC = () => {
   return (
     <>
       <Navbar />
-      <main className="container mx-auto p-6 max-w-md">
-        <h1 className="text-3xl font-bold mb-6 text-right">تسجيل حساب جديد</h1>
-        {error && <p className="text-red-500 text-right">{error}</p>}
+      <main className="container mx-auto max-w-md px-4 py-10">
+        <h1 className="text-2xl font-bold mb-6 text-center">إنشاء حساب</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-right">
+        {error && (
+          <div className="mb-4 rounded-xl border p-3 text-red-600 bg-red-50">
+            {error}
+          </div>
+        )}
+
+        {okMsg && (
+          <div className="mb-4 rounded-xl border p-3 text-green-700 bg-green-50">
+            {okMsg}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div>
-            <label htmlFor="name" className="block mb-1 font-medium">
-              الاسم الكامل
-            </label>
+            <label className="block mb-1">الاسم</label>
             <Input
-              id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="اسمك"
+              required
             />
           </div>
 
           <div>
-            <label htmlFor="phone" className="block mb-1 font-medium">
-              رقم الهاتف (مطلوب)
+            <label className="block mb-1">
+              البريد الإلكتروني أو رقم الجوال
             </label>
             <Input
-              id="phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="059XXXXXXX"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="name@example.com أو 059xxxxxxx"
+              inputMode="email"
+              required
             />
           </div>
 
           <div>
-            <label htmlFor="email" className="block mb-1 font-medium">
-              البريد الإلكتروني (اختياري)
-            </label>
+            <label className="block mb-1">كلمة المرور</label>
             <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@example.com"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block mb-1 font-medium">
-              كلمة المرور
-            </label>
-            <Input
-              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              autoComplete="new-password"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block mb-1">تأكيد كلمة المرور</label>
+            <Input
+              type="password"
+              value={password2}
+              onChange={(e) => setPassword2(e.target.value)}
+              autoComplete="new-password"
+              required
             />
           </div>
 
           <div className="text-left">
             <Button type="submit" disabled={loading}>
-              {loading ? "جاري..." : "تسجيل"}
+              {loading ? "جاري الإنشاء..." : "إنشاء حساب"}
             </Button>
           </div>
         </form>
