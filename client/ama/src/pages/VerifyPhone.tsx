@@ -32,7 +32,7 @@ const VerifyPhone: React.FC = () => {
     if (!userId || !phone) return setError("معلومات ناقصة لإرسال الرمز");
     try {
       setLoading(true);
-      await axios.post(`${API_BASE}/auth/send-sms-code`, { userId, phone });
+      await axios.post(`${API_BASE}/api/auth/send-sms-code`, { userId, phone });
       setOkMsg("تم إرسال الرمز إلى جوالك");
     } catch (err: any) {
       const msg =
@@ -50,7 +50,7 @@ const VerifyPhone: React.FC = () => {
     if (!userId || !code) return setError("الرجاء إدخال الرمز");
     try {
       setLoading(true);
-      await axios.post(`${API_BASE}/auth/verify-sms`, { userId, code });
+      await axios.post(`${API_BASE}/api/auth/verify-sms`, { userId, code });
       setOkMsg("تم التوثيق بنجاح! يمكنك الآن تسجيل الدخول.");
     } catch (err: any) {
       const msg =
