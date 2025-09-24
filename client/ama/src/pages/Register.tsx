@@ -54,7 +54,7 @@ const Register: React.FC = () => {
 
     try {
       setLoading(true);
-      const res = await axios.post(`${API_BASE}/auth/signup`, payload, {
+      const res = await axios.post(`${API_BASE}/api/auth/signup`, payload, {
         headers: { "Content-Type": "application/json" },
       });
 
