@@ -7,7 +7,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 const API_BASE =
-  import.meta.env.VITE_API_BASE?.toString().replace(/\/+$/, "") ||
+  import.meta.env.VITE_API_URL?.toString().replace(/\/+$/, "") ||
   "http://localhost:3001/api";
 
 const ForgotPassword: React.FC = () => {

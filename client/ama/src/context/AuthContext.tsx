@@ -27,7 +27,7 @@ interface AuthContextType {
 
 /** إعدادات API */
 const API_BASE =
-  import.meta.env.VITE_API_BASE?.toString().replace(/\/+$/, "") ||
+  import.meta.env.VITE_API_URL?.toString().replace(/\/+$/, "") ||
   "http://localhost:3001/api";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
