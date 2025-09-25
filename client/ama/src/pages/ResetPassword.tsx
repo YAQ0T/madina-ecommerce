@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -6,38 +6,61 @@ import { Input } from "@/components/ui/input";
 import axios from "axios";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-const API_BASE =
-  import.meta.env.VITE_API_URL?.toString().replace(/\/+$/, "") ||
-  "http://localhost:3001/api";
+// ✅ نضمن إضافة /api حتى لو المتغير لا يحتويها
+const RAW_BASE =
+  import.meta.env.VITE_API_BASE?.toString().replace(/\/+$/, "") ||
+  "http://localhost:3001";
+const API_BASE = `${RAW_BASE}/api`;
+
+const OTP_MAX_LEN = 6; // عدّلها لو طول الـ OTP عندك مختلف
 
 const ResetPassword: React.FC = () => {
   const [params] = useSearchParams();
   const navigate = useNavigate();
 
-  const userIdFromQuery = useMemo(() => params.get("userId") || "", [params]);
+  // نجيب userId من الرابط إن وُجد
+  const userId = useMemo(() => params.get("userId") || "", [params]);
 
-  const [userId, setUserId] = useState(userIdFromQuery);
+  // ✅ نخزّن الكود بحالة قابلة للتعديل، ونملؤها من الرابط إن وُجد
   const [code, setCode] = useState("");
+
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const submit = async (e: React.FormEvent) => {
+  // عند التحميل الأول: لو فيه code في الرابط نعبّيه كبداية، لكن يبقى قابل للتعديل
+  useEffect(() => {
+    const qp = params.get("code");
+    if (qp) {
+      setCode(qp);
+    }
+  }, [params]);
+
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // تنظيف الإدخال: إزالة الفراغات، قبول أرقام فقط (لو OTP رقمي)، وتحديد الطول
+    const raw = e.target.value || "";
+    const cleaned = raw.replace(/\s+/g, ""); // يشيل المسافات
+    // إن كان الـ OTP عندك حروف+أرقام، احذف السطر التالي واستبدله بتنظيف أخف
+    const digitsOnly = cleaned.replace(/\D+/g, "");
+    setCode(digitsOnly.slice(0, OTP_MAX_LEN));
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setOkMsg("");
 
-    if (!userId) return setError("معرّف المستخدم غير موجود");
-    if (!code) return setError("الرجاء إدخال كود الاستعادة");
+    if (!userId) return setError("المعرف مفقود، أعد المحاولة من البداية.");
+    if (!code) return setError("فضلاً أدخل رمز التحقق (OTP).");
     if (password.length < 6)
-      return setError("كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف");
-    if (password !== password2) return setError("تأكيد كلمة المرور غير مطابق");
+      return setError("كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف.");
+    if (password !== password2) return setError("تأكيد كلمة المرور غير مطابق.");
 
     try {
       setLoading(true);
-      await axios.post(`${API_BASE}/api/auth/password/reset`, {
+      await axios.post(`${API_BASE}/auth/password/reset`, {
         userId,
         code,
         newPassword: password,
@@ -51,7 +74,7 @@ const ResetPassword: React.FC = () => {
         err?.response?.data?.error ||
         err?.message ||
         "فشل تحديث كلمة المرور";
-      setError(String(msg));
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -60,45 +83,40 @@ const ResetPassword: React.FC = () => {
   return (
     <>
       <Navbar />
-      <main className="container mx-auto max-w-md px-4 py-10">
+      <main className="container max-w-xl mx-auto py-10">
         <h1 className="text-2xl font-bold mb-6 text-center">
           تعيين كلمة مرور جديدة
         </h1>
 
         {error && (
-          <div className="mb-4 rounded-xl border p-3 text-red-600 bg-red-50">
+          <div className="mb-4 p-3 rounded bg-red-100 text-red-700">
             {error}
           </div>
         )}
-
         {okMsg && (
-          <div className="mb-4 rounded-xl border p-3 text-green-700 bg-green-50">
+          <div className="mb-4 p-3 rounded bg-green-100 text-green-700">
             {okMsg}
           </div>
         )}
 
-        <form onSubmit={submit} className="space-y-4" noValidate>
-          {!userIdFromQuery && (
-            <div>
-              <label className="block mb-1">معرّف المستخدم (User ID)</label>
-              <Input
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                placeholder="أدخل معرف المستخدم الذي وصلك"
-                required
-              />
-            </div>
-          )}
-
+        <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="block mb-1">كود الاستعادة</label>
+            <label className="block mb-1">رمز التحقق (OTP)</label>
             <Input
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={handleCodeChange}
+              placeholder="الكود من رسالة SMS"
+              // تحسينات للهواتف وتعبئة تلقائية
               inputMode="numeric"
-              placeholder="123456"
+              autoComplete="one-time-code"
+              // لو OTP عندك قد يحتوي أحرف، احذف pattern/ inputMode
+              pattern="\d*"
               required
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              أدخل الكود المرسل إلى جوالك. لو تعذّر لصق الكود، اكتب الأرقام
+              يدوياً.
+            </p>
           </div>
 
           <div>

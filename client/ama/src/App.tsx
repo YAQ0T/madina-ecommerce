@@ -19,7 +19,7 @@ import ReturnsPolicy from "./pages/ReturnsPolicy";
 import AdminHomeCollections from "./pages/AdminHomeCollections";
 import VerifyPhone from "./pages/VerifyPhone";
 
-// ✅ صفحات جديدة لإدارة كلمة المرور (أضف هذين الملفين كما بالأسفل)
+// ✅ صفحات جديدة لإدارة كلمة المرور
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 
@@ -43,8 +43,10 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* ✅ صفحة توثيق الجوال */}
+        {/* ✅ صفحة توثيق الجوال (المسار القديم) */}
         <Route path="/verify" element={<VerifyPhone />} />
+        {/* ✅ إضافة المسار الجديد المستخدم في بعض التحويلات */}
+        <Route path="/verify-phone" element={<VerifyPhone />} />
 
         <Route path="/products/:id" element={<ProductDetails />} />
 

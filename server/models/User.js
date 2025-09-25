@@ -15,23 +15,34 @@ const UserSchema = new mongoose.Schema(
     // ✅ الجوال إجباري + فريد
     phone: { type: String, required: true, unique: true, index: true },
 
-    // ✅ البريد اختياري (لا نضع unique هنا لتجنب بناء index مكرر)
-    email: { type: String, trim: true, lowercase: true },
+    // ✅ البريد اختياري + فريد بشكل جزئي (انظر الفهرس بالأسفل)
+    email: { type: String, trim: true, lowercase: true, index: true },
 
+    // ✅ كلمة المرور
     password: { type: String, required: true },
 
-    role: {
-      type: String,
-      enum: ["user", "admin", "dealer"],
-      default: "user",
+    // معلومات عامة
+    role: { type: String, enum: ["user", "admin"], default: "user" },
+    address: {
+      city: String,
+      street: String,
+      notes: String,
+      lat: Number,
+      lng: Number,
     },
 
-    // ✅ توثيق الجوال بالـ OTP
+    // ✅ توثيق الجوال بالـ OTP (حاليًا مستخدم للتوثيق العام)
     phoneVerified: { type: Boolean, default: false },
     phoneVerificationCodeHash: { type: String },
     phoneVerificationExpires: { type: Date },
     phoneVerificationAttempts: { type: Number, default: 0 },
     phoneVerificationResends: { type: Number, default: 0 },
+
+    // ✅ (الإضافة الجديدة) إعادة تعيين كلمة المرور بالـ OTP
+    // يتم تعيينها في routes/auth.js عبر setResetOTPOnUser / checkResetOTPOnUser
+    resetPasswordCodeHash: { type: String },
+    resetPasswordExpires: { type: Date },
+    resetPasswordAttempts: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
@@ -55,13 +66,14 @@ UserSchema.pre("save", function (next) {
  * ✅ فريد جزئي على email:
  *  - يطبّق الفريد فقط عندما تكون email من نوع String
  *  - يسمح بتعدد المستندات التي لا تحتوي على الحقل أصلًا
+ *  - يمنع تكرار نفس البريد عندما يكون موجودًا
  */
 UserSchema.index(
   { email: 1 },
   {
     unique: true,
     partialFilterExpression: { email: { $type: "string" } },
-    name: "uniq_email_when_string",
+    name: "uniq_email_partial",
   }
 );
 
@@ -69,7 +81,7 @@ UserSchema.index(
 UserSchema.index({ phone: 1 }, { unique: true, name: "uniq_phone" });
 
 /* =========================
-   OTP Helpers
+   OTP Helpers (للتحقق عبر SMS)
 ========================= */
 UserSchema.methods.setPhoneOTP = function setPhoneOTP(code, ttlMinutes = 10) {
   const hash = crypto.createHash("sha256").update(String(code)).digest("hex");

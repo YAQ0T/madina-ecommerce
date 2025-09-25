@@ -1,93 +1,117 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+
+/** ✅ قاعدة API موحّدة */
+const RAW_BASE = (
+  import.meta.env.VITE_API_BASE?.toString() ||
+  import.meta.env.VITE_API_URL?.toString() ||
+  "http://localhost:3001"
+).replace(/\/+$/, "");
+const API_BASE = `${RAW_BASE}/api`;
 
 const Login: React.FC = () => {
-  const { login, user } = useAuth();
   const navigate = useNavigate();
+  const { login } = useAuth();
 
-  const [identifier, setIdentifier] = useState(""); // هاتف أو بريد
+  const [identifier, setIdentifier] = useState(""); // بريد أو جوال
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [verifyInfo, setVerifyInfo] = useState<{
-    userId?: string;
-    phone?: string;
-  }>({});
+  const [info, setInfo] = useState("");
 
-  useEffect(() => {
-    if (user) {
-      if (user.role === "admin") navigate("/admin");
-      else navigate("/");
-    }
-  }, [user, navigate]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setVerifyInfo({});
-    try {
-      await login(identifier.trim(), password);
-      // التوجيه سيتم عبر useEffect
-    } catch (err: any) {
-      const status = err?.response?.status;
-      const data = err?.response?.data || {};
-      const msg = data?.message || err?.message || "تعذر تسجيل الدخول";
-      setError(String(msg));
+    setInfo("");
+    setLoading(true);
 
-      if (status === 403 && (data?.userId || data?.phone)) {
-        setVerifyInfo({ userId: data.userId, phone: data.phone });
+    try {
+      const emailLike = identifier.includes("@") ? identifier : undefined;
+      const phoneLike = !emailLike ? identifier : undefined;
+
+      await login({
+        email: emailLike,
+        phone: phoneLike,
+        password,
+      });
+
+      // لو نجح يسجّل دخول ويرجعنا
+      navigate("/account");
+    } catch (err: any) {
+      // ✅ نتعامل مع الكائن الذي يرميه الـ AuthContext عند 403
+      if (err?.code === "NEEDS_VERIFICATION") {
+        const userId = err?.userId;
+
+        // حفظ userId مؤقتًا لتسهيل تجربة التوثيق
+        if (userId) {
+          sessionStorage.setItem("pendingUserId", String(userId));
+          // محاولـة تأكيد إرسال الرمز (في حال كنت على نسخة سيرفر قديمة)
+          try {
+            await axios.post(
+              `${API_BASE}/auth/send-sms-code`,
+              { userId },
+              { headers: { "Content-Type": "application/json" } }
+            );
+          } catch {
+            /* تجاهل - مجرد تعزيز للتجربة */
+          }
+        }
+
+        setInfo(
+          err?.message ||
+            "يجب توثيق رقم جوالك قبل تسجيل الدخول. سيتم تحويلك لصفحة التحقق الآن."
+        );
+
+        setTimeout(() => {
+          if (userId) {
+            navigate(`/verify?userId=${encodeURIComponent(userId)}`);
+          } else {
+            navigate(`/verify`);
+          }
+        }, 600);
+      } else {
+        const msg =
+          err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          err?.message ||
+          "فشل تسجيل الدخول";
+        setError(msg);
       }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <>
       <Navbar />
-      <main className="container mx-auto max-w-md px-4 py-10">
-        <h1 className="text-2xl font-bold mb-6 text-center">تسجيل الدخول</h1>
+      <main className="container mx-auto p-4 max-w-xl">
+        <h1 className="text-2xl font-bold mb-4">تسجيل الدخول</h1>
 
+        {info && (
+          <div className="p-3 mb-3 rounded bg-blue-50 text-blue-700">
+            {info}
+          </div>
+        )}
         {error && (
-          <div className="mb-4 rounded-xl border p-3 text-red-600 bg-red-50">
-            {error}
-          </div>
+          <div className="p-3 mb-3 rounded bg-red-50 text-red-700">{error}</div>
         )}
 
-        {verifyInfo.userId && (
-          <div className="mb-4 rounded-xl border p-3 bg-yellow-50 text-yellow-800">
-            لم يتم توثيق رقم جوالك بعد.
-            <div className="mt-2">
-              <Button
-                onClick={() =>
-                  navigate(
-                    `/verify?userId=${encodeURIComponent(
-                      String(verifyInfo.userId)
-                    )}${
-                      verifyInfo.phone
-                        ? `&phone=${encodeURIComponent(verifyInfo.phone)}`
-                        : ""
-                    }`
-                  )
-                }
-              >
-                توثيق الحساب الآن
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="block mb-1">رقم الجوال أو البريد</label>
+            <label className="block mb-1">
+              البريد الإلكتروني أو رقم الجوال
+            </label>
             <Input
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="059xxxxxxx أو name@example.com"
-              inputMode="email"
-              autoComplete="username"
+              placeholder="example@mail.com أو 059XXXXXXX"
               required
             />
           </div>
@@ -98,15 +122,20 @@ const Login: React.FC = () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
               placeholder="••••••••"
+              required
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <Button type="submit">دخول</Button>
-            <Button variant="link" onClick={() => navigate("/forgot-password")}>
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={loading} className="min-w-32">
+              {loading ? "جاري الدخول..." : "دخول"}
+            </Button>
+            <Button
+              variant="link"
+              type="button"
+              onClick={() => navigate("/forgot-password")}
+            >
               نسيت كلمة المرور؟
             </Button>
           </div>

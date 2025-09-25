@@ -51,6 +51,13 @@ const normalize = (s?: string) =>
   (s || "").trim().replace(/\s+/g, "").toLowerCase();
 const isUnified = (s?: string) => normalize(s) === normalize("موحد");
 
+/** ✅ يُرجع دائمًا مصفوفة المتغيّرات سواء كانت الاستجابة {items:[]} أو [] مباشرة */
+function normalizeVariantsResponse(data: any): Variant[] {
+  if (data && Array.isArray(data.items)) return data.items as Variant[];
+  if (Array.isArray(data)) return data as Variant[];
+  return [];
+}
+
 const ProductDetails: React.FC = () => {
   const { addToCart } = useCart();
   const { id } = useParams();
@@ -81,7 +88,8 @@ const ProductDetails: React.FC = () => {
           `${import.meta.env.VITE_API_URL}/api/variants`,
           { params: { product: id, limit: 500 } }
         );
-        const vs: Variant[] = Array.isArray(varsRes.data) ? varsRes.data : [];
+
+        const vs: Variant[] = normalizeVariantsResponse(varsRes.data);
         setVariants(vs);
 
         if (vs.length > 0) {
@@ -258,7 +266,7 @@ const ProductDetails: React.FC = () => {
     return <p className="text-center mt-10">جاري تحميل تفاصيل المنتج...</p>;
   }
 
-  // إخفاء UI المقاس إن لم يتبقى إلا "موحّد"
+  // إخفاء UI المقاس إن لم يتبقَّ إلا "موحّد"
   const showMeasureUI = measures.length > 0;
   const showColorsUI = allColors.length > 0;
 

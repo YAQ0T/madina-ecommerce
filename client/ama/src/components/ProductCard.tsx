@@ -1,4 +1,3 @@
-// src/components/ProductCard.tsx
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -60,6 +59,13 @@ const clamp = (n: number, min = 0, max = 100) =>
 
 const fallbackImg = "https://i.imgur.com/PU1aG4t.jpeg";
 
+/** ✅ يُرجع دائمًا مصفوفة المتغيّرات سواء كانت الاستجابة {items:[]} أو [] مباشرة */
+function normalizeVariantsResponse(data: any): Variant[] {
+  if (data && Array.isArray(data.items)) return data.items as Variant[];
+  if (Array.isArray(data)) return data as Variant[];
+  return [];
+}
+
 const ProductCard: React.FC<Props> = ({ product }) => {
   const { addToCart } = useCart();
   const navigate = useNavigate();
@@ -91,7 +97,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           { params: { product: product._id, limit: 500 } }
         );
         if (ignore) return;
-        const vs: Variant[] = Array.isArray(data) ? data : [];
+
+        const vs: Variant[] = normalizeVariantsResponse(data);
         setVariants(vs);
 
         if (vs.length > 0) {
@@ -664,7 +671,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       {/* ============ Dialog للموبايل — متمركز + ارتفاع مناسب ============ */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent
-          // نترك التموضع الافتراضي (متمركز) لتفادي مشكلة الانزياح لليسار
           className={clsx(
             "sm:max-w-2xl md:max-w-3xl",
             "w-[95vw] sm:w-auto p-0",
