@@ -7,8 +7,8 @@ const Order = require("../models/Order");
 const router = express.Router();
 
 const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || "";
+const DEFAULT_CURRENCY = process.env.PAY_CURRENCY || "ILS";
 
-/** تقسيم الاسم الكامل */
 function splitName(fullName = "") {
   const s = String(fullName || "")
     .trim()
@@ -22,12 +22,6 @@ function splitName(fullName = "") {
   };
 }
 
-/**
- * POST /api/payments/create
- * body: { orderId, amountMinor, currency, email, name, mobile, callback_url, metadata? }
- * - متاح للضيف (بدون توكن) أو للمستخدم المسجّل
- * - يربط reference بالطلب (لو وُجد orderId) بدون وسمه "paid"
- */
 router.post("/create", verifyTokenOptional, async (req, res) => {
   try {
     if (!LAHZA_SECRET_KEY) {
@@ -36,8 +30,7 @@ router.post("/create", verifyTokenOptional, async (req, res) => {
 
     const {
       orderId,
-      amountMinor,
-      currency,
+      currency = DEFAULT_CURRENCY,
       email,
       name,
       mobile,
@@ -45,21 +38,21 @@ router.post("/create", verifyTokenOptional, async (req, res) => {
       metadata = {},
     } = req.body || {};
 
-    if (!amountMinor || !currency || !callback_url) {
+    if (!orderId || !callback_url) {
+      return res.status(400).json({ error: "orderId و callback_url مطلوبان" });
+    }
+
+    const order = await Order.findById(orderId).lean();
+    if (!order) return res.status(404).json({ error: "الطلب غير موجود" });
+
+    const total = Number(order.total || 0);
+    if (!Number.isFinite(total) || total <= 0) {
       return res
         .status(400)
-        .json({ error: "amountMinor, currency, callback_url are required" });
+        .json({ error: "إجمالي الطلب غير صالح لإنشاء معاملة دفع" });
     }
 
-    // (اختياري) تأكيد orderId
-    if (orderId) {
-      if (!/^[a-f\d]{24}$/i.test(orderId)) {
-        return res.status(400).json({ error: "orderId غير صالح" });
-      }
-      const exists = await Order.findById(orderId).lean();
-      if (!exists) return res.status(404).json({ error: "الطلب غير موجود" });
-    }
-
+    const amountMinor = Math.round(total * 100);
     const { first_name, last_name } = splitName(name);
 
     const payload = {
@@ -70,9 +63,12 @@ router.post("/create", verifyTokenOptional, async (req, res) => {
       first_name,
       last_name,
       callback_url,
-      metadata: Object.keys(metadata || {}).length
-        ? JSON.stringify(metadata)
-        : undefined,
+      metadata: JSON.stringify({
+        orderId: String(order._id),
+        expectedAmountMinor: amountMinor,
+        expectedCurrency: currency,
+        ...(metadata && typeof metadata === "object" ? metadata : {}),
+      }),
     };
 
     const resp = await axios.post(
@@ -98,20 +94,16 @@ router.post("/create", verifyTokenOptional, async (req, res) => {
       });
     }
 
-    // ربط المرجع بالطلب (بدون وسمه مدفوع)
-    if (orderId) {
-      await Order.findByIdAndUpdate(
-        orderId,
-        {
-          $set: {
-            reference,
-            paymentMethod: "card",
-            // paymentStatus يبقى "unpaid" لحد ما يتأكد الدفع (Webhook/verify)
-          },
+    await Order.findByIdAndUpdate(
+      order._id,
+      {
+        $set: {
+          reference,
+          paymentMethod: "card",
         },
-        { new: true }
-      ).lean();
-    }
+      },
+      { new: true }
+    ).lean();
 
     return res.json({ authorization_url, reference });
   } catch (err) {
@@ -122,11 +114,6 @@ router.post("/create", verifyTokenOptional, async (req, res) => {
   }
 });
 
-/**
- * GET /api/payments/status/:reference
- * يتحقق من حالة المعاملة
- * - عند نجاح الدفع، استدعِ PATCH /api/orders/by-reference/:reference/pay
- */
 router.get("/status/:reference", async (req, res) => {
   try {
     if (!LAHZA_SECRET_KEY) {
