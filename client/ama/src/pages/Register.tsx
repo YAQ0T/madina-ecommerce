@@ -69,7 +69,7 @@ const Register: React.FC = () => {
         headers: { "Content-Type": "application/json" },
       });
 
-      const { userId, phone, message } = res.data || {};
+      const { userId, message } = res.data || {};
       // نخزّن userId لصفحة التوثيق
       if (userId) sessionStorage.setItem("pendingUserId", String(userId));
 
