@@ -1,0 +1,404 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const mongoose = require("mongoose");
+
+process.env.JWT_SECRET = process.env.JWT_SECRET || "x".repeat(32);
+process.env.LAHZA_SECRET_KEY = "test-lahza-secret";
+
+const ordersRouter = require("../routes/orders");
+const paymentsRouter = require("../routes/payments");
+
+const Order = require("../models/Order");
+const Product = require("../models/Product");
+const Variant = require("../models/Variant");
+const DiscountRule = require("../models/DiscountRule");
+const axios = require("axios");
+
+const ordersStore = new Map();
+
+Order.create = async (doc) => {
+  const _id = new mongoose.Types.ObjectId().toString();
+  const saved = { ...doc, _id };
+  ordersStore.set(_id, saved);
+  return saved;
+};
+
+Order.findById = (id) => ({
+  lean: async () => ordersStore.get(String(id)) || null,
+});
+
+Order.findByIdAndUpdate = (id, update) => ({
+  lean: async () => {
+    const existing = ordersStore.get(String(id));
+    if (!existing) return null;
+    const set = { ...(update?.$set || {}) };
+    const updated = { ...existing, ...set };
+    ordersStore.set(String(id), updated);
+    return updated;
+  },
+});
+
+const originalFindOneAndUpdate = Order.findOneAndUpdate;
+if (typeof originalFindOneAndUpdate !== "function") {
+  Order.findOneAndUpdate = () => ({
+    lean: async () => null,
+  });
+}
+
+let variantResolver = () => null;
+Variant.findOne = (query) => ({
+  lean: async () => {
+    const res = await variantResolver(query);
+    return res ? { ...res } : null;
+  },
+});
+
+let productResolver = () => null;
+Product.findById = (id) => ({
+  lean: async () => {
+    const res = await productResolver(id);
+    return res ? { ...res } : null;
+  },
+});
+
+let discountResolver = () => null;
+DiscountRule.findOne = (query) => ({
+  sort() {
+    return this;
+  },
+  lean: async () => {
+    const res = await discountResolver(query);
+    return res ? { ...res } : null;
+  },
+});
+
+let lastLahzaPayload = null;
+axios.post = async (url, payload) => {
+  lastLahzaPayload = { url, payload };
+  return {
+    data: {
+      data: {
+        authorization_url: "https://lahza.example/checkout",
+        reference: "lahza-ref-123",
+      },
+    },
+  };
+};
+
+function resetState() {
+  ordersStore.clear();
+  lastLahzaPayload = null;
+  variantResolver = () => null;
+  productResolver = () => null;
+  discountResolver = () => null;
+}
+
+function createMockRes() {
+  return {
+    statusCode: 200,
+    body: undefined,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload) {
+      this.body = payload;
+      return this;
+    },
+  };
+}
+
+function getRouteHandler(router, method, path) {
+  const stack = router.stack || (router.default && router.default.stack) || [];
+  for (const layer of stack) {
+    if (
+      layer.route &&
+      layer.route.path === path &&
+      layer.route.methods?.[method]
+    ) {
+      const handlers = layer.route.stack || [];
+      return handlers[handlers.length - 1].handle;
+    }
+  }
+  throw new Error(`Handler for ${method.toUpperCase()} ${path} not found`);
+}
+
+const codHandler = getRouteHandler(ordersRouter, "post", "/");
+const prepareCardHandler = getRouteHandler(
+  ordersRouter,
+  "post",
+  "/prepare-card"
+);
+const lahzaCreateHandler = getRouteHandler(paymentsRouter, "post", "/create");
+
+test(
+  "COD orders recompute tampered discount server-side",
+  { concurrency: false },
+  async () => {
+    resetState();
+
+    const productId = new mongoose.Types.ObjectId().toString();
+    const variantId = new mongoose.Types.ObjectId().toString();
+    const ruleId = new mongoose.Types.ObjectId().toString();
+
+    const variantDoc = {
+      _id: variantId,
+      product: productId,
+      price: { amount: 100, discount: null },
+      stock: { sku: "SKU123" },
+      color: { images: [] },
+    };
+    variantResolver = (query) => {
+      if (
+        query?._id &&
+        String(query._id) === variantId &&
+        (!query.product || String(query.product) === productId)
+      ) {
+        return variantDoc;
+      }
+      return null;
+    };
+
+    productResolver = (id) => {
+      if (String(id) === productId) {
+        return { _id: productId, images: ["img.png"], name: "Product" };
+      }
+      return null;
+    };
+
+    const discountRule = {
+      _id: ruleId,
+      type: "percent",
+      value: 10,
+      threshold: 100,
+      isActive: true,
+      name: "Ten Percent",
+    };
+    discountResolver = (query) => {
+      const threshold = query?.threshold?.$lte ?? Infinity;
+      const eligible =
+        threshold >= discountRule.threshold && discountRule.isActive;
+      if (!eligible) return null;
+      if (query?._id) {
+        return String(query._id) === ruleId ? discountRule : null;
+      }
+      return discountRule;
+    };
+
+    const req = {
+      body: {
+        address: "Test Address",
+        items: [
+          {
+            productId,
+            variantId,
+            quantity: 2,
+          },
+        ],
+        paymentMethod: "cod",
+        discount: {
+          applied: true,
+          ruleId,
+          amount: 9999,
+          type: "percent",
+          value: 999,
+        },
+      },
+    };
+
+    const res = createMockRes();
+    await codHandler(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.subtotal, 200);
+    assert.equal(res.body.discount.amount, 20);
+    assert.equal(res.body.total, 180);
+
+    const saved = ordersStore.get(res.body._id);
+    assert.ok(saved, "order persisted in store");
+    assert.equal(saved.discount.amount, 20);
+    assert.equal(saved.total, 180);
+  }
+);
+
+test(
+  "Card preparation ignores discounts without a valid rule",
+  { concurrency: false },
+  async () => {
+    resetState();
+
+    const productId = new mongoose.Types.ObjectId().toString();
+    const variantId = new mongoose.Types.ObjectId().toString();
+
+    const variantDoc = {
+      _id: variantId,
+      product: productId,
+      price: { amount: 150, discount: null },
+      stock: { sku: "SKU987" },
+      color: { images: [] },
+    };
+    variantResolver = (query) => {
+      if (
+        query?._id &&
+        String(query._id) === variantId &&
+        (!query.product || String(query.product) === productId)
+      ) {
+        return variantDoc;
+      }
+      return null;
+    };
+
+    productResolver = (id) => {
+      if (String(id) === productId) {
+        return { _id: productId, images: [] };
+      }
+      return null;
+    };
+
+    discountResolver = () => null;
+
+    const req = {
+      body: {
+        address: "Card Address",
+        items: [
+          {
+            productId,
+            variantId,
+            quantity: 2,
+          },
+        ],
+        guestInfo: { name: "Guest" },
+        discount: {
+          applied: true,
+          ruleId: new mongoose.Types.ObjectId().toString(),
+          amount: 75,
+          type: "fixed",
+          value: 75,
+        },
+      },
+    };
+
+    const res = createMockRes();
+    await prepareCardHandler(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.total, 300);
+
+    const saved = ordersStore.get(res.body._id);
+    assert.ok(saved, "order persisted in store");
+    assert.equal(saved.discount.amount, 0);
+    assert.equal(saved.total, 300);
+  }
+);
+
+test(
+  "Lahza initialization uses the authoritative order total",
+  { concurrency: false },
+  async () => {
+    resetState();
+
+    const productId = new mongoose.Types.ObjectId().toString();
+    const variantId = new mongoose.Types.ObjectId().toString();
+    const ruleId = new mongoose.Types.ObjectId().toString();
+
+    const variantDoc = {
+      _id: variantId,
+      product: productId,
+      price: { amount: 120, discount: null },
+      stock: { sku: "SKU555" },
+      color: { images: [] },
+    };
+    variantResolver = (query) => {
+      if (
+        query?._id &&
+        String(query._id) === variantId &&
+        (!query.product || String(query.product) === productId)
+      ) {
+        return variantDoc;
+      }
+      return null;
+    };
+
+    productResolver = (id) => {
+      if (String(id) === productId) {
+        return { _id: productId, images: [] };
+      }
+      return null;
+    };
+
+    const discountRule = {
+      _id: ruleId,
+      type: "percent",
+      value: 20,
+      threshold: 100,
+      isActive: true,
+      name: "Twenty Percent",
+    };
+    discountResolver = (query) => {
+      const threshold = query?.threshold?.$lte ?? Infinity;
+      const eligible =
+        threshold >= discountRule.threshold && discountRule.isActive;
+      if (!eligible) return null;
+      if (query?._id) {
+        return String(query._id) === ruleId ? discountRule : null;
+      }
+      return discountRule;
+    };
+
+    const orderReq = {
+      body: {
+        address: "Pay Address",
+        items: [
+          {
+            productId,
+            variantId,
+            quantity: 2,
+          },
+        ],
+        paymentMethod: "cod",
+        discount: {
+          applied: true,
+          ruleId,
+          amount: 9999,
+          type: "percent",
+          value: 999,
+        },
+      },
+    };
+
+    const codRes = createMockRes();
+    await codHandler(orderReq, codRes);
+    const orderId = codRes.body._id;
+    const expectedTotal = 192;
+
+    const req = {
+      body: {
+        orderId,
+        callback_url: "https://example.com/return",
+        name: "Test User",
+        email: "user@example.com",
+        mobile: "+970500000000",
+      },
+    };
+
+    const res = createMockRes();
+    await lahzaCreateHandler(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.ok(res.body.authorization_url);
+    assert.ok(res.body.reference);
+
+    assert.ok(lastLahzaPayload, "Lahza payload captured");
+    assert.equal(
+      lastLahzaPayload.payload.amount,
+      Math.round(expectedTotal * 100)
+    );
+    const metadata = JSON.parse(lastLahzaPayload.payload.metadata);
+    assert.equal(metadata.expectedAmountMinor, Math.round(expectedTotal * 100));
+
+    const saved = ordersStore.get(orderId);
+    assert.equal(saved.total, expectedTotal);
+    assert.equal(saved.reference, "lahza-ref-123");
+    assert.equal(saved.paymentMethod, "card");
+  }
+);

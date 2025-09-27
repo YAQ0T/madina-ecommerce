@@ -91,36 +91,109 @@ async function resolveVariant({ productId, sku, measure, color }) {
   return viaNames || null;
 }
 
-function computeOrderTotals(items, appliedDiscount) {
-  const subtotal = items.reduce((s, it) => s + it.price * it.quantity, 0);
+const EMPTY_DISCOUNT = {
+  applied: false,
+  ruleId: null,
+  type: null,
+  value: 0,
+  amount: 0,
+  threshold: 0,
+  name: "",
+};
 
-  let discountObj = {
-    applied: false,
-    ruleId: null,
-    type: null,
-    value: 0,
-    amount: 0,
-    threshold: 0,
-    name: "",
-  };
+async function findBestDiscountRule(subtotal) {
+  const now = new Date();
+  const rule = await DiscountRule.findOne({
+    isActive: true,
+    threshold: { $lte: subtotal },
+    $and: [
+      {
+        $or: [
+          { startAt: null },
+          { startAt: { $lte: now } },
+          { startAt: { $exists: false } },
+        ],
+      },
+      {
+        $or: [
+          { endAt: null },
+          { endAt: { $gte: now } },
+          { endAt: { $exists: false } },
+        ],
+      },
+    ],
+  })
+    .sort({ threshold: -1, priority: -1, createdAt: -1 })
+    .lean();
 
-  if (appliedDiscount && typeof appliedDiscount === "object") {
-    discountObj = {
-      applied: !!appliedDiscount.applied,
-      ruleId: appliedDiscount.ruleId || null,
-      type:
-        appliedDiscount.type === "percent" || appliedDiscount.type === "fixed"
-          ? appliedDiscount.type
-          : null,
-      value: Number(appliedDiscount.value || 0) || 0,
-      amount: Number(appliedDiscount.amount || 0) || 0,
-      threshold: Number(appliedDiscount.threshold || 0) || 0,
-      name: appliedDiscount.name || "",
-    };
+  return rule || null;
+}
+
+async function findEligibleRuleById(ruleId, subtotal) {
+  if (!ruleId) return null;
+  const now = new Date();
+  const rule = await DiscountRule.findOne({
+    _id: ruleId,
+    isActive: true,
+    threshold: { $lte: subtotal },
+    $and: [
+      {
+        $or: [
+          { startAt: null },
+          { startAt: { $lte: now } },
+          { startAt: { $exists: false } },
+        ],
+      },
+      {
+        $or: [
+          { endAt: null },
+          { endAt: { $gte: now } },
+          { endAt: { $exists: false } },
+        ],
+      },
+    ],
+  }).lean();
+
+  return rule || null;
+}
+
+function buildDiscountFromRule(rule, subtotal) {
+  if (!rule) return { ...EMPTY_DISCOUNT };
+  const value = Number(rule.value || 0) || 0;
+  let amount = 0;
+
+  if (rule.type === "percent") {
+    amount = Math.max(0, (subtotal * value) / 100);
+  } else if (rule.type === "fixed") {
+    amount = Math.max(0, Math.min(value, subtotal));
   }
 
-  const total = Math.max(0, subtotal - discountObj.amount);
-  return { subtotal, discount: discountObj, total };
+  return {
+    applied: amount > 0,
+    ruleId: rule._id || null,
+    type: rule.type || null,
+    value,
+    amount,
+    threshold: Number(rule.threshold || 0) || 0,
+    name: rule.name || "",
+  };
+}
+
+async function computeOrderTotals(items, incomingDiscount) {
+  const subtotal = items.reduce((s, it) => s + it.price * it.quantity, 0);
+
+  if (!subtotal) {
+    return { subtotal, discount: { ...EMPTY_DISCOUNT }, total: 0 };
+  }
+  const maybeRuleId = toOid(incomingDiscount?.ruleId);
+  const verifiedRule =
+    (await findEligibleRuleById(maybeRuleId, subtotal)) ||
+    (await findBestDiscountRule(subtotal));
+
+  const discount = buildDiscountFromRule(verifiedRule, subtotal);
+  const total = Math.max(0, subtotal - discount.amount);
+
+  return { subtotal, discount, total };
 }
 
 /* ======================= إنشاء طلب COD ======================= */
@@ -225,7 +298,7 @@ router.post("/", verifyTokenOptional, async (req, res) => {
         .json({ message: "لم يتمكّن الخادم من بناء عناصر صالحة للطلب" });
     }
 
-    const { subtotal, discount, total } = computeOrderTotals(
+    const { subtotal, discount, total } = await computeOrderTotals(
       cleanItems,
       incomingDiscount
     );
@@ -367,7 +440,7 @@ router.post("/prepare-card", verifyTokenOptional, async (req, res) => {
         .json({ message: "لم يتمكّن الخادم من بناء عناصر صالحة للطلب" });
     }
 
-    const { subtotal, discount, total } = computeOrderTotals(
+    const { subtotal, discount, total } = await computeOrderTotals(
       cleanItems,
       incomingDiscount
     );
