@@ -19,14 +19,29 @@ const CheckoutSuccess: React.FC = () => {
     const params = new URLSearchParams(location.search);
     return params.get("reference") || params.get("ref") || "";
   }
+  function getPaymentMethod() {
+    const params = new URLSearchParams(location.search);
+    return (params.get("method") || "").toLowerCase();
+  }
 
   useEffect(() => {
     const run = async () => {
       try {
+        const method = getPaymentMethod();
+
+        if (method === "cod") {
+          setState("ok");
+          setMessage(
+            "✅ تم تأكيد طلب الدفع عند الاستلام. سنتواصل لتأكيد التوصيل."
+          );
+          clearCart();
+          return;
+        }
+
         const ref = getReference();
         if (!ref) {
           setState("fail");
-          setMessage("لا يوجد مرجع معاملة في الرابط.");
+          setMessage("لا يوجد مرجع معاملة للبطاقة في الرابط.");
           return;
         }
 
