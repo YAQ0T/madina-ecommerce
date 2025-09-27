@@ -6,13 +6,14 @@ const axios = require("axios");
 const qs = require("querystring");
 const crypto = require("crypto");
 const User = require("../models/User");
+const { getJwtSecret } = require("../utils/config");
 
 const router = express.Router();
 
 /* =========================
    ضبط بيئة/إعدادات
 ========================= */
-const JWT_SECRET = process.env.JWT_SECRET || "changeme_dev_secret";
+const JWT_SECRET = getJwtSecret();
 
 /** قاعدة HTD (تستطيع تغييرها) */
 const HTD_BASE =
@@ -214,12 +215,10 @@ router.post("/signup", async (req, res) => {
     const normEmail = email ? normalizeEmail(email) : null;
 
     if ((!normPhone && !normEmail) || !password || !name) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "أدخل جوالًا صحيحًا أو بريدًا إلكترونيًا صالحًا مع كلمة المرور والاسم",
-        });
+      return res.status(400).json({
+        message:
+          "أدخل جوالًا صحيحًا أو بريدًا إلكترونيًا صالحًا مع كلمة المرور والاسم",
+      });
     }
 
     const or = [];

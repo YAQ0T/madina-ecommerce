@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
+const axios = require("axios");
 
 const {
   verifyToken,
@@ -16,6 +17,30 @@ const User = require("../models/User");
 const DiscountRule = require("../models/DiscountRule");
 
 /* =============== Helpers =============== */
+const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || "";
+
+async function verifyLahzaCharge(reference) {
+  if (!LAHZA_SECRET_KEY) {
+    const err = new Error("LAHZA_SECRET_KEY is not configured");
+    err.code = "NO_SECRET";
+    throw err;
+  }
+
+  const url = `https://api.lahza.io/transaction/verify/${encodeURIComponent(
+    reference
+  )}`;
+
+  const { data } = await axios.get(url, {
+    headers: {
+      Authorization: `Bearer ${LAHZA_SECRET_KEY}`,
+      "Content-Type": "application/json",
+    },
+    timeout: 15000,
+  });
+
+  return String(data?.data?.status || "").toLowerCase() === "success";
+}
+
 const isNonEmpty = (s) => typeof s === "string" && s.trim().length > 0;
 const toOid = (id) =>
   mongoose.isValidObjectId(id) ? new mongoose.Types.ObjectId(id) : null;
@@ -373,39 +398,62 @@ router.post("/prepare-card", verifyTokenOptional, async (req, res) => {
 });
 
 /* =========== وسم الطلب مدفوعًا بالمرجع =========== */
-router.patch("/by-reference/:reference/pay", async (req, res) => {
-  try {
-    const reference = String(req.params.reference || "").trim();
-    if (!reference) return res.status(400).json({ message: "reference مطلوب" });
+router.patch(
+  "/by-reference/:reference/pay",
+  verifyToken,
+  isAdmin,
+  async (req, res) => {
+    try {
+      const reference = String(req.params.reference || "").trim();
+      if (!reference)
+        return res.status(400).json({ message: "reference مطلوب" });
+      try {
+        const verified = await verifyLahzaCharge(reference);
+        if (!verified) {
+          return res
+            .status(400)
+            .json({ message: "فشل تأكيد الدفع من لحظة لهذا المرجع" });
+        }
+      } catch (err) {
+        if (err?.code === "NO_SECRET") {
+          console.error("LAHZA_SECRET_KEY is missing when verifying payment");
+          return res.status(500).json({ message: "مفتاح لحظة غير مهيأ" });
+        }
+        console.error("Error verifying Lahza payment:", err?.message || err);
+        return res
+          .status(502)
+          .json({ message: "تعذر التحقق من الدفع من لحظة، حاول لاحقًا" });
+      }
 
-    const updated = await Order.findOneAndUpdate(
-      { reference, paymentStatus: { $ne: "paid" } },
-      { $set: { paymentStatus: "paid", status: "waiting_confirmation" } },
-      { new: true }
-    ).lean();
+      const updated = await Order.findOneAndUpdate(
+        { reference, paymentStatus: { $ne: "paid" } },
+        { $set: { paymentStatus: "paid", status: "waiting_confirmation" } },
+        { new: true }
+      ).lean();
 
-    if (!updated) {
-      const existing = await Order.findOne({ reference }).lean();
-      if (!existing)
-        return res.status(404).json({ message: "طلب غير موجود لهذا المرجع" });
-      return res.json({ message: "الطلب مدفوع مسبقًا", order: existing });
-    }
+      if (!updated) {
+        const existing = await Order.findOne({ reference }).lean();
+        if (!existing)
+          return res.status(404).json({ message: "طلب غير موجود لهذا المرجع" });
+        return res.json({ message: "الطلب مدفوع مسبقًا", order: existing });
+      }
 
-    await Promise.all(
-      (updated.items || []).map((ci) =>
-        Variant.updateOne(
-          { _id: ci.variantId, "stock.inStock": { $gte: ci.quantity } },
-          { $inc: { "stock.inStock": -ci.quantity } }
+      await Promise.all(
+        (updated.items || []).map((ci) =>
+          Variant.updateOne(
+            { _id: ci.variantId, "stock.inStock": { $gte: ci.quantity } },
+            { $inc: { "stock.inStock": -ci.quantity } }
+          )
         )
-      )
-    );
+      );
 
-    return res.json(updated);
-  } catch (err) {
-    console.error("Error marking order paid:", err);
-    res.status(500).json({ message: "فشل وسم الطلب مدفوع" });
+      return res.json(updated);
+    } catch (err) {
+      console.error("Error marking order paid:", err);
+      res.status(500).json({ message: "فشل وسم الطلب مدفوع" });
+    }
   }
-});
+);
 
 /* ======================= طلباتي (قائمة) ======================= */
 router.get("/mine", verifyToken, async (req, res) => {

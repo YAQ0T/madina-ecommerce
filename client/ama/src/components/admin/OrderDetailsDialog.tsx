@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +28,8 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
 }) => {
   if (!selectedOrder) return null;
 
+  const [markingPaid, setMarkingPaid] = useState(false);
+
   const handleDelete = async () => {
     const confirmDelete = confirm("هل أنت متأكد من حذف هذا الطلب نهائيًا؟");
     if (!confirmDelete) return;
@@ -51,6 +53,55 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
     }
   };
 
+  const handleMarkPaid = async () => {
+    if (!selectedOrder?.reference) {
+      alert("لا يوجد مرجع دفع مرتبط بهذا الطلب");
+      return;
+    }
+    if (!token) {
+      alert("رمز الأدمن غير متوفر، أعد تسجيل الدخول");
+      return;
+    }
+
+    try {
+      setMarkingPaid(true);
+      const base = import.meta.env.VITE_API_URL;
+      const { data } = await axios.patch(
+        `${base}/api/orders/by-reference/${encodeURIComponent(
+          selectedOrder.reference
+        )}/pay`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const patched = data?.order || data;
+      if (patched && patched._id) {
+        const merged = orders.map((o) =>
+          o._id === patched._id ? { ...o, ...patched } : o
+        );
+        setOrders(merged);
+        setSelectedOrder(patched);
+      }
+
+      alert(data?.message || "تم وسم الطلب كمدفوع بنجاح");
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const resp = err?.response?.data;
+      console.error("❌ Error marking order paid", status, resp || err);
+      alert(
+        resp?.message
+          ? `فشل وسم الطلب كمدفوع: ${resp.message}`
+          : "تعذر وسم الطلب كمدفوع، حاول لاحقًا"
+      );
+    } finally {
+      setMarkingPaid(false);
+    }
+  };
+
   return (
     <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
       <DialogContent>
@@ -69,7 +120,18 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
           <Button size="sm" variant="destructive" onClick={handleDelete}>
             🗑️ حذف نهائي
           </Button>
-          <DialogFooter>
+          <DialogFooter className="flex gap-2">
+            {selectedOrder?.reference &&
+              selectedOrder?.paymentStatus !== "paid" && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleMarkPaid}
+                  disabled={markingPaid}
+                >
+                  {markingPaid ? "جاري التحقق…" : "وسم كمدفوع (لحظة)"}
+                </Button>
+              )}
             <Button onClick={() => setSelectedOrder(null)}>إغلاق</Button>
           </DialogFooter>
         </div>

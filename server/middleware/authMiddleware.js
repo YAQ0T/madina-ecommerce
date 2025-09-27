@@ -1,8 +1,9 @@
 // server/middleware/authMiddleware.js
 const jwt = require("jsonwebtoken");
+const { getJwtSecret } = require("../utils/config");
 
 // ✅ وحّد السر هنا مع نفس السر في routes/auth.js
-const JWT_SECRET = process.env.JWT_SECRET || "changeme_dev_secret";
+const JWT_SECRET = getJwtSecret();
 
 // ✅ يتحقق من التوكن ويوقف الطلب لو غير موجود/غير صالح
 const verifyToken = (req, res, next) => {
