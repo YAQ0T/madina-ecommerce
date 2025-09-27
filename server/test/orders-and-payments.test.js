@@ -130,6 +130,60 @@ const prepareCardHandler = getRouteHandler(
   "/prepare-card"
 );
 const lahzaCreateHandler = getRouteHandler(paymentsRouter, "post", "/create");
+test(
+  "COD orders force paymentStatus to unpaid",
+  { concurrency: false },
+  async () => {
+    resetState();
+
+    const productId = new mongoose.Types.ObjectId().toString();
+    const variantId = new mongoose.Types.ObjectId().toString();
+
+    const variantDoc = {
+      _id: variantId,
+      product: productId,
+      price: { amount: 50, discount: null },
+      stock: { sku: "SKU-PAID" },
+      color: { images: [] },
+    };
+
+    variantResolver = (query) => {
+      if (
+        query?._id &&
+        String(query._id) === variantId &&
+        (!query.product || String(query.product) === productId)
+      ) {
+        return variantDoc;
+      }
+      return null;
+    };
+
+    const req = {
+      body: {
+        address: "Force Unpaid St",
+        items: [
+          {
+            productId,
+            variantId,
+            quantity: 1,
+          },
+        ],
+        paymentMethod: "cod",
+        paymentStatus: "paid",
+      },
+    };
+
+    const res = createMockRes();
+    await codHandler(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.paymentStatus, "unpaid");
+
+    const saved = ordersStore.get(res.body._id);
+    assert.ok(saved, "order persisted in store");
+    assert.equal(saved.paymentStatus, "unpaid");
+  }
+);
 
 test(
   "COD orders recompute tampered discount server-side",

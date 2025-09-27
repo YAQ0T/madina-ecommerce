@@ -204,7 +204,6 @@ router.post("/", verifyTokenOptional, async (req, res) => {
       notes,
       items: rawItems,
       paymentMethod = "cod",
-      paymentStatus = "unpaid",
       status = "waiting_confirmation",
       discount: incomingDiscount,
     } = req.body || {};
@@ -322,9 +321,8 @@ router.post("/", verifyTokenOptional, async (req, res) => {
         ? status
         : "waiting_confirmation",
       paymentMethod: "cod",
-      paymentStatus: ["unpaid", "paid", "failed"].includes(paymentStatus)
-        ? paymentStatus
-        : "unpaid",
+      paymentStatus: "unpaid",
+
       reference: null,
       notes: isNonEmpty(notes) ? String(notes).trim() : "",
     });
