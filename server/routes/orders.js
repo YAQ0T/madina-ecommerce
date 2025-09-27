@@ -525,6 +525,33 @@ router.patch(
     }
   }
 );
+/* ==================== تفاصيل طلب بالمرجع (قراءة فقط) ==================== */
+router.get("/by-reference/:reference", verifyToken, async (req, res) => {
+  try {
+    const reference = String(req.params.reference || "").trim();
+    if (!reference) {
+      return res.status(400).json({ message: "reference مطلوب" });
+    }
+
+    const order = await Order.findOne({ reference }).lean();
+    if (!order) {
+      return res.status(404).json({ message: "الطلب غير موجود" });
+    }
+
+    const isOwner =
+      order?.user?._id && String(order.user._id) === String(req.user?.id);
+    const isAdminUser = req.user?.role === "admin";
+
+    if (!isOwner && !isAdminUser) {
+      return res.status(403).json({ message: "غير مصرح" });
+    }
+
+    return res.json(order);
+  } catch (err) {
+    console.error("GET /api/orders/by-reference/:reference error:", err);
+    return res.status(500).json({ message: "فشل في جلب تفاصيل الطلب" });
+  }
+});
 
 /* ======================= طلباتي (قائمة) ======================= */
 router.get("/mine", verifyToken, async (req, res) => {
