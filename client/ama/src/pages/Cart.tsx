@@ -165,19 +165,12 @@ const CartPageContent: React.FC = () => {
     };
   }, [preview, localSubtotal, localTotal]);
 
-  // طلب توكن v3 والتحقق عبر السيرفر
-  const runV3AndVerify = async () => {
+  // طلب توكن v3 لإرساله مع الطلبات (التحقق يتم في الخادم)
+  const getRecaptchaToken = async () => {
     if (!executeRecaptcha) {
       throw new Error("reCAPTCHA not ready");
     }
-    const token = await executeRecaptcha(RECAPTCHA_ACTION);
-    const url = `${import.meta.env.VITE_API_URL}/api/recaptcha/verify`;
-    const { data } = await axios.post(url, {
-      token,
-      expectedAction: RECAPTCHA_ACTION,
-      minScore: RECAPTCHA_MIN_SCORE,
-    });
-    return data?.success === true;
+    return executeRecaptcha(RECAPTCHA_ACTION);
   };
 
   const handleCreateCOD = async () => {
@@ -197,16 +190,16 @@ const CartPageContent: React.FC = () => {
     }
 
     try {
-      const ok = await runV3AndVerify();
-      if (!ok) {
-        alert("فشل التحقق من reCAPTCHA. حاول مجددًا.");
-        return;
-      }
+      const recaptchaToken = await getRecaptchaToken();
 
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       await axios.post(
         `${import.meta.env.VITE_API_URL}/api/orders`,
         {
+          recaptchaToken,
+          recaptchaAction: RECAPTCHA_ACTION,
+          recaptchaMinScore: RECAPTCHA_MIN_SCORE,
+
           address: userData.address,
           paymentMethod: "cod",
           paymentStatus: "unpaid",
@@ -249,11 +242,7 @@ const CartPageContent: React.FC = () => {
     }
 
     try {
-      const ok = await runV3AndVerify();
-      if (!ok) {
-        alert("فشل التحقق من reCAPTCHA. حاول مجددًا.");
-        return;
-      }
+      const recaptchaToken = await getRecaptchaToken();
 
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
@@ -261,6 +250,10 @@ const CartPageContent: React.FC = () => {
       const prep = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/orders/prepare-card`,
         {
+          recaptchaToken,
+          recaptchaAction: RECAPTCHA_ACTION,
+          recaptchaMinScore: RECAPTCHA_MIN_SCORE,
+
           address: userData.address,
           notes,
           // في حال الزائر، نرسل guestInfo ليستخدمه السيرفر (اختياري/غير كسّار)

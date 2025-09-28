@@ -15,6 +15,49 @@ const Product = require("../models/Product");
 const Variant = require("../models/Variant");
 const User = require("../models/User");
 const DiscountRule = require("../models/DiscountRule");
+const { verifyRecaptchaToken } = require("../utils/recaptcha");
+const DEFAULT_RECAPTCHA_ACTION = "checkout";
+const ENV_MIN_SCORE = Number(process.env.RECAPTCHA_MIN_SCORE);
+const DEFAULT_RECAPTCHA_MIN_SCORE = Number.isFinite(ENV_MIN_SCORE)
+  ? ENV_MIN_SCORE
+  : 0.5;
+
+async function ensureRecaptcha(req, res) {
+  const action = isNonEmpty(req.body?.recaptchaAction)
+    ? String(req.body.recaptchaAction).trim()
+    : DEFAULT_RECAPTCHA_ACTION;
+  const requestedMinScore = Number(req.body?.recaptchaMinScore);
+  const minScore =
+    Number.isFinite(requestedMinScore) && requestedMinScore >= 0
+      ? requestedMinScore
+      : DEFAULT_RECAPTCHA_MIN_SCORE;
+
+  try {
+    await verifyRecaptchaToken({
+      token: req.body?.recaptchaToken,
+      expectedAction: action,
+      minScore,
+    });
+    return true;
+  } catch (err) {
+    const status = err?.statusCode || 400;
+    if (status >= 500) {
+      console.error("reCAPTCHA verification error:", err);
+      res.status(status).json({
+        message: "خطأ في التحقق من reCAPTCHA",
+        error: err?.code || "RECAPTCHA_FAILED",
+      });
+      return false;
+    }
+
+    res.status(400).json({
+      message: "فشل التحقق من reCAPTCHA",
+      error: err?.code || "RECAPTCHA_FAILED",
+      ...(err?.details ? { details: err.details } : {}),
+    });
+    return false;
+  }
+}
 
 /* =============== Helpers =============== */
 const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || "";
@@ -199,6 +242,9 @@ async function computeOrderTotals(items, incomingDiscount) {
 /* ======================= إنشاء طلب COD ======================= */
 router.post("/", verifyTokenOptional, async (req, res) => {
   try {
+    const recaptchaOk = await ensureRecaptcha(req, res);
+    if (!recaptchaOk) return;
+
     const {
       address,
       notes,
@@ -337,6 +383,9 @@ router.post("/", verifyTokenOptional, async (req, res) => {
 /* ==================== تحضير طلب للبطاقة ==================== */
 router.post("/prepare-card", verifyTokenOptional, async (req, res) => {
   try {
+    const recaptchaOk = await ensureRecaptcha(req, res);
+    if (!recaptchaOk) return;
+
     const {
       address,
       notes,
