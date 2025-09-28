@@ -24,7 +24,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 
 function App() {
-  const [open, setOpen] = useState(false);
+  // const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setOpen(true);
