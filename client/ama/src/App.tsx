@@ -13,7 +13,7 @@ import Terms from "./pages/Terms";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserOrderDetails from "./pages/UserOrderDetails";
 // import OfferDialog from "./components/common/OfferDialog";
-import { useEffect, useState } from "react";
+// import { useEffect, useState } from "react";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import ReturnsPolicy from "./pages/ReturnsPolicy";
 import AdminHomeCollections from "./pages/AdminHomeCollections";
@@ -26,9 +26,9 @@ import ResetPassword from "./pages/ResetPassword";
 function App() {
   // const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    setOpen(true);
-  }, []);
+  // useEffect(() => {
+  //   setOpen(true);
+  // }, []);
 
   return (
     <>
