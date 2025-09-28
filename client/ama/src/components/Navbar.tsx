@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ThemeToggle from "@/components/ThemeToggle";
-import OfferBanner from "./common/OfferBanner";
+// import OfferBanner from "./common/OfferBanner";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);

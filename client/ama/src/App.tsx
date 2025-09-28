@@ -12,7 +12,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserOrderDetails from "./pages/UserOrderDetails";
-import OfferDialog from "./components/common/OfferDialog";
+// import OfferDialog from "./components/common/OfferDialog";
 import { useEffect, useState } from "react";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import ReturnsPolicy from "./pages/ReturnsPolicy";
@@ -32,7 +32,7 @@ function App() {
 
   return (
     <>
-      <OfferDialog open={open} onClose={() => setOpen(false)} />
+      {/* <OfferDialog open={open} onClose={() => setOpen(false)} /> */}
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/products" element={<Products />} />

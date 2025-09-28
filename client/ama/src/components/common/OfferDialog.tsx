@@ -16,7 +16,7 @@ interface OfferDialogProps {
 const OfferDialog: React.FC<OfferDialogProps> = ({ open, onClose }) => {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      {/* <DialogContent className="sm:max-w-md bg-white text-black dark:bg-black dark:text-white rounded-2xl  border border-gray-200 dark:border-gray-800 min-h-[60vh] max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-md bg-white text-black dark:bg-black dark:text-white rounded-2xl  border border-gray-200 dark:border-gray-800 min-h-[60vh] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-center">
             🎉 عرض خاص لك!
@@ -41,7 +41,7 @@ const OfferDialog: React.FC<OfferDialogProps> = ({ open, onClose }) => {
             فهمت ✨
           </Button>
         </div>
-      </DialogContent> */}
+      </DialogContent>
     </Dialog>
   );
 };
