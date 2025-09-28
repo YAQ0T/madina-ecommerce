@@ -28,12 +28,12 @@ const Navbar: React.FC = () => {
 
   return (
     <header className="border-b mb-6">
-      {showBanner && (
+      {/* {showBanner && (
         <OfferBanner
           message={bannerinfo.current}
           onClose={() => setShowBanner(false)}
         />
-      )}
+      )} */}
 
       <nav className="container mx-auto p-4 flex items-center justify-between">
         {/* الشعار */}
