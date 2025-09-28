@@ -11,10 +11,10 @@ const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [showBanner, setShowBanner] = useState(true);
-  const bannerinfo = useRef(
-    "خصم اجمالي على كل الفواتير الاعلى من ١٠٠٠ شيقل بقيمه ٥٪"
-  );
+  // const [showBanner, setShowBanner] = useState(true);
+  // const bannerinfo = useRef(
+  //   "خصم اجمالي على كل الفواتير الاعلى من ١٠٠٠ شيقل بقيمه ٥٪"
+  // );
   const links = [
     { name: "الرئيسية", path: "/" },
     { name: "المنتجات", path: "/products" },
