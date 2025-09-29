@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useTranslation } from "@/i18n";
 
 interface CategoryFilterMenusProps {
   selectedMainCategory: string;
@@ -28,29 +29,34 @@ const CategoryFilterMenus: React.FC<CategoryFilterMenusProps> = ({
   ownershipFilter,
   setOwnershipFilter,
 }) => {
-  const ownershipLabel =
-    ownershipFilter === "ours"
-      ? "على اسمنا"
-      : ownershipFilter === "local"
-      ? "شراء محلي"
-      : "الكل";
+  const { t } = useTranslation();
+
+  const ownershipLabel = t(
+    `admin.categoryFilters.ownership.options.${ownershipFilter}` as const
+  );
+
+  const allLabel = t("common.all");
 
   return (
     <div className="flex flex-wrap gap-2">
       {/* 🔽 تصفية حسب نوع الملكية */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline">⚑ نوع الملكية: {ownershipLabel}</Button>
+          <Button variant="outline">
+            {t("admin.categoryFilters.ownership.label", {
+              label: ownershipLabel,
+            })}
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => setOwnershipFilter("all")}>
-            الكل
+            {allLabel}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setOwnershipFilter("ours")}>
-            على اسمنا
+            {t("admin.categoryFilters.ownership.options.ours")}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setOwnershipFilter("local")}>
-            شراء محلي
+            {t("admin.categoryFilters.ownership.options.local")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -59,7 +65,9 @@ const CategoryFilterMenus: React.FC<CategoryFilterMenusProps> = ({
       {selectedMainCategory !== "all" && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline">🧮 تصفية فرعية</Button>
+            <Button variant="outline">
+              {t("admin.categoryFilters.subFilter")}
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {Array.from(categoryMap[selectedMainCategory] || []).map((sub) => (
@@ -78,8 +86,10 @@ const CategoryFilterMenus: React.FC<CategoryFilterMenusProps> = ({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline">
-            🧮 تصفية رئيسية
-            {selectedMainCategory !== "all" ? `: ${selectedMainCategory}` : ""}
+            {t("admin.categoryFilters.mainFilter")}
+            {selectedMainCategory !== "all"
+              ? `: ${String(selectedMainCategory)}`
+              : ""}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -89,7 +99,7 @@ const CategoryFilterMenus: React.FC<CategoryFilterMenusProps> = ({
               setProductFilter("all");
             }}
           >
-            الكل
+            {allLabel}
           </DropdownMenuItem>
 
           {Object.keys(categoryMap).map((main) => (

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import VariantManagerDialog from "@/components/admin/VariantManagerDialog";
+import { useTranslation } from "@/i18n";
 
 interface ProductTableProps {
   productsState: any[];
@@ -21,6 +22,7 @@ const badgeLocal = `${badgeBase} bg-amber-100 text-amber-800 dark:bg-amber-900/3
 
 // شارة بسيطة لعرض الأولوية
 function PriorityBadge({ value }: { value?: string }) {
+  const { t } = useTranslation();
   const v = (value || "C").toUpperCase();
   const map: Record<string, string> = {
     A: "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-300",
@@ -29,23 +31,27 @@ function PriorityBadge({ value }: { value?: string }) {
   };
   const cls = `${badgeBase} ${map[v] || map.C}`;
   return (
-    <span className={cls} title="أولوية الظهور">
+    <span className={cls} title={t("admin.productTable.priorityTitle")}>
       {v}
     </span>
   );
 }
 
 function OwnershipBadge({ value }: { value?: string }) {
+  const { t } = useTranslation();
   const v = (value || "ours").toLowerCase();
   if (v === "local")
     return (
-      <span className={badgeLocal} title="شراء محلي">
-        شراء محلي
+      <span
+        className={badgeLocal}
+        title={t("admin.common.ownership.local")}
+      >
+        {t("admin.common.ownership.local")}
       </span>
     );
   return (
-    <span className={badgeOurs} title="على اسمنا">
-      على اسمنا
+    <span className={badgeOurs} title={t("admin.common.ownership.ours")}>
+      {t("admin.common.ownership.ours")}
     </span>
   );
 }
@@ -58,12 +64,15 @@ const ProductTable: React.FC<ProductTableProps> = ({
   onEdit,
   onRefreshProducts,
 }) => {
+  const { t } = useTranslation();
   const [manageOpen, setManageOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const handleDelete = async (productId: string, productName: string) => {
-    const confirmDelete = confirm(`هل أنت متأكد من حذف "${productName}"؟`);
+    const confirmDelete = confirm(
+      t("admin.productTable.confirmDelete", { name: productName })
+    );
     if (!confirmDelete) return;
 
     try {
@@ -74,7 +83,7 @@ const ProductTable: React.FC<ProductTableProps> = ({
       setProductsState((prev) => prev.filter((p) => p._id !== productId));
     } catch (err) {
       console.error("❌ Error deleting product", err);
-      alert("فشل في حذف المنتج");
+      alert(t("admin.productTable.alerts.deleteFailed"));
     }
   };
 
@@ -99,7 +108,7 @@ const ProductTable: React.FC<ProductTableProps> = ({
       );
     } catch (err) {
       console.error("❌ Error updating priority", err);
-      alert("فشل في تحديث الأولوية");
+      alert(t("admin.productTable.alerts.priorityFailed"));
       // في حالة الخطأ، يُفضّل إعادة الجلب إن كان متاحًا
       if (onRefreshProducts) onRefreshProducts();
     } finally {
@@ -148,15 +157,29 @@ const ProductTable: React.FC<ProductTableProps> = ({
         <thead className="bg-gray-100 dark:bg-zinc-900/50">
           <tr>
             <th className="border px-4 py-2">#</th>
-            <th className="border px-4 py-2">الاسم</th>
-            <th className="border px-4 py-2">نوع الملكية</th>
+            <th className="border px-4 py-2">{t("common.labels.name")}</th>
+            <th className="border px-4 py-2">
+              {t("admin.productTable.headers.ownership")}
+            </th>
             {/* ✅ عمود الأولوية */}
-            <th className="border px-4 py-2">الأولوية</th>
-            <th className="border px-4 py-2">أقل سعر</th>
-            <th className="border px-4 py-2">الكمية الإجمالية</th>
-            <th className="border px-4 py-2">التصنيف الرئيسي</th>
-            <th className="border px-4 py-2">التصنيف الفرعي</th>
-            <th className="border px-4 py-2">الإجراءات</th>
+            <th className="border px-4 py-2">
+              {t("admin.productTable.headers.priority")}
+            </th>
+            <th className="border px-4 py-2">
+              {t("admin.productTable.headers.minPrice")}
+            </th>
+            <th className="border px-4 py-2">
+              {t("admin.productTable.headers.totalQuantity")}
+            </th>
+            <th className="border px-4 py-2">
+              {t("admin.productTable.headers.mainCategory")}
+            </th>
+            <th className="border px-4 py-2">
+              {t("admin.productTable.headers.subCategory")}
+            </th>
+            <th className="border px-4 py-2">
+              {t("admin.productTable.headers.actions")}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -175,9 +198,9 @@ const ProductTable: React.FC<ProductTableProps> = ({
                       target="_blank"
                       rel="noreferrer"
                       className="text-xs text-blue-600 hover:underline truncate max-w-[220px]"
-                      title="فتح أول صورة"
+                      title={t("admin.productTable.previewImage")}
                     >
-                      معاينة الصورة
+                      {t("admin.productTable.previewImage")}
                     </a>
                   )}
                 </div>
@@ -198,11 +221,17 @@ const ProductTable: React.FC<ProductTableProps> = ({
                       handlePriorityChange(product._id, e.target.value)
                     }
                     disabled={savingId === product._id}
-                    title="تغيير أولوية الظهور"
+                    title={t("admin.productTable.changePriority")}
                   >
-                    <option value="A">A - عالية</option>
-                    <option value="B">B - متوسطة</option>
-                    <option value="C">C - عادية</option>
+                    <option value="A">
+                      {t("admin.productTable.priorityOptions.high")}
+                    </option>
+                    <option value="B">
+                      {t("admin.productTable.priorityOptions.medium")}
+                    </option>
+                    <option value="C">
+                      {t("admin.productTable.priorityOptions.normal")}
+                    </option>
                   </select>
                 </div>
               </td>
@@ -226,7 +255,7 @@ const ProductTable: React.FC<ProductTableProps> = ({
                     size="sm"
                     onClick={() => onEdit(product)}
                   >
-                    ✏️ تعديل
+                    {t("admin.productTable.actions.edit")}
                   </Button>
                   <Button
                     variant="secondary"
@@ -236,14 +265,14 @@ const ProductTable: React.FC<ProductTableProps> = ({
                       setManageOpen(true);
                     }}
                   >
-                    🎛️ المتغيّرات
+                    {t("admin.productTable.actions.variants")}
                   </Button>
                   <Button
                     variant="destructive"
                     size="sm"
                     onClick={() => handleDelete(product._id, product.name)}
                   >
-                    🗑️ حذف
+                    {t("admin.productTable.actions.delete")}
                   </Button>
                 </div>
               </td>
@@ -255,7 +284,7 @@ const ProductTable: React.FC<ProductTableProps> = ({
                 colSpan={9}
                 className="border px-4 py-6 text-center text-gray-500"
               >
-                لا توجد منتجات مطابقة
+                {t("admin.productTable.empty")}
               </td>
             </tr>
           )}

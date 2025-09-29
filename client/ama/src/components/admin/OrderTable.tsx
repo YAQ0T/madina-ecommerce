@@ -1,7 +1,8 @@
 // src/components/admin/OrderTable.tsx
-import React from "react";
+import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import OrderStatusButtons from "./OrderStatusButtons";
+import { useTranslation } from "@/i18n";
 
 type OrderStatus =
   | "waiting_confirmation"
@@ -17,62 +18,64 @@ interface OrderTableProps {
   setSelectedOrder: (order: any) => void;
 }
 
-const statusLabel = (s: string) => {
-  switch (s) {
-    case "waiting_confirmation":
-      return "⏱️ بانتظار التأكيد";
-    case "pending":
-      return "⏳ قيد الانتظار";
-    case "on_the_way":
-      return "🚚 في الطريق";
-    case "delivered":
-      return "✅ تم التوصيل";
-    case "cancelled":
-      return "❌ مُلغى";
-    default:
-      return s || "-";
-  }
-};
-const payMethodLabel = (m: string) =>
-  m === "card" ? "💳 بطاقة" : "🚚 عند التوصيل";
-const payStatusLabel = (s: string) => {
-  return s === "paid" ? "✅ مدفوع" : s === "failed" ? "❌ فشل" : "🕓 غير مدفوع";
+const useStatusHelpers = () => {
+  const { t } = useTranslation();
+  const statusLabel = (s: string) =>
+    t(`admin.orders.status.${s}` as const, { defaultValue: s || "-" });
+  const payMethodLabel = (m: string) =>
+    m === "card"
+      ? t("admin.orders.paymentMethods.card")
+      : t("admin.orders.paymentMethods.cod");
+  const payStatusLabel = (s: string) => {
+    if (s === "paid") return t("admin.orders.paymentStatus.paid");
+    if (s === "failed") return t("admin.orders.paymentStatus.failed");
+    return t("admin.orders.paymentStatus.unpaid");
+  };
+
+  return { statusLabel, payMethodLabel, payStatusLabel, t };
 };
 
 const currency = (n: number) => `₪${Number(n || 0).toFixed(2)}`;
 
-const renderItemsSummary = (items: any[] = [], notes: string | undefined) => {
-  if (!items.length) return "-";
-  return (
-    <div className="space-y-1">
-      {items.map((it, i) => {
-        const name = it?.name || it?.productName || "منتج";
-        const color = it?.color || it?.selectedColor;
-        const measure = it?.measure || it?.selectedMeasure;
-        const unit = it?.measureUnit || it?.selectedMeasureUnit;
-
-        const qty = it?.quantity ?? 1;
-        return (
-          <div key={i} className="text-sm">
-            <span className="font-medium">{name}</span>{" "}
-            <span className="text-gray-500">
-              {color ? `| اللون: ${color} ` : ""}
-              {measure
-                ? `| المقاس: ${measure}${unit ? ` ${unit}` : ""} `
-                : ""}{" "}
-              {/* ✅ */}| الكمية: {qty}
-            </span>
+const useItemRenderer = () => {
+  const { t } = useTranslation();
+  const renderItemsSummary = (items: any[] = [], notes: string | undefined) => {
+    if (!items.length) return t("common.none");
+    return (
+      <div className="space-y-1">
+        {items.map((it, i) => {
+          const name = it?.name || it?.productName || t("admin.orders.fallbacks.product");
+          const color = it?.color || it?.selectedColor;
+          const measure = it?.measure || it?.selectedMeasure;
+          const unit = it?.measureUnit || it?.selectedMeasureUnit;
+          const qty = it?.quantity ?? 1;
+          return (
+            <div key={i} className="text-sm">
+              <span className="font-medium">{name}</span>{" "}
+              <span className="text-gray-500">
+                {color
+                  ? `| ${t("admin.orders.itemFields.color", { value: color })} `
+                  : ""}
+                {measure
+                  ? `| ${t("admin.orders.itemFields.measure", {
+                      value: measure,
+                      unit: unit || "",
+                    })} `
+                  : ""}
+                | {t("admin.orders.itemFields.quantity", { value: qty })}
+              </span>
+            </div>
+          );
+        })}
+        {notes && (
+          <div className="mt-4">
+            <strong>{t("admin.orders.notesLabel")}:</strong> {notes}
           </div>
-        );
-      })}
-      {/* Display notes */}
-      {notes && (
-        <div className="mt-4">
-          <strong>ملاحظات:</strong> {notes}
-        </div>
-      )}
-    </div>
-  );
+        )}
+      </div>
+    );
+  };
+  return { renderItemsSummary };
 };
 const OrderTable: React.FC<OrderTableProps> = ({
   orders,
@@ -80,12 +83,18 @@ const OrderTable: React.FC<OrderTableProps> = ({
   updateStatus,
   setSelectedOrder,
 }) => {
-  const filteredOrders = orders.filter((order) =>
-    filter === "all" ? true : order.status === filter
+  const { statusLabel, payMethodLabel, payStatusLabel, t } = useStatusHelpers();
+  const { renderItemsSummary } = useItemRenderer();
+  const filteredOrders = useMemo(
+    () =>
+      orders.filter((order) =>
+        filter === "all" ? true : order.status === filter
+      ),
+    [filter, orders]
   );
 
   if (orders.length === 0)
-    return <p className="text-gray-600">لا توجد طلبات حالياً.</p>;
+    return <p className="text-gray-600">{t("admin.orders.empty")}</p>;
 
   return (
     <div className="overflow-x-auto">
@@ -93,19 +102,19 @@ const OrderTable: React.FC<OrderTableProps> = ({
         <thead className="bg-gray-100">
           <tr>
             <th className="border px-4 py-2">#</th>
-            <th className="border px-4 py-2">الاسم</th>
-            <th className="border px-4 py-2">الهاتف</th>
-            <th className="border px-4 py-2">العنوان</th>
-            <th className="border px-4 py-2">المنتجات</th>
-            <th className="border px-4 py-2">Subtotal</th>
-            <th className="border px-4 py-2">الخصم</th>
-            <th className="border px-4 py-2">الإجمالي</th>
-            <th className="border px-4 py-2">طريقة الدفع</th>
-            <th className="border px-4 py-2">حالة الدفع</th>
-            <th className="border px-4 py-2">الحالة</th>
-            <th className="border px-4 py-2">عدد المنتجات</th>
-            <th className="border px-4 py-2">تحديث الحالة</th>
-            <th className="border px-4 py-2">تاريخ الطلب</th>
+            <th className="border px-4 py-2">{t("common.labels.name")}</th>
+            <th className="border px-4 py-2">{t("common.labels.phone")}</th>
+            <th className="border px-4 py-2">{t("common.labels.address")}</th>
+            <th className="border px-4 py-2">{t("admin.orders.table.items")}</th>
+            <th className="border px-4 py-2">{t("admin.orders.table.subtotal")}</th>
+            <th className="border px-4 py-2">{t("admin.orders.table.discount")}</th>
+            <th className="border px-4 py-2">{t("admin.orders.table.total")}</th>
+            <th className="border px-4 py-2">{t("admin.orders.table.paymentMethod")}</th>
+            <th className="border px-4 py-2">{t("admin.orders.table.paymentStatus")}</th>
+            <th className="border px-4 py-2">{t("admin.orders.table.status")}</th>
+            <th className="border px-4 py-2">{t("admin.orders.table.itemCount")}</th>
+            <th className="border px-4 py-2">{t("admin.orders.table.updateStatus")}</th>
+            <th className="border px-4 py-2">{t("admin.orders.table.createdAt")}</th>
           </tr>
         </thead>
         <tbody>
@@ -164,7 +173,7 @@ const OrderTable: React.FC<OrderTableProps> = ({
                 </td>
                 <td className="border px-4 py-2">
                   {order?.createdAt
-                    ? new Date(order.createdAt).toLocaleDateString("ar-EG")
+                    ? new Date(order.createdAt).toLocaleDateString()
                     : "-"}
                 </td>
               </tr>
