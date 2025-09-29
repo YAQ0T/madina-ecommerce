@@ -83,7 +83,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         images: Array.isArray(editingProduct.images)
           ? editingProduct.images
           : [],
-        ownershipType, // 👈 إرسال نوع الملكية
+        ownershipType,
       };
 
       if (normalizedDescription.ar || normalizedDescription.he) {
@@ -137,27 +137,36 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
     setEditingProduct({ ...editingProduct, images: updatedImages });
   };
 
+  // ✅ معالج صغير لعزل Textarea عن أي مستمع مفاتيح عام يمنع المسافة
+  const stopSpacePropagation: React.KeyboardEventHandler<
+    HTMLTextAreaElement
+  > = (e) => {
+    if (e.key === " " && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      // لا نستخدم preventDefault() حتى لا نمنع إدخال المسافة نفسها
+      e.stopPropagation(); // نمنع وصول الحدث للمستمعات العامة
+      // ملاحظة: إذا كان لديك مستمع "capture" على document قد يلزم إزالة ذاك المستمع.
+    }
+  };
+
   return (
     <DialogContent>
       <DialogHeader>
         <DialogTitle>{t("admin.productEdit.title")}</DialogTitle>
-        <DialogDescription>
-          {t("admin.productEdit.subtitle")}
-        </DialogDescription>
+        <DialogDescription>{t("admin.productEdit.subtitle")}</DialogDescription>
       </DialogHeader>
 
       <div className="max-h-[70vh] overflow-y-auto grid gap-4 py-4 text-right">
         <div className="grid gap-2">
-          <span className="text-sm font-medium">
-            {t("common.labels.name")}
-          </span>
+          <span className="text-sm font-medium">{t("common.labels.name")}</span>
           <div className="grid gap-3">
             {languages.map(({ code, label }) => (
               <div key={`name-${code}`} className="grid gap-1 text-right">
-                <label className="text-xs text-muted-foreground">
-                  {label}
-                </label>
+                <label className="text-xs text-muted-foreground">{label}</label>
                 <Input
+                  dir="auto"
+                  inputMode="text"
+                  autoCapitalize="off"
+                  autoCorrect="off"
                   placeholder={t(
                     code === "ar"
                       ? "admin.productEdit.placeholders.nameAr"
@@ -169,7 +178,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
                       ...editingProduct,
                       name: {
                         ...ensureLocalizedObject(editingProduct.name),
-                        [code]: e.target.value,
+                        [code]: e.target.value, // يقبل المسافات والعربية/العبرية
                       },
                     })
                   }
@@ -246,10 +255,15 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
           <div className="grid gap-3">
             {languages.map(({ code, label }) => (
               <div key={`desc-${code}`} className="grid gap-1 text-right">
-                <label className="text-xs text-muted-foreground">
-                  {label}
-                </label>
+                <label className="text-xs text-muted-foreground">{label}</label>
                 <Textarea
+                  dir="auto"
+                  inputMode="text"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  // ✅ السطران التاليان لعزل المسافة عن المستمعات العامة
+                  onKeyDownCapture={stopSpacePropagation}
+                  onKeyUpCapture={stopSpacePropagation}
                   placeholder={t(
                     code === "ar"
                       ? "admin.productEdit.placeholders.descriptionAr"
@@ -261,7 +275,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
                       ...editingProduct,
                       description: {
                         ...ensureLocalizedObject(editingProduct.description),
-                        [code]: e.target.value,
+                        [code]: e.target.value, // يقبل المسافات والعربية/العبرية
                       },
                     })
                   }
@@ -302,7 +316,9 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
       </div>
 
       <DialogFooter>
-        <Button onClick={handleSave}>{t("admin.productEdit.actions.save")}</Button>
+        <Button onClick={handleSave}>
+          {t("admin.productEdit.actions.save")}
+        </Button>
       </DialogFooter>
     </DialogContent>
   );
