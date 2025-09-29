@@ -2,6 +2,8 @@
   "discountRules": {
     "form": {
       "threshold": "סכום סף בש״ח"
+    }
+  },
   "navbar": {
     "brand": "Dikori | דיקורי",
     "links": {
@@ -48,17 +50,72 @@
       "newArrivals": "הגיעו לאחרונה"
     },
     "categories": [
-      { "key": "carpentry", "label": "ציוד לנגרים", "value": "لوازم نجارين", "img": "https://i.imgur.com/aPYhaQW.png" },
-      { "key": "upholstery", "label": "ציוד לרפדים", "value": "لوازم منجدين", "img": "https://i.imgur.com/S9rjrsh.png" },
-      { "key": "doorHandles", "label": "ידיות לדלתות", "value": "مقابض ابواب", "img": "https://i.imgur.com/O9xXLeu.png" },
-      { "key": "cabinetHandles", "label": "ידיות לארונות", "value": "مقابض خزائن", "img": "https://i.imgur.com/AEyMjHc.png" },
-      { "key": "kitchenAccessories", "label": "אביזרי מטבח", "value": "اكسسوارات مطابخ", "img": "https://i.imgur.com/hlpu1oK.png" },
-      { "key": "bedroomAccessories", "label": "אביזרי חדרי שינה", "value": "إكسسوارات غرف نوم", "img": "https://i.imgur.com/ZMr397G.png" },
-      { "key": "tools", "label": "כלים ואביזרים", "value": "عدة وأدوات", "img": "https://i.imgur.com/Hf5NvqJ.png" },
-      { "key": "drawers", "label": "מגירות ומסילות", "value": "جوارير وسكك ومفصلات", "img": "https://i.imgur.com/fE6zgKp.png" },
-      { "key": "fabrics", "label": "בדי ריפוד", "value": "أقمشة كنب", "img": "https://i.imgur.com/bf8geWx.jpeg" },
-      { "key": "fasteners", "label": "ברגים ומחברים", "value": "كبسات مسامير و براغي", "img": "https://i.imgur.com/CntFVhx.png" },
-      { "key": "doorSupplies", "label": "ציוד לדלתות", "value": "لوازم أبواب", "img": "https://i.imgur.com/UskLo6H.png" }
+      {
+        "key": "carpentry",
+        "label": "ציוד לנגרים",
+        "value": "لوازم نجارين",
+        "img": "https://i.imgur.com/aPYhaQW.png"
+      },
+      {
+        "key": "upholstery",
+        "label": "ציוד לרפדים",
+        "value": "لوازم منجدين",
+        "img": "https://i.imgur.com/S9rjrsh.png"
+      },
+      {
+        "key": "doorHandles",
+        "label": "ידיות לדלתות",
+        "value": "مقابض ابواب",
+        "img": "https://i.imgur.com/O9xXLeu.png"
+      },
+      {
+        "key": "cabinetHandles",
+        "label": "ידיות לארונות",
+        "value": "مقابض خزائن",
+        "img": "https://i.imgur.com/AEyMjHc.png"
+      },
+      {
+        "key": "kitchenAccessories",
+        "label": "אביזרי מטבח",
+        "value": "اكسسوارات مطابخ",
+        "img": "https://i.imgur.com/hlpu1oK.png"
+      },
+      {
+        "key": "bedroomAccessories",
+        "label": "אביזרי חדרי שינה",
+        "value": "إكسسوارات غرف نوم",
+        "img": "https://i.imgur.com/ZMr397G.png"
+      },
+      {
+        "key": "tools",
+        "label": "כלים ואביזרים",
+        "value": "عدة وأدوات",
+        "img": "https://i.imgur.com/Hf5NvqJ.png"
+      },
+      {
+        "key": "drawers",
+        "label": "מגירות ומסילות",
+        "value": "جوارير وسكك ومفصلات",
+        "img": "https://i.imgur.com/fE6zgKp.png"
+      },
+      {
+        "key": "fabrics",
+        "label": "בדי ריפוד",
+        "value": "أقمشة كنب",
+        "img": "https://i.imgur.com/bf8geWx.jpeg"
+      },
+      {
+        "key": "fasteners",
+        "label": "ברגים ומחברים",
+        "value": "كبسات مسامير و براغي",
+        "img": "https://i.imgur.com/CntFVhx.png"
+      },
+      {
+        "key": "doorSupplies",
+        "label": "ציוד לדלתות",
+        "value": "لوازم أبواب",
+        "img": "https://i.imgur.com/UskLo6H.png"
+      }
     ],
     "benefits": [
       {
