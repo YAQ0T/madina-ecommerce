@@ -1,9 +1,10 @@
 // src/pages/Home.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
+import { useTranslation } from "@/i18n";
 
 // ====== أنواع بسيطة للمنتج ======
 type Product = {
@@ -18,79 +19,27 @@ type Product = {
   slug?: string;
 };
 
-// ====== الأقسام الرئيسية (دوائر) — سنستخدم title نفسه كاسم الفئة ======
-const categories = [
-  { title: "لوازم نجارين", img: "https://i.imgur.com/aPYhaQW.png" },
-  { title: "لوازم منجدين", img: "https://i.imgur.com/S9rjrsh.png" },
-  { title: "مقابض ابواب", img: "https://i.imgur.com/O9xXLeu.png" },
-  { title: "مقابض خزائن", img: "https://i.imgur.com/AEyMjHc.png" },
-  { title: "اكسسوارات مطابخ", img: "https://i.imgur.com/hlpu1oK.png" },
-  { title: "إكسسوارات غرف نوم", img: "https://i.imgur.com/ZMr397G.png" },
-  { title: "عدة وأدوات", img: "https://i.imgur.com/Hf5NvqJ.png" },
-  {
-    title: "جوارير وسكك ومفصلات",
-    img: "https://i.imgur.com/fE6zgKp.png",
-  },
-  { title: "أقمشة كنب", img: "https://i.imgur.com/bf8geWx.jpeg" },
-  {
-    title: "كبسات مسامير و براغي",
-    img: "https://i.imgur.com/CntFVhx.png",
-  },
-  { title: "لوازم أبواب", img: "https://i.imgur.com/UskLo6H.png" }, // احتياطي
-  // { title: "مفصلات نجارين والامنيوم", img: "https://i.imgur.com/XHNtA14.png" }, // احتياطي
-];
+type LocalizedCategory = {
+  key: string;
+  label: string;
+  value: string;
+  img: string;
+};
 
-// ====== بطاقات المزايا 4 ======
-const benefits = [
-  {
-    icon: "https://www.svgrepo.com/show/467670/delivery-truck.svg",
-    title: "توصيل إلى كافة المدن",
-    desc: "توصيل سريع وفي الموعد",
-  },
-  {
-    icon: "https://www.svgrepo.com/show/469025/headset-alt.svg",
-    title: "دعم أونلاين",
-    desc: "فريق دعم مخصص من 8:30 صباحًا حتى 12:00 ليلًا",
-  },
-  {
-    icon: "https://www.svgrepo.com/show/468385/credit-card-2.svg",
-    title: "دفع آمن 100٪",
-    desc: "جميع البطاقات مقبولة ومعالجة آمنة",
-  },
-  {
-    icon: "https://www.svgrepo.com/show/468263/check-mark-circle.svg",
-    title: "منتجات أصلية 100٪",
-    desc: "ضمان الأصالة والجودة",
-  },
-];
+type LocalizedBenefit = {
+  key: string;
+  icon: string;
+  title: string;
+  description: string;
+};
 
-// ====== عناصر افتراضية للمنتجات في حال عدم توفّر API ======
-const fallbackProducts: Product[] = [
-  {
-    id: 1,
-    name: "مقبض خزانة معدني",
-    price: 29.9,
-    image: "https://i.imgur.com/lu2y3pi.png",
-  },
-  {
-    id: 2,
-    name: "سحّاب درج هادئ",
-    price: 49.0,
-    image: "https://i.imgur.com/bf8geWx.jpeg",
-  },
-  {
-    id: 3,
-    name: "قماش كنب مقاوم للبقع",
-    price: 89.0,
-    image: "https://i.imgur.com/oW6JO0A.png",
-  },
-  {
-    id: 4,
-    name: "مفصلات هيدروليك",
-    price: 39.5,
-    image: "https://i.imgur.com/CCEly6H.jpeg",
-  },
-];
+type LocalizedFallbackProduct = {
+  key: string;
+  id: number | string;
+  name: string;
+  price: number;
+  image: string;
+};
 
 const getId = (p: Product) => p._id ?? p.id ?? p.slug ?? String(Math.random());
 const getImage = (p: Product) =>
@@ -98,13 +47,20 @@ const getImage = (p: Product) =>
   p.image ||
   p.mainImage ||
   "https://placehold.co/600x400/png?text=No+Image";
-const getName = (p: Product) => p.name || p.title || "منتج بدون اسم";
+const getName = (p: Product, fallback: string) => p.name || p.title || fallback;
 
 // ====== بطاقة منتج (مُصغّرة للموبايل) ======
-const ProductCard = ({ product }: { product: Product }) => {
+const ProductCard = ({
+  product,
+  fallbackName,
+}: {
+  product: Product;
+  fallbackName: string;
+}) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const img = getImage(product);
-  const name = getName(product);
+  const name = getName(product, fallbackName);
 
   const detailId =
     (typeof product._id === "string" && product._id) ||
@@ -123,7 +79,7 @@ const ProductCard = ({ product }: { product: Product }) => {
         type="button"
         onClick={goToDetails}
         className="aspect-[3/4] w-full overflow-hidden bg-gray-50 dark:bg-gray-800 block"
-        aria-label={`عرض تفاصيل ${name}`}
+        aria-label={t("home.fallback.viewAria", { name })}
       >
         <img
           src={img}
@@ -142,7 +98,7 @@ const ProductCard = ({ product }: { product: Product }) => {
           </p>
         ) : (
           <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mt-1">
-            السعر عند الاختيار
+            {t("home.fallback.noPrice")}
           </p>
         )}
         <div className="mt-2 sm:mt-3 flex justify-end">
@@ -151,7 +107,7 @@ const ProductCard = ({ product }: { product: Product }) => {
             className="h-8 px-3 text-xs sm:h-9 sm:px-4 sm:text-sm"
             onClick={goToDetails}
           >
-            عرض المنتج
+            {t("home.fallback.viewProduct")}
           </Button>
         </div>
       </div>
@@ -163,11 +119,16 @@ const ProductCard = ({ product }: { product: Product }) => {
 const ProductsSection = ({
   title,
   endpoint,
+  fallbackProducts,
+  fallbackName,
 }: {
   title: string;
   endpoint: string; // مثال: "/api/home-collections/recommended"
+  fallbackProducts: Product[];
+  fallbackName: string;
 }) => {
   const [items, setItems] = useState<Product[] | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     let stop = false;
@@ -210,12 +171,16 @@ const ProductsSection = ({
           className="h-8 px-2 text-xs sm:h-9 sm:px-3 sm:text-sm"
           onClick={() => (window.location.href = "/products")}
         >
-          تصفّح الكل
-        </Button>
+          {t("home.actions.browseAll")}
+      </Button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
         {(items ?? fallbackProducts).map((p) => (
-          <ProductCard key={getId(p)} product={p} />
+          <ProductCard
+            key={getId(p)}
+            product={p}
+            fallbackName={fallbackName}
+          />
         ))}
       </div>
     </section>
@@ -224,6 +189,29 @@ const ProductsSection = ({
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
+
+  const localizedCategories = t("home.categories", {
+    returnObjects: true,
+  }) as LocalizedCategory[];
+
+  const benefits = t("home.benefits", {
+    returnObjects: true,
+  }) as LocalizedBenefit[];
+
+  const fallbackProducts = useMemo(() => {
+    const list = t("home.fallback.products", {
+      returnObjects: true,
+    }) as LocalizedFallbackProduct[];
+    return list.map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      image: item.image,
+    }));
+  }, [t]);
+
+  const fallbackName = t("home.fallback.noName");
 
   const goToCategory = (main: string, sub?: string) => {
     const params = new URLSearchParams();
@@ -239,17 +227,17 @@ const Home: React.FC = () => {
         {/* البطل — أصغر للموبايل */}
         <section className="text-right">
           <h1 className="text-2xl md:text-4xl font-bold mb-3 md:mb-4">
-            مرحبًا بكم في متجر ديكوري
+            {t("home.hero.title")}
           </h1>
           <p className="text-sm md:text-lg mb-5 md:mb-6 text-gray-700 dark:text-gray-200">
-            هنا تجد أفضل مستلزمات النجارة وأقمشة التنجيد وخامات صناعة الكنب.
+            {t("home.hero.subtitle")}
           </p>
           <div className="flex justify-end mb-6 md:mb-10">
             <Button
               className="h-9 px-4 text-sm md:h-10 md:px-5 md:text-base"
               onClick={() => navigate(`/products`)}
             >
-              ابدأ التسوّق الآن
+              {t("home.actions.startShopping")}
             </Button>
           </div>
         </section>
@@ -257,13 +245,13 @@ const Home: React.FC = () => {
         {/* الأقسام الرئيسية () — أحجام أصغر للموبايل */}
         <section className="mt-2">
           <h2 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 text-right">
-            تصفّح حسب الفئة
+            {t("home.sections.categories")}
           </h2>
           <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-6">
-            {categories.map((c) => (
+            {localizedCategories.map((c) => (
               <div
-                key={c.title}
-                onClick={() => goToCategory(c.title as string)}
+                key={c.key}
+                onClick={() => goToCategory(c.value as string)}
                 className="cursor-pointer flex flex-col items-center text-center"
               >
                 <div
@@ -281,13 +269,13 @@ const Home: React.FC = () => {
                 >
                   <img
                     src={c.img}
-                    alt={c.title}
+                    alt={c.label}
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
                 </div>
                 <span className="mt-2 sm:mt-3 text-[11px] sm:text-sm font-medium">
-                  {c.title}
+                  {c.label}
                 </span>
               </div>
             ))}
@@ -297,12 +285,12 @@ const Home: React.FC = () => {
         {/* ماذا نقدّم (4 بطاقات فوائد) — مصغّر للموبايل */}
         <section className="mt-10 md:mt-14">
           <h2 className="text-xl md:text-2xl font-semibold mb-4 md:mb-6 text-right">
-            ماذا نقدّم لعملائنا؟
+            {t("home.sections.benefits")}
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             {benefits.map((b) => (
               <div
-                key={b.title}
+                key={b.key}
                 className="rounded-xl sm:rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 sm:p-5 text-right hover:shadow-md transition-shadow duration-300"
               >
                 <div className="flex justify-end">
@@ -319,7 +307,7 @@ const Home: React.FC = () => {
                   {b.title}
                 </h3>
                 <p className="text-[11px] sm:text-sm text-gray-600 dark:text-gray-300 mt-1">
-                  {b.desc}
+                  {b.description}
                 </p>
               </div>
             ))}
@@ -328,14 +316,18 @@ const Home: React.FC = () => {
 
         {/* منتجات مقترحة — من home-collections */}
         <ProductsSection
-          title="منتجات مُقترحة لك"
+          title={t("home.sections.recommended")}
           endpoint="/api/home-collections/recommended"
+          fallbackProducts={fallbackProducts}
+          fallbackName={fallbackName}
         />
 
         {/* وصل حديثًا — من home-collections */}
         <ProductsSection
-          title="وصل حديثًا"
+          title={t("home.sections.newArrivals")}
           endpoint="/api/home-collections/new"
+          fallbackProducts={fallbackProducts}
+          fallbackName={fallbackName}
         />
       </main>
       <Footer />

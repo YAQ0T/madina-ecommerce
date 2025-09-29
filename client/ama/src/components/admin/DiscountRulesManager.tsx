@@ -4,6 +4,7 @@ import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useTranslation } from "@/i18n";
 
 type Rule = {
   _id?: string;
@@ -34,6 +35,7 @@ const currency = (n: number) => `₪${n.toFixed(2)}`;
 
 const DiscountRulesManager: React.FC = () => {
   const { token } = useAuth();
+  const { t } = useTranslation();
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -57,7 +59,7 @@ const DiscountRulesManager: React.FC = () => {
       setRules(res.data || []);
     } catch (e: any) {
       console.error(e);
-      alert(e?.response?.data?.message || "فشل جلب قواعد الخصم");
+      alert(e?.response?.data?.message || t("admin.discountRules.alerts.fetchFailed"));
     } finally {
       setLoading(false);
     }
@@ -97,7 +99,7 @@ const DiscountRulesManager: React.FC = () => {
       resetForm();
     } catch (e: any) {
       console.error(e);
-      alert(e?.response?.data?.message || "فشل حفظ القاعدة");
+      alert(e?.response?.data?.message || t("admin.discountRules.alerts.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -119,7 +121,7 @@ const DiscountRulesManager: React.FC = () => {
 
   const onDelete = async (id?: string) => {
     if (!id) return;
-    if (!confirm("هل أنت متأكد من حذف هذه القاعدة؟")) return;
+    if (!confirm(t("admin.discountRules.confirmDelete"))) return;
     try {
       await axios.delete(
         `${import.meta.env.VITE_API_URL}/api/discount-rules/${id}`,
@@ -128,13 +130,13 @@ const DiscountRulesManager: React.FC = () => {
       setRules((prev) => prev.filter((r) => r._id !== id));
     } catch (e: any) {
       console.error(e);
-      alert(e?.response?.data?.message || "فشل حذف القاعدة");
+      alert(e?.response?.data?.message || t("admin.discountRules.alerts.deleteFailed"));
     }
   };
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">خصومات الطلبات (حسب المجموع)</h2>
+      <h2 className="text-xl font-bold">{t("admin.discountRules.title")}</h2>
 
       {/* النموذج */}
       <form
@@ -142,16 +144,16 @@ const DiscountRulesManager: React.FC = () => {
         className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-2xl"
       >
         <div className="space-y-1">
-          <label className="text-sm">اسم القاعدة (اختياري)</label>
+          <label className="text-sm">{t("admin.discountRules.form.name")}</label>
           <Input
             value={form.name || ""}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="مثال: خصم 10% فوق 2000"
+            placeholder={t("admin.discountRules.placeholders.name")}
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm">العتبة (threshold) بالشيكل</label>
+          <label className="text-sm">{t("admin.discountRules.form.threshold")}</label>
           <Input
             type="number"
             min={0}
@@ -163,7 +165,7 @@ const DiscountRulesManager: React.FC = () => {
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm">نوع الخصم</label>
+          <label className="text-sm">{t("admin.discountRules.form.type")}</label>
           <select
             className="border rounded-md p-2 bg-background"
             value={form.type}
@@ -174,14 +176,20 @@ const DiscountRulesManager: React.FC = () => {
               }))
             }
           >
-            <option value="percent">نسبة مئوية (%)</option>
-            <option value="fixed">قيمة ثابتة (₪)</option>
+            <option value="percent">
+              {t("admin.discountRules.type.percent")}
+            </option>
+            <option value="fixed">
+              {t("admin.discountRules.type.fixed")}
+            </option>
           </select>
         </div>
 
         <div className="space-y-1">
           <label className="text-sm">
-            {form.type === "percent" ? "قيمة النسبة (%)" : "المبلغ (₪)"}
+            {form.type === "percent"
+              ? t("admin.discountRules.form.percentValue")
+              : t("admin.discountRules.form.amountValue")}
           </label>
           <Input
             type="number"
@@ -195,7 +203,7 @@ const DiscountRulesManager: React.FC = () => {
 
         <div className="space-y-1">
           <label className="text-sm">
-            أولوية (أكبر يعني أعلى أولوية عند نفس العتبة)
+            {t("admin.discountRules.form.priority")}
           </label>
           <Input
             type="number"
@@ -210,7 +218,7 @@ const DiscountRulesManager: React.FC = () => {
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm">الحالة</label>
+          <label className="text-sm">{t("admin.discountRules.form.status")}</label>
           <select
             className="border rounded-md p-2 bg-background"
             value={form.isActive ? "1" : "0"}
@@ -218,13 +226,13 @@ const DiscountRulesManager: React.FC = () => {
               setForm((f) => ({ ...f, isActive: e.target.value === "1" }))
             }
           >
-            <option value="1">مفعّل</option>
-            <option value="0">موقّف</option>
+            <option value="1">{t("common.status.active")}</option>
+            <option value="0">{t("common.status.inactive")}</option>
           </select>
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm">يبدأ في (اختياري)</label>
+          <label className="text-sm">{t("admin.discountRules.form.startAt")}</label>
           <Input
             type="datetime-local"
             value={form.startAt ? form.startAt.substring(0, 16) : ""}
@@ -240,7 +248,7 @@ const DiscountRulesManager: React.FC = () => {
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm">ينتهي في (اختياري)</label>
+          <label className="text-sm">{t("admin.discountRules.form.endAt")}</label>
           <Input
             type="datetime-local"
             value={form.endAt ? form.endAt.substring(0, 16) : ""}
@@ -257,11 +265,13 @@ const DiscountRulesManager: React.FC = () => {
 
         <div className="md:col-span-2 flex items-center gap-3">
           <Button type="submit" disabled={saving}>
-            {editId ? "تحديث القاعدة" : "إضافة القاعدة"}
+            {editId
+              ? t("admin.discountRules.actions.update")
+              : t("admin.discountRules.actions.create")}
           </Button>
           {editId && (
             <Button type="button" variant="secondary" onClick={resetForm}>
-              إلغاء التعديل
+              {t("common.actions.cancelEdit")}
             </Button>
           )}
         </div>
@@ -273,21 +283,21 @@ const DiscountRulesManager: React.FC = () => {
           <thead className="bg-muted">
             <tr>
               <th className="p-3">#</th>
-              <th className="p-3">الاسم</th>
-              <th className="p-3">العتبة</th>
-              <th className="p-3">النوع</th>
-              <th className="p-3">القيمة</th>
-              <th className="p-3">الأولوية</th>
-              <th className="p-3">الحالة</th>
-              <th className="p-3">الفترة</th>
-              <th className="p-3">إجراءات</th>
+              <th className="p-3">{t("common.labels.name")}</th>
+              <th className="p-3">{t("admin.discountRules.table.threshold")}</th>
+              <th className="p-3">{t("admin.discountRules.table.type")}</th>
+              <th className="p-3">{t("admin.discountRules.table.value")}</th>
+              <th className="p-3">{t("admin.discountRules.table.priority")}</th>
+              <th className="p-3">{t("admin.discountRules.table.status")}</th>
+              <th className="p-3">{t("admin.discountRules.table.period")}</th>
+              <th className="p-3">{t("admin.discountRules.table.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
                 <td colSpan={9} className="p-6 text-center">
-                  جارِ التحميل…
+                  {t("common.loading")}
                 </td>
               </tr>
             ) : rules.length === 0 ? (
@@ -296,7 +306,7 @@ const DiscountRulesManager: React.FC = () => {
                   colSpan={9}
                   className="p-6 text-center text-muted-foreground"
                 >
-                  لا توجد قواعد خصم.
+                  {t("admin.discountRules.empty")}
                 </td>
               </tr>
             ) : (
@@ -309,35 +319,41 @@ const DiscountRulesManager: React.FC = () => {
                 .map((r, i) => (
                   <tr key={r._id} className="border-t">
                     <td className="p-3">{i + 1}</td>
-                    <td className="p-3">{r.name || "-"}</td>
+                    <td className="p-3">{r.name || t("common.none")}</td>
                     <td className="p-3">{currency(r.threshold)}</td>
                     <td className="p-3">
-                      {r.type === "percent" ? "نسبة" : "قيمة ثابتة"}
+                      {r.type === "percent"
+                        ? t("admin.discountRules.type.shortPercent")
+                        : t("admin.discountRules.type.shortFixed")}
                     </td>
                     <td className="p-3">
                       {r.type === "percent" ? `${r.value}%` : currency(r.value)}
                     </td>
                     <td className="p-3">{r.priority || 0}</td>
-                    <td className="p-3">{r.isActive ? "مفعّل" : "موقّف"}</td>
+                    <td className="p-3">
+                      {r.isActive
+                        ? t("common.status.active")
+                        : t("common.status.inactive")}
+                    </td>
                     <td className="p-3 text-sm">
                       {r.startAt
-                        ? new Date(r.startAt).toLocaleString("ar-EG")
+                        ? new Date(r.startAt).toLocaleString()
                         : "—"}{" "}
-                      {" → "}
+                      {t("admin.discountRules.table.arrow")}
                       {r.endAt
-                        ? new Date(r.endAt).toLocaleString("ar-EG")
+                        ? new Date(r.endAt).toLocaleString()
                         : "—"}
                     </td>
                     <td className="p-3 flex gap-2 justify-end">
                       <Button size="sm" onClick={() => onEdit(r)}>
-                        تعديل
+                        {t("common.actions.edit")}
                       </Button>
                       <Button
                         size="sm"
                         variant="destructive"
                         onClick={() => onDelete(r._id)}
                       >
-                        حذف
+                        {t("common.actions.delete")}
                       </Button>
                     </td>
                   </tr>

@@ -2,24 +2,31 @@ import React from "react";
 import { Link } from "react-router-dom";
 import VisaLogo from "@/assets/Visa_Inc._logo.svg";
 import MastercardLogo from "@/assets/Mastercard-logo.svg";
+import { useTranslation } from "@/i18n";
 
 const Footer: React.FC = () => {
+  const { t } = useTranslation();
+  const year = new Date().getFullYear();
+  const socialLinks = t("footer.socialLinks", {
+    returnObjects: true,
+  }) as { key: string; href: string; label: string }[];
+
   return (
     <footer className="dark:text-gray-200 mt-12 border-t pt-6 text-center text-gray-600">
-      <p>جميع الحقوق محفوظة &copy; 2025 متجر ديكوري</p>
-      <p className="dark:text-gray-200 mt-2">للتواصل: 0599-XXXXXX</p>
+      <p>{t("footer.rights", { year })}</p>
+      <p className="dark:text-gray-200 mt-2">{t("footer.contact")}</p>
 
       {/* روابط السوشيال ميديا */}
       <div className="dark:text-gray-200 mt-4 flex justify-center gap-4">
-        <a href="#" className="dark:text-gray-200 hover:text-black">
-          فيسبوك
-        </a>
-        <a href="#" className="dark:text-gray-200 hover:text-black">
-          إنستجرام
-        </a>
-        <a href="#" className="dark:text-gray-200 hover:text-black">
-          واتساب
-        </a>
+        {socialLinks.map((link) => (
+          <a
+            key={link.key}
+            href={link.href}
+            className="dark:text-gray-200 hover:text-black"
+          >
+            {link.label}
+          </a>
+        ))}
       </div>
 
       {/* روابط قانونية */}
@@ -28,10 +35,10 @@ const Footer: React.FC = () => {
           to="/privacy-policy"
           className="dark:text-gray-200 hover:text-black"
         >
-          سياسة الخصوصية
+          {t("footer.legal.privacy")}
         </Link>
         <Link to="/terms" className="dark:text-gray-200 hover:text-black">
-          الشروط والأحكام
+          {t("footer.legal.terms")}
         </Link>
       </div>
 

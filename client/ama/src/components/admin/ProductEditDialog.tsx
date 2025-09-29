@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
+import { useTranslation } from "@/i18n";
 
 interface ProductEditDialogProps {
   onClose: () => void;
@@ -31,6 +32,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
   token,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const [newImage, setNewImage] = useState("");
 
   const mainCategories = useMemo(
@@ -47,10 +49,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
   }, [products, editingProduct?.mainCategory]);
 
   // خيارات نوع الملكية
-  const ownershipOptions = [
-    { value: "ours", label: "على اسمنا" },
-    { value: "local", label: "شراء محلي" },
-  ] as const;
+  const ownershipOptions = ["ours", "local"] as const;
 
   if (!editingProduct) return null;
 
@@ -94,7 +93,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
       onClose();
     } catch (err) {
       console.error("❌ Error editing product", err);
-      alert("فشل في تعديل المنتج");
+      alert(t("admin.productEdit.alerts.updateFailed"));
     }
   };
 
@@ -117,15 +116,15 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
   return (
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>تعديل منتج</DialogTitle>
+        <DialogTitle>{t("admin.productEdit.title")}</DialogTitle>
         <DialogDescription>
-          قم بتعديل الحقول التالية ثم اضغط حفظ
+          {t("admin.productEdit.subtitle")}
         </DialogDescription>
       </DialogHeader>
 
       <div className="max-h-[70vh] overflow-y-auto grid gap-4 py-4 text-right">
         <Input
-          placeholder="اسم المنتج"
+          placeholder={t("admin.productEdit.placeholders.name")}
           value={editingProduct.name ?? ""}
           onChange={(e) =>
             setEditingProduct({ ...editingProduct, name: e.target.value })
@@ -134,7 +133,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
 
         <Input
           list="main-categories-edit"
-          placeholder="التصنيف الرئيسي"
+          placeholder={t("admin.productEdit.placeholders.mainCategory")}
           value={editingProduct.mainCategory ?? ""}
           onChange={(e) =>
             setEditingProduct({
@@ -151,7 +150,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
 
         <Input
           list="sub-categories-edit"
-          placeholder="التصنيف الفرعي"
+          placeholder={t("admin.productEdit.placeholders.subCategory")}
           value={editingProduct.subCategory ?? ""}
           onChange={(e) =>
             setEditingProduct({
@@ -168,7 +167,9 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
 
         {/* نوع الملكية */}
         <div className="grid gap-2">
-          <label className="text-sm font-medium">نوع الملكية</label>
+          <label className="text-sm font-medium">
+            {t("admin.productEdit.labels.ownership")}
+          </label>
           <select
             className="border rounded-md p-2 bg-background"
             value={editingProduct.ownershipType ?? "ours"}
@@ -180,18 +181,18 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
             }
           >
             {ownershipOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
+              <option key={opt} value={opt}>
+                {t(`admin.common.ownership.${opt}` as const)}
               </option>
             ))}
           </select>
           <p className="text-xs text-muted-foreground">
-            اختر ما إذا كان المنتج على اسمنا أو يتم شراؤه محليًا.
+            {t("admin.productEdit.helpers.ownership")}
           </p>
         </div>
 
         <Textarea
-          placeholder="وصف المنتج"
+          placeholder={t("admin.productEdit.placeholders.description")}
           value={editingProduct.description ?? ""}
           onChange={(e) =>
             setEditingProduct({
@@ -205,12 +206,12 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         <div className="space-y-2">
           <div className="flex gap-2">
             <Input
-              placeholder="رابط صورة جديدة"
+              placeholder={t("admin.productEdit.placeholders.image")}
               value={newImage}
               onChange={(e) => setNewImage(e.target.value)}
             />
             <Button type="button" onClick={handleAddImage}>
-              إضافة صورة
+              {t("admin.productEdit.actions.addImage")}
             </Button>
           </div>
 
@@ -223,7 +224,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
                   size="sm"
                   onClick={() => handleRemoveImage(idx)}
                 >
-                  حذف
+                  {t("common.actions.delete")}
                 </Button>
               </li>
             ))}
@@ -232,7 +233,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
       </div>
 
       <DialogFooter>
-        <Button onClick={handleSave}>حفظ التعديلات</Button>
+        <Button onClick={handleSave}>{t("admin.productEdit.actions.save")}</Button>
       </DialogFooter>
     </DialogContent>
   );
