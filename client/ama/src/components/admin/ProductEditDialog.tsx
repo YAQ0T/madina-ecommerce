@@ -60,8 +60,10 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
 
   if (!editingProduct) return null;
 
-  const nameState = ensureLocalizedObject(editingProduct.name);
-  const descriptionState = ensureLocalizedObject(editingProduct.description);
+  const nameState = ensureLocalizedObject(editingProduct.name, { trim: false });
+  const descriptionState = ensureLocalizedObject(editingProduct.description, {
+    trim: false,
+  });
 
   const handleSave = async () => {
     try {
@@ -71,13 +73,25 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         ? String(editingProduct.ownershipType)
         : "ours";
 
-      const normalizedName = ensureLocalizedObject(editingProduct.name);
+      const normalizedName = ensureLocalizedObject(editingProduct.name, {
+        trim: false,
+      });
       const normalizedDescription = ensureLocalizedObject(
-        editingProduct.description
+        editingProduct.description,
+        { trim: false }
       );
 
+      const sanitizedName = {
+        ar: normalizedName.ar.trim(),
+        he: normalizedName.he.trim(),
+      };
+      const sanitizedDescription = {
+        ar: normalizedDescription.ar.trim(),
+        he: normalizedDescription.he.trim(),
+      };
+
       const payload: Record<string, unknown> = {
-        name: normalizedName,
+        name: sanitizedName,
         mainCategory: editingProduct.mainCategory?.trim(),
         subCategory: editingProduct.subCategory?.trim(),
         images: Array.isArray(editingProduct.images)
@@ -86,8 +100,8 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         ownershipType, // 👈 إرسال نوع الملكية
       };
 
-      if (normalizedDescription.ar || normalizedDescription.he) {
-        payload.description = normalizedDescription;
+      if (sanitizedDescription.ar || sanitizedDescription.he) {
+        payload.description = sanitizedDescription;
       }
 
       const res = await axios.put(
@@ -168,7 +182,9 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
                     setEditingProduct({
                       ...editingProduct,
                       name: {
-                        ...ensureLocalizedObject(editingProduct.name),
+                        ...ensureLocalizedObject(editingProduct.name, {
+                          trim: false,
+                        }),
                         [code]: e.target.value,
                       },
                     })
@@ -260,7 +276,9 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
                     setEditingProduct({
                       ...editingProduct,
                       description: {
-                        ...ensureLocalizedObject(editingProduct.description),
+                        ...ensureLocalizedObject(editingProduct.description, {
+                          trim: false,
+                        }),
                         [code]: e.target.value,
                       },
                     })
