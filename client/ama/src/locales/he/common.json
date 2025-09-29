@@ -204,6 +204,10 @@
     }
   },
   "admin": {
+    "languages": {
+      "ar": "ערבית",
+      "he": "עברית"
+    },
     "common": {
       "ownership": {
         "ours": "בבעלותנו",
@@ -260,9 +264,13 @@
       "subtitle": "מלאו את השדות כדי להוסיף מוצר לחנות",
       "placeholders": {
         "name": "שם המוצר",
+        "nameAr": "שם המוצר (בערבית)",
+        "nameHe": "שם המוצר (בעברית)",
         "mainCategory": "קטגוריה ראשית",
         "subCategory": "קטגוריה משנית",
         "description": "תיאור המוצר",
+        "descriptionAr": "תיאור המוצר (בערבית)",
+        "descriptionHe": "תיאור המוצר (בעברית)",
         "image": "קישור לתמונה חדשה"
       },
       "labels": {
@@ -290,9 +298,13 @@
       "subtitle": "ערכו את השדות ולחצו על שמירה",
       "placeholders": {
         "name": "שם המוצר",
+        "nameAr": "שם המוצר (בערבית)",
+        "nameHe": "שם המוצר (בעברית)",
         "mainCategory": "קטגוריה ראשית",
         "subCategory": "קטגוריה משנית",
         "description": "תיאור המוצר",
+        "descriptionAr": "תיאור המוצר (בערבית)",
+        "descriptionHe": "תיאור המוצר (בעברית)",
         "image": "קישור לתמונה חדשה"
       },
       "labels": {

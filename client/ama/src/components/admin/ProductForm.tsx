@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import axios from "axios";
 import React, { useState, useMemo } from "react";
 import { useTranslation } from "@/i18n";
+import { emptyLocalized, ensureLocalizedObject } from "@/lib/localized";
+import type { SupportedLocale } from "@/context/LanguageContext";
 
 interface ProductFormProps {
   newProduct: any;
@@ -52,6 +54,14 @@ const ProductForm: React.FC<ProductFormProps> = ({
   // ✅ خيارات الأولوية
   const priorityOptions = ["A", "B", "C"] as const;
 
+  const languages: { code: SupportedLocale; label: string }[] = [
+    { code: "ar", label: t("admin.languages.ar") },
+    { code: "he", label: t("admin.languages.he") },
+  ];
+
+  const nameState = ensureLocalizedObject(newProduct.name);
+  const descriptionState = ensureLocalizedObject(newProduct.description);
+
   // إضافة صورة
   const handleAddImage = () => {
     if (newImage.trim()) {
@@ -85,15 +95,23 @@ const ProductForm: React.FC<ProductFormProps> = ({
         ? String(newProduct.priority)
         : "C";
 
-      const payload = {
-        name: newProduct.name?.trim(),
+      const normalizedName = ensureLocalizedObject(newProduct.name);
+      const normalizedDescription = ensureLocalizedObject(
+        newProduct.description
+      );
+
+      const payload: Record<string, unknown> = {
+        name: normalizedName,
         mainCategory: newProduct.mainCategory?.trim(),
         subCategory: newProduct.subCategory?.trim(),
-        description: newProduct.description?.trim(),
         images: Array.isArray(newProduct.images) ? newProduct.images : [],
         ownershipType,
         priority,
       };
+
+      if (normalizedDescription.ar || normalizedDescription.he) {
+        payload.description = normalizedDescription;
+      }
 
       const res = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/products`,
@@ -106,9 +124,25 @@ const ProductForm: React.FC<ProductFormProps> = ({
       } else {
         setProductsState((prev) => [
           ...prev,
-          { ...res.data, price: 0, quantity: 0 },
+          {
+            ...res.data,
+            name: ensureLocalizedObject(res.data.name),
+            description: ensureLocalizedObject(res.data.description),
+            price: 0,
+            quantity: 0,
+          },
         ]);
       }
+
+      setNewProduct({
+        name: { ...emptyLocalized },
+        mainCategory: "",
+        subCategory: "",
+        description: { ...emptyLocalized },
+        images: [],
+        ownershipType,
+        priority,
+      });
     } catch (err) {
       console.error("❌ Error adding product", err);
       alert(t("admin.productForm.alerts.createFailed"));
@@ -125,13 +159,37 @@ const ProductForm: React.FC<ProductFormProps> = ({
       </DialogHeader>
 
       <div className="max-h-[70vh] overflow-y-auto grid gap-4 py-4 text-right">
-        <Input
-          placeholder={t("admin.productForm.placeholders.name")}
-          value={newProduct.name ?? ""}
-          onChange={(e) =>
-            setNewProduct((prev: any) => ({ ...prev, name: e.target.value }))
-          }
-        />
+        <div className="grid gap-2">
+          <span className="text-sm font-medium">
+            {t("common.labels.name")}
+          </span>
+          <div className="grid gap-3">
+            {languages.map(({ code, label }) => (
+              <div key={`name-${code}`} className="grid gap-1 text-right">
+                <label className="text-xs text-muted-foreground">
+                  {label}
+                </label>
+                <Input
+                  placeholder={t(
+                    code === "ar"
+                      ? "admin.productForm.placeholders.nameAr"
+                      : "admin.productForm.placeholders.nameHe"
+                  )}
+                  value={nameState[code]}
+                  onChange={(e) =>
+                    setNewProduct((prev: any) => ({
+                      ...prev,
+                      name: {
+                        ...ensureLocalizedObject(prev.name),
+                        [code]: e.target.value,
+                      },
+                    }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         <Input
           list="main-categories"
@@ -219,16 +277,37 @@ const ProductForm: React.FC<ProductFormProps> = ({
           </p>
         </div>
 
-        <Textarea
-          placeholder={t("admin.productForm.placeholders.description")}
-          value={newProduct.description ?? ""}
-          onChange={(e) =>
-            setNewProduct((prev: any) => ({
-              ...prev,
-              description: e.target.value,
-            }))
-          }
-        />
+        <div className="grid gap-2">
+          <span className="text-sm font-medium">
+            {t("admin.productForm.placeholders.description")}
+          </span>
+          <div className="grid gap-3">
+            {languages.map(({ code, label }) => (
+              <div key={`desc-${code}`} className="grid gap-1 text-right">
+                <label className="text-xs text-muted-foreground">
+                  {label}
+                </label>
+                <Textarea
+                  placeholder={t(
+                    code === "ar"
+                      ? "admin.productForm.placeholders.descriptionAr"
+                      : "admin.productForm.placeholders.descriptionHe"
+                  )}
+                  value={descriptionState[code]}
+                  onChange={(e) =>
+                    setNewProduct((prev: any) => ({
+                      ...prev,
+                      description: {
+                        ...ensureLocalizedObject(prev.description),
+                        [code]: e.target.value,
+                      },
+                    }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* صور */}
         <div className="space-y-2">

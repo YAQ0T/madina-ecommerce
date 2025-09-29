@@ -20,11 +20,18 @@ import OrderTable from "@/components/admin/OrderTable";
 import OrderDetailsDialog from "@/components/admin/OrderDetailsDialog";
 import DiscountRulesManager from "@/components/admin/DiscountRulesManager";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import {
+  emptyLocalized,
+  ensureLocalizedObject,
+  getLocalizedText,
+  type LocalizedObject,
+} from "@/lib/localized";
+import { useLanguage } from "@/context/LanguageContext";
 
 type ProductItem = {
   _id: string;
-  name: string;
-  description?: string;
+  name: LocalizedObject;
+  description: LocalizedObject;
   images: string[];
   mainCategory?: string;
   subCategory?: string;
@@ -38,7 +45,7 @@ type ProductItem = {
 
 type ProductLite = {
   _id: string;
-  name: string;
+  name: LocalizedObject;
   images?: string[];
   mainImage?: string;
   price?: number;
@@ -52,17 +59,19 @@ const getLiteImage = (p: ProductLite) =>
 const AdminDashboard: React.FC = () => {
   const { user, loading, token } = useAuth();
   const navigate = useNavigate();
+  const { locale } = useLanguage();
 
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   // ======================= المنتجات (تبويب المنتجات) =======================
   const [newProduct, setNewProduct] = useState({
-    name: "",
+    name: { ...emptyLocalized },
     mainCategory: "",
     subCategory: "",
-    description: "",
+    description: { ...emptyLocalized },
     images: [] as string[],
     ownershipType: "ours" as "ours" | "local",
+    priority: "C" as "A" | "B" | "C",
   });
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -151,8 +160,11 @@ const AdminDashboard: React.FC = () => {
 
       const res = await axios.get(url, { headers: apiHeaders });
       const { items } = res.data || { items: [] };
-      const mapped: ProductItem[] = (items || []).map((p: ProductItem) => ({
+      const mapped: ProductItem[] = (items || []).map((p: any) => ({
         ...p,
+        name: ensureLocalizedObject(p.name),
+        description: ensureLocalizedObject(p.description),
+        images: Array.isArray(p.images) ? p.images : [],
         price: typeof p.minPrice === "number" ? p.minPrice : 0,
         quantity: typeof p.totalStock === "number" ? p.totalStock : 0,
       }));
@@ -260,10 +272,20 @@ const AdminDashboard: React.FC = () => {
         });
         if (!live) return;
         setRecommended(
-          Array.isArray(data?.recommended) ? data.recommended : []
+          Array.isArray(data?.recommended)
+            ? data.recommended.map((p: any) => ({
+                ...p,
+                name: ensureLocalizedObject(p.name),
+              }))
+            : []
         );
         setNewArrivals(
-          Array.isArray(data?.newArrivals) ? data.newArrivals : []
+          Array.isArray(data?.newArrivals)
+            ? data.newArrivals.map((p: any) => ({
+                ...p,
+                name: ensureLocalizedObject(p.name),
+              }))
+            : []
         );
       } catch (e) {
         // تجاهل
@@ -297,7 +319,7 @@ const AdminDashboard: React.FC = () => {
         const items = Array.isArray(data?.items) ? data.items : [];
         const mapped: ProductLite[] = items.map((p: any) => ({
           _id: p._id,
-          name: p.name,
+          name: ensureLocalizedObject(p.name),
           images: p.images,
           mainImage: p.mainImage,
           price: p.minPrice,
@@ -413,54 +435,58 @@ const AdminDashboard: React.FC = () => {
                         </span>
                       </div>
                       <ul className="space-y-3">
-                        {recommended.map((p, idx) => (
-                          <li
-                            key={p._id}
-                            className="flex gap-3 items-center border rounded-lg p-2"
-                          >
-                            <img
-                              src={getLiteImage(p)}
-                              alt={p.name}
-                              className="w-16 h-16 object-cover rounded-md"
-                            />
-                            <div className="flex-1">
-                              <div className="font-medium line-clamp-1">
-                                {p.name}
-                              </div>
-                              {typeof p.price === "number" && (
-                                <div className="text-sm text-gray-500 mt-0.5">
-                                  {p.price} ₪
+                        {recommended.map((p, idx) => {
+                          const displayName =
+                            getLocalizedText(p.name, locale) || p._id;
+                          return (
+                            <li
+                              key={p._id}
+                              className="flex gap-3 items-center border rounded-lg p-2"
+                            >
+                              <img
+                                src={getLiteImage(p)}
+                                alt={displayName}
+                                className="w-16 h-16 object-cover rounded-md"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium line-clamp-1">
+                                  {displayName}
                                 </div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => move("recommended", idx, -1)}
-                                title="أعلى"
-                              >
-                                ▲
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => move("recommended", idx, +1)}
-                                title="أسفل"
-                              >
-                                ▼
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                onClick={() =>
-                                  removeFromList("recommended", p._id)
-                                }
-                              >
-                                إزالة
-                              </Button>
-                            </div>
-                          </li>
-                        ))}
+                                {typeof p.price === "number" && (
+                                  <div className="text-sm text-gray-500 mt-0.5">
+                                    {p.price} ₪
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => move("recommended", idx, -1)}
+                                  title="أعلى"
+                                >
+                                  ▲
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => move("recommended", idx, +1)}
+                                  title="أسفل"
+                                >
+                                  ▼
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() =>
+                                    removeFromList("recommended", p._id)
+                                  }
+                                >
+                                  إزالة
+                                </Button>
+                              </div>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
 
@@ -473,52 +499,56 @@ const AdminDashboard: React.FC = () => {
                         </span>
                       </div>
                       <ul className="space-y-3">
-                        {newArrivals.map((p, idx) => (
-                          <li
-                            key={p._id}
-                            className="flex gap-3 items-center border rounded-lg p-2"
-                          >
-                            <img
-                              src={getLiteImage(p)}
-                              alt={p.name}
-                              className="w-16 h-16 object-cover rounded-md"
-                            />
-                            <div className="flex-1">
-                              <div className="font-medium line-clamp-1">
-                                {p.name}
-                              </div>
-                              {typeof p.price === "number" && (
-                                <div className="text-sm text-gray-500 mt-0.5">
-                                  {p.price} ₪
+                        {newArrivals.map((p, idx) => {
+                          const displayName =
+                            getLocalizedText(p.name, locale) || p._id;
+                          return (
+                            <li
+                              key={p._id}
+                              className="flex gap-3 items-center border rounded-lg p-2"
+                            >
+                              <img
+                                src={getLiteImage(p)}
+                                alt={displayName}
+                                className="w-16 h-16 object-cover rounded-md"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium line-clamp-1">
+                                  {displayName}
                                 </div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => move("new", idx, -1)}
-                                title="أعلى"
-                              >
-                                ▲
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => move("new", idx, +1)}
-                                title="أسفل"
-                              >
-                                ▼
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                onClick={() => removeFromList("new", p._id)}
-                              >
-                                إزالة
-                              </Button>
-                            </div>
-                          </li>
-                        ))}
+                                {typeof p.price === "number" && (
+                                  <div className="text-sm text-gray-500 mt-0.5">
+                                    {p.price} ₪
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => move("new", idx, -1)}
+                                  title="أعلى"
+                                >
+                                  ▲
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => move("new", idx, +1)}
+                                  title="أسفل"
+                                >
+                                  ▼
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => removeFromList("new", p._id)}
+                                >
+                                  إزالة
+                                </Button>
+                              </div>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   </div>
@@ -566,33 +596,37 @@ const AdminDashboard: React.FC = () => {
                   />
 
                   <div className="mt-4 space-y-3 max-h-[60vh] overflow-auto">
-                    {results.map((p) => (
-                      <div
-                        key={p._id}
-                        className="flex gap-3 items-center border rounded-lg p-2"
-                      >
-                        <img
-                          src={getLiteImage(p)}
-                          alt={p.name}
-                          className="w-14 h-14 object-cover rounded-md"
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium line-clamp-1">
-                            {p.name}
-                          </div>
-                          {typeof p.price === "number" && (
-                            <div className="text-sm text-gray-500 mt-0.5">
-                              {p.price} ₪
+                    {results.map((p) => {
+                      const displayName =
+                        getLocalizedText(p.name, locale) || p._id;
+                      return (
+                        <div
+                          key={p._id}
+                          className="flex gap-3 items-center border rounded-lg p-2"
+                        >
+                          <img
+                            src={getLiteImage(p)}
+                            alt={displayName}
+                            className="w-14 h-14 object-cover rounded-md"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium line-clamp-1">
+                              {displayName}
                             </div>
-                          )}
+                            {typeof p.price === "number" && (
+                              <div className="text-sm text-gray-500 mt-0.5">
+                                {p.price} ₪
+                              </div>
+                            )}
+                          </div>
+                          <Button onClick={() => addToList(p)}>
+                            {searchTab === "recommended"
+                              ? "إضافة للمقترحة"
+                              : "إضافة لوصل حديثًا"}
+                          </Button>
                         </div>
-                        <Button onClick={() => addToList(p)}>
-                          {searchTab === "recommended"
-                            ? "إضافة للمقترحة"
-                            : "إضافة لوصل حديثًا"}
-                        </Button>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {!results.length && query.trim() && (
                       <p className="text-sm text-gray-500 text-center">
                         لا توجد نتائج مطابقة…
@@ -663,7 +697,11 @@ const AdminDashboard: React.FC = () => {
                 productFilter={productFilter}
                 token={token}
                 onEdit={(product) => {
-                  setEditingProduct(product);
+                  setEditingProduct({
+                    ...product,
+                    name: ensureLocalizedObject(product.name),
+                    description: ensureLocalizedObject(product.description),
+                  });
                   setIsEditModalOpen(true);
                 }}
                 onRefreshProducts={handleAfterProductChange}

@@ -4,6 +4,8 @@ import axios from "axios";
 import clsx from "clsx";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/button";
+import { getLocalizedText, type LocalizedText } from "@/lib/localized";
+import { useLanguage } from "@/context/LanguageContext";
 import {
   Dialog,
   DialogContent,
@@ -17,8 +19,8 @@ import {
 interface Props {
   product: {
     _id: string;
-    name: string;
-    description: string;
+    name: LocalizedText;
+    description: LocalizedText;
     price: number;
     images?: string[];
     subCategory?: string;
@@ -69,6 +71,11 @@ function normalizeVariantsResponse(data: any): Variant[] {
 const ProductCard: React.FC<Props> = ({ product }) => {
   const { addToCart } = useCart();
   const navigate = useNavigate();
+  const { locale } = useLanguage();
+  const productName = useMemo(
+    () => getLocalizedText(product.name, locale) || product._id,
+    [product.name, locale, product._id]
+  );
 
   // حالات مشتركة
   const [currentImage, setCurrentImage] = useState(0);
@@ -355,7 +362,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             <img
               key={`${src}-${index}`}
               src={src}
-              alt={product.name}
+              alt={productName}
               className={clsx(
                 "absolute inset-0 w-full h-full object-contain transition-all duration-500",
                 {
@@ -425,7 +432,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         <div className="pr-0">
           <div className="flex items-start justify-between gap-2">
             <span className="block text-base font-medium mb-1 line-clamp-2">
-              {product.name}
+              {productName}
             </span>
 
             {/* زر السلة (أيقونة فقط) — يمنع الانتقال ويفتح الديالوج */}
@@ -474,7 +481,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             <img
               key={`${src}-${index}`}
               src={src}
-              alt={product.name}
+              alt={productName}
               className={clsx(
                 "absolute inset-0 w-full h-full object-contain transition-all duration-500 ",
                 {
@@ -543,7 +550,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           )}
         </div>
 
-        <h3 className="text-lg font-medium mb-1">{product.name}</h3>
+        <h3 className="text-lg font-medium mb-1">{productName}</h3>
 
         {product.subCategory && (
           <p className="text-sm text-gray-500 mb-2">{product.subCategory}</p>
@@ -680,7 +687,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         >
           <div className="p-4 sm:p-6">
             <DialogHeader className="text-right">
-              <DialogTitle>{product.name}</DialogTitle>
+              <DialogTitle>{productName}</DialogTitle>
               <DialogDescription>
                 اختر اللون والمقاس قبل إضافة المنتج إلى السلة.
               </DialogDescription>
@@ -693,7 +700,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                   <img
                     key={`${src}-${index}`}
                     src={src}
-                    alt={product.name}
+                    alt={productName}
                     className={clsx(
                       "absolute inset-0 w-full h-full object-contain transition-all duration-500",
                       {

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { getLocalizedText } from "@/lib/localized";
+import { useLanguage } from "@/context/LanguageContext";
 import QuantityInput from "@/components/common/QuantityInput";
 
 // reCAPTCHA v3
@@ -60,6 +62,7 @@ const RECAPTCHA_MIN_SCORE = 0.5;
 const CartPageContent: React.FC = () => {
   const { cart, removeFromCart, updateQuantity, clearCart } = useCart();
   const { user, token } = useAuth();
+  const { locale } = useLanguage();
 
   const [userData, setUserData] = useState({
     name: "",
@@ -112,7 +115,7 @@ const CartPageContent: React.FC = () => {
             sku: (item as any).sku || undefined,
             color: (item as any).selectedColor || null,
             measure: (item as any).selectedMeasure || null,
-            name: item.name,
+            name: getLocalizedText(item.name, locale),
           })),
         };
         const headers = token
@@ -132,7 +135,7 @@ const CartPageContent: React.FC = () => {
       }
     };
     applyDiscountPreview();
-  }, [cart, token]);
+  }, [cart, token, locale]);
 
   const summary = useMemo(() => {
     if (preview) {
@@ -207,7 +210,7 @@ const CartPageContent: React.FC = () => {
           notes,
           items: cart.map((it) => ({
             productId: it._id,
-            name: it.name,
+            name: getLocalizedText(it.name, locale),
             quantity: it.quantity,
             sku: (it as any).sku || undefined,
             color: (it as any).selectedColor || null,
@@ -267,7 +270,7 @@ const CartPageContent: React.FC = () => {
             : undefined,
           items: cart.map((it) => ({
             productId: it._id,
-            name: it.name,
+            name: getLocalizedText(it.name, locale),
             quantity: it.quantity,
             sku: (it as any).sku || undefined,
             color: (it as any).selectedColor || null,
@@ -400,13 +403,16 @@ const CartPageContent: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {cart.map((item) => (
-                <tr
-                  key={`${item._id}-${(item as any).selectedColor}-${
-                    (item as any).selectedMeasure
-                  }`}
-                >
-                  <td className="py-2 px-4 border">{item.name}</td>
+              {cart.map((item) => {
+                const displayName =
+                  getLocalizedText(item.name, locale) || item._id;
+                return (
+                  <tr
+                    key={`${item._id}-${(item as any).selectedColor}-${
+                      (item as any).selectedMeasure
+                    }`}
+                  >
+                    <td className="py-2 px-4 border">{displayName}</td>
                   <td className="py-2 px-4 border">
                     {(item as any).selectedColor || "-"}
                   </td>
@@ -477,7 +483,8 @@ const CartPageContent: React.FC = () => {
                     </Button>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
               {cart.length === 0 && (
                 <tr>
                   <td colSpan={7} className="py-4 text-center text-gray-500">
@@ -491,53 +498,57 @@ const CartPageContent: React.FC = () => {
 
         {/* 📱 للموبايل: كروت العناصر */}
         <div className="grid gap-4 md:hidden">
-          {cart.map((item) => (
-            <div
-              key={`${item._id}-${(item as any).selectedColor}-${
-                (item as any).selectedMeasure
-              }`}
-              className="border rounded-lg p-4 text-right"
-            >
-              <h3 className="text-lg font-semibold mb-1">{item.name}</h3>
-              <p className="text-sm text-gray-500">
-                اللون: {(item as any).selectedColor || "-"} | المقاس:{" "}
-                {(item as any).selectedMeasure || "-"}
-              </p>
-              <p className="text-gray-600 mb-1">
-                السعر: {currency(item.price)}
-              </p>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-gray-600">الكمية:</span>
-                <QuantityInput
-                  quantity={item.quantity}
-                  onChange={(newQty) =>
-                    updateQuantity(
+          {cart.map((item) => {
+            const displayName =
+              getLocalizedText(item.name, locale) || item._id;
+            return (
+              <div
+                key={`${item._id}-${(item as any).selectedColor}-${
+                  (item as any).selectedMeasure
+                }`}
+                className="border rounded-lg p-4 text-right"
+              >
+                <h3 className="text-lg font-semibold mb-1">{displayName}</h3>
+                <p className="text-sm text-gray-500">
+                  اللون: {(item as any).selectedColor || "-"} | المقاس:{" "}
+                  {(item as any).selectedMeasure || "-"}
+                </p>
+                <p className="text-gray-600 mb-1">
+                  السعر: {currency(item.price)}
+                </p>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-gray-600">الكمية:</span>
+                  <QuantityInput
+                    quantity={item.quantity}
+                    onChange={(newQty) =>
+                      updateQuantity(
+                        item._id,
+                        newQty,
+                        (item as any).selectedColor,
+                        (item as any).selectedMeasure
+                      )
+                    }
+                  />
+                </div>
+                <p className="text-gray-700 font-semibold mb-3">
+                  الإجمالي: {currency(item.price * item.quantity)}
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() =>
+                    removeFromCart(
                       item._id,
-                      newQty,
                       (item as any).selectedColor,
                       (item as any).selectedMeasure
                     )
                   }
-                />
+                >
+                  إزالة
+                </Button>
               </div>
-              <p className="text-gray-700 font-semibold mb-3">
-                الإجمالي: {currency(item.price * item.quantity)}
-              </p>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() =>
-                  removeFromCart(
-                    item._id,
-                    (item as any).selectedColor,
-                    (item as any).selectedMeasure
-                  )
-                }
-              >
-                إزالة
-              </Button>
-            </div>
-          ))}
+            );
+          })}
           {cart.length === 0 && (
             <p className="text-center text-gray-500">السلة فارغة.</p>
           )}

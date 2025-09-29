@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const mongoose = require("mongoose");
 
+process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = process.env.JWT_SECRET || "x".repeat(32);
 process.env.LAHZA_SECRET_KEY = "test-lahza-secret";
 
@@ -215,7 +216,11 @@ test(
 
     productResolver = (id) => {
       if (String(id) === productId) {
-        return { _id: productId, images: ["img.png"], name: "Product" };
+        return {
+          _id: productId,
+          images: ["img.png"],
+          name: { ar: "منتج", he: "Product" },
+        };
       }
       return null;
     };
@@ -304,7 +309,11 @@ test(
 
     productResolver = (id) => {
       if (String(id) === productId) {
-        return { _id: productId, images: [] };
+        return {
+          _id: productId,
+          images: [],
+          name: { ar: "عنصر", he: "Item" },
+        };
       }
       return null;
     };
@@ -375,7 +384,11 @@ test(
 
     productResolver = (id) => {
       if (String(id) === productId) {
-        return { _id: productId, images: [] };
+        return {
+          _id: productId,
+          images: [],
+          name: { ar: "منتج", he: "Product" },
+        };
       }
       return null;
     };

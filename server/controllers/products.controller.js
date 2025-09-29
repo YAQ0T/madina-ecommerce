@@ -7,6 +7,11 @@ const {
   buildWantedTags,
   readOwnershipFilterFromQuery,
 } = require("../utils/filters");
+const {
+  parseLocalizedInput,
+  ensureLocalizedObject,
+  mapLocalizedForResponse,
+} = require("../utils/localized");
 
 /** تحويل ترتيب الأولويات إلى رقم للفرز */
 const priorityRankExpr = {
@@ -50,8 +55,19 @@ function prepareCreateData(body) {
     priority,
   } = body;
 
+  const nameResult = parseLocalizedInput(name, {
+    requireArabic: true,
+    arabicRequiredMessage:
+      "يرجى إدخال اسم المنتج باللغة العربية على الأقل",
+  });
+  if (nameResult.error) return { error: nameResult.error };
+  const normalizedName = nameResult.value;
+
+  if (!normalizedName) {
+    return { error: "اسم المنتج مطلوب" };
+  }
+
   if (
-    !name ||
     !mainCategory ||
     !subCategory ||
     !Array.isArray(images) ||
@@ -64,13 +80,22 @@ function prepareCreateData(body) {
   }
 
   const data = {
-    name: String(name).trim(),
+    name: normalizedName,
     category: category ? String(category).trim() : undefined,
     mainCategory: String(mainCategory).trim(),
     subCategory: String(subCategory).trim(),
-    description: description ? String(description).trim() : undefined,
     images: images.map((u) => String(u)),
   };
+
+  const descriptionResult = parseLocalizedInput(description, {
+    allowEmpty: false,
+    arabicRequiredMessage:
+      "الوصف العربي مطلوب عند إضافة وصف جديد",
+  });
+  if (descriptionResult.error) return { error: descriptionResult.error };
+  if (descriptionResult.value) {
+    data.description = descriptionResult.value;
+  }
 
   if (typeof ownershipType !== "undefined") {
     const v = String(ownershipType);
@@ -89,6 +114,21 @@ function prepareCreateData(body) {
   }
 
   return { data };
+}
+
+function formatProduct(product) {
+  if (!product) return product;
+  const source =
+    typeof product.toObject === "function" ? product.toObject() : product;
+  return {
+    ...source,
+    name: mapLocalizedForResponse(source.name),
+    description: mapLocalizedForResponse(source.description),
+  };
+}
+
+function formatProducts(list = []) {
+  return list.map((item) => formatProduct(item));
 }
 
 const ProductsController = {
@@ -348,7 +388,7 @@ const ProductsController = {
 
       const [result] = await Product.aggregate(pipeline);
       const total = result?.total || 0;
-      const items = result?.items || [];
+      const items = formatProducts(result?.items || []);
       const totalPages = Math.ceil(total / limitNum);
 
       return res.json({
@@ -482,7 +522,7 @@ const ProductsController = {
         .limit(limitNum)
         .lean();
 
-      return res.status(200).json(products);
+      return res.status(200).json(formatProducts(products));
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -504,10 +544,12 @@ const ProductsController = {
       if (!product)
         return res.status(404).json({ message: "المنتج غير موجود" });
 
-      if (!withVariants) return res.json(product);
+      const normalizedProduct = formatProduct(product);
+
+      if (!withVariants) return res.json(normalizedProduct);
 
       const variants = await Variant.find({ product: product._id }).lean();
-      return res.json({ ...product, variants });
+      return res.json({ ...normalizedProduct, variants });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -536,15 +578,37 @@ const ProductsController = {
       } = req.body;
 
       const updateData = {};
-      if (typeof name !== "undefined") updateData.name = String(name).trim();
+      if (typeof name !== "undefined") {
+        const nameResult = parseLocalizedInput(name, {
+          requireArabic: true,
+          arabicRequiredMessage:
+            "يرجى إدخال اسم المنتج باللغة العربية على الأقل",
+        });
+        if (nameResult.error)
+          return res.status(400).json({ error: nameResult.error });
+        if (!nameResult.value)
+          return res.status(400).json({ error: "اسم المنتج مطلوب" });
+        updateData.name = nameResult.value;
+      }
       if (typeof category !== "undefined")
         updateData.category = String(category).trim();
       if (typeof mainCategory !== "undefined")
         updateData.mainCategory = String(mainCategory).trim();
       if (typeof subCategory !== "undefined")
         updateData.subCategory = String(subCategory).trim();
-      if (typeof description !== "undefined")
-        updateData.description = String(description).trim();
+      if (typeof description !== "undefined") {
+        const descriptionResult = parseLocalizedInput(description, {
+          allowEmpty: true,
+          arabicRequiredMessage: "الوصف العربي مطلوب عند إضافة وصف جديد",
+        });
+        if (descriptionResult.error)
+          return res.status(400).json({ error: descriptionResult.error });
+        if (descriptionResult.value === undefined || descriptionResult.value === null) {
+          updateData.description = { ar: "", he: "" };
+        } else {
+          updateData.description = descriptionResult.value;
+        }
+      }
 
       if (typeof images !== "undefined") {
         if (!Array.isArray(images))
@@ -579,7 +643,7 @@ const ProductsController = {
 
       if (!updated) return res.status(404).json({ error: "المنتج غير موجود" });
 
-      return res.json(updated);
+      return res.json(formatProduct(updated));
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -610,7 +674,7 @@ const ProductsController = {
 
       if (!updated) return res.status(404).json({ error: "المنتج غير موجود" });
 
-      return res.json(updated);
+      return res.json(formatProduct(updated));
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }

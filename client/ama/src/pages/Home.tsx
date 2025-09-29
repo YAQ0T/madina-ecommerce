@@ -5,13 +5,15 @@ import { useNavigate } from "react-router-dom";
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import { useTranslation } from "@/i18n";
+import { getLocalizedText, type LocalizedText } from "@/lib/localized";
+import { useLanguage, type SupportedLocale } from "@/context/LanguageContext";
 
 // ====== أنواع بسيطة للمنتج ======
 type Product = {
   _id?: string;
   id?: string | number;
-  name?: string;
-  title?: string;
+  name?: LocalizedText;
+  title?: LocalizedText;
   price?: number;
   images?: string[];
   image?: string;
@@ -36,7 +38,7 @@ type LocalizedBenefit = {
 type LocalizedFallbackProduct = {
   key: string;
   id: number | string;
-  name: string;
+  name: LocalizedText;
   price: number;
   image: string;
 };
@@ -47,20 +49,23 @@ const getImage = (p: Product) =>
   p.image ||
   p.mainImage ||
   "https://placehold.co/600x400/png?text=No+Image";
-const getName = (p: Product, fallback: string) => p.name || p.title || fallback;
+const getName = (p: Product, fallback: string, locale: SupportedLocale) =>
+  getLocalizedText(p.name ?? p.title ?? fallback, locale) || fallback;
 
 // ====== بطاقة منتج (مُصغّرة للموبايل) ======
 const ProductCard = ({
   product,
   fallbackName,
+  locale,
 }: {
   product: Product;
   fallbackName: string;
+  locale: SupportedLocale;
 }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const img = getImage(product);
-  const name = getName(product, fallbackName);
+  const name = getName(product, fallbackName, locale);
 
   const detailId =
     (typeof product._id === "string" && product._id) ||
@@ -121,11 +126,13 @@ const ProductsSection = ({
   endpoint,
   fallbackProducts,
   fallbackName,
+  locale,
 }: {
   title: string;
   endpoint: string; // مثال: "/api/home-collections/recommended"
   fallbackProducts: Product[];
   fallbackName: string;
+  locale: SupportedLocale;
 }) => {
   const [items, setItems] = useState<Product[] | null>(null);
   const { t } = useTranslation();
@@ -180,6 +187,7 @@ const ProductsSection = ({
             key={getId(p)}
             product={p}
             fallbackName={fallbackName}
+            locale={locale}
           />
         ))}
       </div>
@@ -190,6 +198,7 @@ const ProductsSection = ({
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { locale } = useLanguage();
 
   const localizedCategories = t("home.categories", {
     returnObjects: true,
@@ -320,6 +329,7 @@ const Home: React.FC = () => {
           endpoint="/api/home-collections/recommended"
           fallbackProducts={fallbackProducts}
           fallbackName={fallbackName}
+          locale={locale}
         />
 
         {/* وصل حديثًا — من home-collections */}
@@ -328,6 +338,7 @@ const Home: React.FC = () => {
           endpoint="/api/home-collections/new"
           fallbackProducts={fallbackProducts}
           fallbackName={fallbackName}
+          locale={locale}
         />
       </main>
       <Footer />
