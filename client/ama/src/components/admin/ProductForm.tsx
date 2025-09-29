@@ -10,6 +10,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import axios from "axios";
 import React, { useState, useMemo } from "react";
+import { useTranslation } from "@/i18n";
 
 interface ProductFormProps {
   newProduct: any;
@@ -28,6 +29,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   token,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const [newImage, setNewImage] = useState("");
 
   const mainCategories = useMemo(
@@ -45,17 +47,10 @@ const ProductForm: React.FC<ProductFormProps> = ({
   }, [productsState, newProduct.mainCategory]);
 
   // خيارات نوع الملكية
-  const ownershipOptions = [
-    { value: "ours", label: "على اسمنا" },
-    { value: "local", label: "شراء محلي" },
-  ] as const;
+  const ownershipOptions = ["ours", "local"] as const;
 
   // ✅ خيارات الأولوية
-  const priorityOptions = [
-    { value: "A", label: "A - أولوية عالية" },
-    { value: "B", label: "B - أولوية متوسطة" },
-    { value: "C", label: "C - أولوية عادية" },
-  ] as const;
+  const priorityOptions = ["A", "B", "C"] as const;
 
   // إضافة صورة
   const handleAddImage = () => {
@@ -116,22 +111,22 @@ const ProductForm: React.FC<ProductFormProps> = ({
       }
     } catch (err) {
       console.error("❌ Error adding product", err);
-      alert("فشل في إضافة المنتج");
+      alert(t("admin.productForm.alerts.createFailed"));
     }
   };
 
   return (
     <>
       <DialogHeader>
-        <DialogTitle>إضافة منتج جديد</DialogTitle>
+        <DialogTitle>{t("admin.productForm.title")}</DialogTitle>
         <DialogDescription>
-          قم بملء الحقول التالية لإضافة منتج إلى المتجر
+          {t("admin.productForm.subtitle")}
         </DialogDescription>
       </DialogHeader>
 
       <div className="max-h-[70vh] overflow-y-auto grid gap-4 py-4 text-right">
         <Input
-          placeholder="اسم المنتج"
+          placeholder={t("admin.productForm.placeholders.name")}
           value={newProduct.name ?? ""}
           onChange={(e) =>
             setNewProduct((prev: any) => ({ ...prev, name: e.target.value }))
@@ -140,7 +135,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
         <Input
           list="main-categories"
-          placeholder="التصنيف الرئيسي"
+          placeholder={t("admin.productForm.placeholders.mainCategory")}
           value={newProduct.mainCategory ?? ""}
           onChange={(e) =>
             setNewProduct((prev: any) => ({
@@ -157,7 +152,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
         <Input
           list="sub-categories"
-          placeholder="التصنيف الفرعي"
+          placeholder={t("admin.productForm.placeholders.subCategory")}
           value={newProduct.subCategory ?? ""}
           onChange={(e) =>
             setNewProduct((prev: any) => ({
@@ -174,7 +169,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
         {/* نوع الملكية */}
         <div className="grid gap-2">
-          <label className="text-sm font-medium">نوع الملكية</label>
+          <label className="text-sm font-medium">
+            {t("admin.productForm.labels.ownership")}
+          </label>
           <select
             className="border rounded-md p-2 bg-background"
             value={newProduct.ownershipType ?? "ours"}
@@ -186,19 +183,21 @@ const ProductForm: React.FC<ProductFormProps> = ({
             }
           >
             {ownershipOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
+              <option key={opt} value={opt}>
+                {t(`admin.common.ownership.${opt}` as const)}
               </option>
             ))}
           </select>
           <p className="text-xs text-muted-foreground">
-            اختر ما إذا كان المنتج على اسمنا أو يتم شراؤه محليًا.
+            {t("admin.productForm.helpers.ownership")}
           </p>
         </div>
 
         {/* ✅ الأولوية */}
         <div className="grid gap-2">
-          <label className="text-sm font-medium">أولوية الظهور</label>
+          <label className="text-sm font-medium">
+            {t("admin.productForm.labels.priority")}
+          </label>
           <select
             className="border rounded-md p-2 bg-background"
             value={newProduct.priority ?? "C"}
@@ -210,18 +209,18 @@ const ProductForm: React.FC<ProductFormProps> = ({
             }
           >
             {priorityOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
+              <option key={opt} value={opt}>
+                {t(`admin.productForm.priorityOptions.${opt}` as const)}
               </option>
             ))}
           </select>
           <p className="text-xs text-muted-foreground">
-            ترتيب العرض في القوائم: A أعلى، ثم B، ثم C.
+            {t("admin.productForm.helpers.priority")}
           </p>
         </div>
 
         <Textarea
-          placeholder="وصف المنتج"
+          placeholder={t("admin.productForm.placeholders.description")}
           value={newProduct.description ?? ""}
           onChange={(e) =>
             setNewProduct((prev: any) => ({
@@ -235,12 +234,12 @@ const ProductForm: React.FC<ProductFormProps> = ({
         <div className="space-y-2">
           <div className="flex gap-2">
             <Input
-              placeholder="رابط صورة جديدة"
+              placeholder={t("admin.productForm.placeholders.image")}
               value={newImage}
               onChange={(e) => setNewImage(e.target.value)}
             />
             <Button type="button" onClick={handleAddImage}>
-              إضافة
+              {t("common.actions.add")}
             </Button>
           </div>
           <ul className="text-sm space-y-1">
@@ -252,7 +251,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                   size="sm"
                   onClick={() => handleRemoveItem(idx)}
                 >
-                  حذف
+                  {t("common.actions.delete")}
                 </Button>
               </li>
             ))}
@@ -261,7 +260,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
       </div>
 
       <DialogFooter>
-        <Button onClick={handleSubmit}>حفظ المنتج</Button>
+        <Button onClick={handleSubmit}>{t("admin.productForm.actions.save")}</Button>
       </DialogFooter>
     </>
   );

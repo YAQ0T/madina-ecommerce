@@ -2,6 +2,370 @@
   "discountRules": {
     "form": {
       "threshold": "סכום סף בש״ח"
+  "navbar": {
+    "brand": "Dikori | דיקורי",
+    "links": {
+      "home": "דף הבית",
+      "products": "מוצרים",
+      "about": "אודות",
+      "contact": "צור קשר",
+      "account": "החשבון שלי",
+      "dashboard": "לוח הבקרה"
+    },
+    "auth": {
+      "login": "התחברות",
+      "register": "יצירת חשבון",
+      "greeting": "שלום, {{name}}",
+      "logout": "התנתקות"
+    }
+  },
+  "footer": {
+    "rights": "כל הזכויות שמורות © {{year}} חנות דיקורי",
+    "contact": "ליצירת קשר: 0599-XXXXXX",
+    "socialLinks": [
+      { "key": "facebook", "href": "#", "label": "פייסבוק" },
+      { "key": "instagram", "href": "#", "label": "אינסטגרם" },
+      { "key": "whatsapp", "href": "#", "label": "וואטסאפ" }
+    ],
+    "legal": {
+      "privacy": "מדיניות פרטיות",
+      "terms": "תנאים והגבלות"
+    }
+  },
+  "home": {
+    "hero": {
+      "title": "ברוכים הבאים לחנות דיקורי",
+      "subtitle": "כאן תמצאו את הציוד הטוב ביותר לנגרות, ריפוד וסלוני ישיבה."
+    },
+    "actions": {
+      "startShopping": "התחילו לקנות עכשיו",
+      "browseAll": "צפו בכל"
+    },
+    "sections": {
+      "categories": "דפדוף לפי קטגוריה",
+      "benefits": "מה אנחנו מציעים ללקוחות שלנו?",
+      "recommended": "מוצרים מומלצים עבורך",
+      "newArrivals": "הגיעו לאחרונה"
+    },
+    "categories": [
+      { "key": "carpentry", "label": "ציוד לנגרים", "value": "لوازم نجارين", "img": "https://i.imgur.com/aPYhaQW.png" },
+      { "key": "upholstery", "label": "ציוד לרפדים", "value": "لوازم منجدين", "img": "https://i.imgur.com/S9rjrsh.png" },
+      { "key": "doorHandles", "label": "ידיות לדלתות", "value": "مقابض ابواب", "img": "https://i.imgur.com/O9xXLeu.png" },
+      { "key": "cabinetHandles", "label": "ידיות לארונות", "value": "مقابض خزائن", "img": "https://i.imgur.com/AEyMjHc.png" },
+      { "key": "kitchenAccessories", "label": "אביזרי מטבח", "value": "اكسسوارات مطابخ", "img": "https://i.imgur.com/hlpu1oK.png" },
+      { "key": "bedroomAccessories", "label": "אביזרי חדרי שינה", "value": "إكسسوارات غرف نوم", "img": "https://i.imgur.com/ZMr397G.png" },
+      { "key": "tools", "label": "כלים ואביזרים", "value": "عدة وأدوات", "img": "https://i.imgur.com/Hf5NvqJ.png" },
+      { "key": "drawers", "label": "מגירות ומסילות", "value": "جوارير وسكك ومفصلات", "img": "https://i.imgur.com/fE6zgKp.png" },
+      { "key": "fabrics", "label": "בדי ריפוד", "value": "أقمشة كنب", "img": "https://i.imgur.com/bf8geWx.jpeg" },
+      { "key": "fasteners", "label": "ברגים ומחברים", "value": "كبسات مسامير و براغي", "img": "https://i.imgur.com/CntFVhx.png" },
+      { "key": "doorSupplies", "label": "ציוד לדלתות", "value": "لوازم أبواب", "img": "https://i.imgur.com/UskLo6H.png" }
+    ],
+    "benefits": [
+      {
+        "key": "delivery",
+        "icon": "https://www.svgrepo.com/show/467670/delivery-truck.svg",
+        "title": "משלוח לכל הערים",
+        "description": "אספקה מהירה ובזמן"
+      },
+      {
+        "key": "support",
+        "icon": "https://www.svgrepo.com/show/469025/headset-alt.svg",
+        "title": "תמיכה אונליין",
+        "description": "צוות שירות זמין מ-8:30 בבוקר עד חצות"
+      },
+      {
+        "key": "securePayment",
+        "icon": "https://www.svgrepo.com/show/468385/credit-card-2.svg",
+        "title": "תשלום מאובטח 100%",
+        "description": "כל כרטיסי האשראי מתקבלים בעיבוד מאובטח"
+      },
+      {
+        "key": "authentic",
+        "icon": "https://www.svgrepo.com/show/468263/check-mark-circle.svg",
+        "title": "מוצרים מקוריים ב-100%",
+        "description": "התחייבות לאותנטיות ואיכות"
+      }
+    ],
+    "fallback": {
+      "noName": "מוצר ללא שם",
+      "noPrice": "המחיר יוצג לפי בחירה",
+      "viewProduct": "הצג מוצר",
+      "viewAria": "הצגת פרטי {{name}}",
+      "products": [
+        {
+          "key": "handle",
+          "id": 1,
+          "name": "ידית מתכת לארון",
+          "price": 29.9,
+          "image": "https://i.imgur.com/lu2y3pi.png"
+        },
+        {
+          "key": "drawer",
+          "id": 2,
+          "name": "מסילת מגירה שקטה",
+          "price": 49,
+          "image": "https://i.imgur.com/bf8geWx.jpeg"
+        },
+        {
+          "key": "fabric",
+          "id": 3,
+          "name": "בד ריפוד עמיד לכתמים",
+          "price": 89,
+          "image": "https://i.imgur.com/oW6JO0A.png"
+        },
+        {
+          "key": "hinge",
+          "id": 4,
+          "name": "צירים הידראוליים",
+          "price": 39.5,
+          "image": "https://i.imgur.com/CCEly6H.jpeg"
+        }
+      ]
+    }
+  },
+  "common": {
+    "all": "הכול",
+    "loading": "טוען…",
+    "none": "—",
+    "labels": {
+      "name": "שם",
+      "phone": "טלפון",
+      "address": "כתובת",
+      "email": "דוא\"ל",
+      "actions": "פעולות"
+    },
+    "actions": {
+      "add": "הוספה",
+      "edit": "עריכה",
+      "delete": "מחיקה",
+      "close": "סגירה",
+      "cancelEdit": "בטל עריכה"
+    },
+    "status": {
+      "active": "פעיל",
+      "inactive": "מושהה"
+    }
+  },
+  "admin": {
+    "common": {
+      "ownership": {
+        "ours": "בבעלותנו",
+        "local": "קנייה מקומית"
+      }
+    },
+    "categoryFilters": {
+      "ownership": {
+        "label": "⚑ סוג הבעלות: {{label}}",
+        "options": {
+          "all": "הכול",
+          "ours": "בבעלותנו",
+          "local": "קנייה מקומית"
+        }
+      },
+      "subFilter": "🧮 סינון משני",
+      "mainFilter": "🧮 סינון ראשי"
+    },
+    "productTable": {
+      "priorityTitle": "עדיפות הצגה",
+      "confirmDelete": "האם למחוק את \"{{name}}\"?",
+      "alerts": {
+        "deleteFailed": "מחיקת המוצר נכשלה",
+        "priorityFailed": "עדכון העדיפות נכשל"
+      },
+      "headers": {
+        "ownership": "סוג בעלות",
+        "priority": "עדיפות",
+        "minPrice": "מחיר מינימום",
+        "totalQuantity": "כמות כוללת",
+        "mainCategory": "קטגוריה ראשית",
+        "subCategory": "קטגוריה משנה",
+        "actions": "פעולות"
+      },
+      "previewImage": "תצוגת תמונה",
+      "changePriority": "שינוי עדיפות הצגה",
+      "priorityOptions": {
+        "high": "A - עדיפות גבוהה",
+        "medium": "B - עדיפות בינונית",
+        "normal": "C - עדיפות רגילה"
+      },
+      "actions": {
+        "edit": "✏️ עריכה",
+        "variants": "🎛️ וריאציות",
+        "delete": "🗑️ מחיקה"
+      },
+      "empty": "לא נמצאו מוצרים מתאימים"
+    },
+    "productForm": {
+      "alerts": {
+        "createFailed": "הוספת המוצר נכשלה"
+      },
+      "title": "הוספת מוצר חדש",
+      "subtitle": "מלאו את השדות כדי להוסיף מוצר לחנות",
+      "placeholders": {
+        "name": "שם המוצר",
+        "mainCategory": "קטגוריה ראשית",
+        "subCategory": "קטגוריה משנית",
+        "description": "תיאור המוצר",
+        "image": "קישור לתמונה חדשה"
+      },
+      "labels": {
+        "ownership": "סוג בעלות",
+        "priority": "עדיפות הצגה"
+      },
+      "helpers": {
+        "ownership": "בחרו אם המוצר בבעלותנו או נרכש מקומית.",
+        "priority": "סדר ההופעה ברשימות: A ראשון, אחריו B ואז C."
+      },
+      "priorityOptions": {
+        "A": "A - עדיפות גבוהה",
+        "B": "B - עדיפות בינונית",
+        "C": "C - עדיפות רגילה"
+      },
+      "actions": {
+        "save": "שמירת המוצר"
+      }
+    },
+    "productEdit": {
+      "alerts": {
+        "updateFailed": "עדכון המוצר נכשל"
+      },
+      "title": "עריכת מוצר",
+      "subtitle": "ערכו את השדות ולחצו על שמירה",
+      "placeholders": {
+        "name": "שם המוצר",
+        "mainCategory": "קטגוריה ראשית",
+        "subCategory": "קטגוריה משנית",
+        "description": "תיאור המוצר",
+        "image": "קישור לתמונה חדשה"
+      },
+      "labels": {
+        "ownership": "סוג בעלות"
+      },
+      "helpers": {
+        "ownership": "בחרו אם המוצר בבעלותנו או נרכש מקומית."
+      },
+      "actions": {
+        "addImage": "הוספת תמונה",
+        "save": "שמירת השינויים"
+      }
+    },
+    "discountRules": {
+      "alerts": {
+        "fetchFailed": "טעינת כללי ההנחה נכשלה",
+        "saveFailed": "שמירת הכלל נכשלה",
+        "deleteFailed": "מחיקת הכלל נכשלה"
+      },
+      "confirmDelete": "האם למחוק כלל זה?",
+      "title": "הנחות לפי סכום הזמנה",
+      "form": {
+        "name": "שם הכלל (לא חובה)",
+        "threshold": "סכום סף בש""ח",
+        "type": "סוג ההנחה",
+        "percentValue": "שיעור האחוז (%)",
+        "amountValue": "סכום ההנחה (₪)",
+        "priority": "עדיפות (גבוה יותר קודם באותה רמה)",
+        "status": "סטטוס",
+        "startAt": "תחילת תוקף (לא חובה)",
+        "endAt": "סיום תוקף (לא חובה)"
+      },
+      "placeholders": {
+        "name": "לדוגמה: 10% מעל 2000"
+      },
+      "type": {
+        "percent": "אחוזים (%)",
+        "fixed": "סכום קבוע (₪)",
+        "shortPercent": "אחוז",
+        "shortFixed": "סכום"
+      },
+      "actions": {
+        "update": "עדכון הכלל",
+        "create": "הוספת כלל"
+      },
+      "table": {
+        "threshold": "סכום סף",
+        "type": "סוג",
+        "value": "ערך",
+        "priority": "עדיפות",
+        "status": "סטטוס",
+        "period": "תקופה",
+        "actions": "פעולות",
+        "arrow": "→"
+      },
+      "empty": "אין כללי הנחה"
+    },
+    "orderStatus": {
+      "waiting_confirmation": "⏱️ ממתין לאישור",
+      "pending": "⏳ בטיפול",
+      "on_the_way": "🚚 בדרך",
+      "delivered": "✅ סופק",
+      "cancelled": "❌ בוטל"
+    },
+    "orders": {
+      "empty": "אין הזמנות כרגע.",
+      "fallbacks": {
+        "product": "מוצר"
+      },
+      "itemFields": {
+        "color": "צבע: {{value}}",
+        "measure": "מידה: {{value}}{{unit}}",
+        "quantity": "כמות: {{value}}"
+      },
+      "notesLabel": "הערות",
+      "status": {
+        "waiting_confirmation": "⏱️ ממתין לאישור",
+        "pending": "⏳ בטיפול",
+        "on_the_way": "🚚 בדרך",
+        "delivered": "✅ סופק",
+        "cancelled": "❌ בוטל"
+      },
+      "paymentMethods": {
+        "card": "💳 תשלום בכרטיס",
+        "cod": "🚚 תשלום במשלוח"
+      },
+      "paymentStatus": {
+        "paid": "✅ שולם",
+        "failed": "❌ נכשל",
+        "unpaid": "🕓 לא שולם"
+      },
+      "table": {
+        "items": "מוצרים",
+        "subtotal": "סכום ביניים",
+        "discount": "הנחה",
+        "total": "סה\"כ",
+        "paymentMethod": "אמצעי תשלום",
+        "paymentStatus": "סטטוס תשלום",
+        "status": "סטטוס",
+        "itemCount": "מספר מוצרים",
+        "updateStatus": "עדכון סטטוס",
+        "createdAt": "תאריך הזמנה"
+      }
+    },
+    "orderDetails": {
+      "confirmDelete": "האם למחוק הזמנה זו לצמיתות?",
+      "alerts": {
+        "deleteFailed": "מחיקת ההזמנה נכשלה",
+        "missingReference": "אין אסמכתא לתשלום עבור הזמנה זו",
+        "missingToken": "אסימון מנהל חסר, התחברו מחדש",
+        "markPaidSuccess": "ההזמנה סומנה כשולמה בהצלחה",
+        "markPaidFailedWithMessage": "סימון ההזמנה כשולמה נכשל: {{message}}",
+        "markPaidFailed": "לא ניתן לסמן את ההזמנה כשולמה, נסו שוב מאוחר יותר"
+      },
+      "title": "פרטי ההזמנה",
+      "description": "סקירה ועריכה של הזמנה מספר {{id}}",
+      "actions": {
+        "delete": "🗑️ מחיקה לצמיתות",
+        "marking": "בודק...",
+        "markPaid": "סימון כתשלום (לאזה)"
+      }
+    },
+    "users": {
+      "empty": "אין משתמשים כרגע.",
+      "role": "תפקיד",
+      "roles": {
+        "admin": "מנהל",
+        "dealer": "סוחר",
+        "customer": "לקוח"
+      }
     }
   }
 }
