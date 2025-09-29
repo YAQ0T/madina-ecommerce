@@ -16,24 +16,40 @@ export type LocalizedObject = {
 
 export const emptyLocalized: LocalizedObject = { ar: "", he: "" };
 
-const trimOrEmpty = (value: string | null | undefined) =>
-  value ? value.toString().trim() : "";
+type EnsureLocalizedOptions = {
+  trim?: boolean;
+};
+
+const normalizeValue = (
+  value: string | null | undefined,
+  { trim = true }: EnsureLocalizedOptions
+) => {
+  if (value == null) {
+    return "";
+  }
+
+  const stringified = value.toString();
+  return trim ? stringified.trim() : stringified;
+};
 
 export const ensureLocalizedObject = (
-  value: LocalizedText
+  value: LocalizedText,
+  options: EnsureLocalizedOptions = {}
 ): LocalizedObject => {
+  const { trim = true } = options;
+
   if (!value) {
     return { ...emptyLocalized };
   }
 
   if (typeof value === "string") {
-    const trimmed = value.trim();
-    return { ar: trimmed, he: "" };
+    const normalized = trim ? value.trim() : value;
+    return { ar: normalized, he: "" };
   }
 
   return {
-    ar: trimOrEmpty(value.ar),
-    he: trimOrEmpty(value.he),
+    ar: normalizeValue(value.ar, { trim }),
+    he: normalizeValue(value.he, { trim }),
   };
 };
 
