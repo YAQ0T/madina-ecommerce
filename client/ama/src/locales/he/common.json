@@ -1,4 +1,7 @@
 {
+  "discountRules": {
+    "form": {
+      "threshold": "סכום סף בש״ח"
   "navbar": {
     "brand": "Dikori | דיקורי",
     "links": {
