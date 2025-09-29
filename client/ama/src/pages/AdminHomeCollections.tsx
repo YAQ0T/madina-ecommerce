@@ -5,10 +5,16 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/context/LanguageContext";
+import {
+  ensureLocalizedObject,
+  getLocalizedText,
+  type LocalizedObject,
+} from "@/lib/localized";
 
 type ProductLite = {
   _id: string;
-  name: string;
+  name: LocalizedObject;
   images?: string[];
   mainImage?: string;
   price?: number;
@@ -21,6 +27,7 @@ const getImage = (p: ProductLite) =>
 
 export default function AdminHomeCollections() {
   const { token, user } = useAuth();
+  const { locale } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -71,7 +78,7 @@ export default function AdminHomeCollections() {
         const toLite = (arr: any[]): ProductLite[] =>
           arr.map((p: any) => ({
             _id: p._id,
-            name: p.name,
+            name: ensureLocalizedObject(p.name),
             images: p.images,
             mainImage: p.mainImage,
             price: p.minPrice ?? p.price,
@@ -109,7 +116,7 @@ export default function AdminHomeCollections() {
         const items = Array.isArray(data?.items) ? data.items : [];
         const mapped: ProductLite[] = items.map((p: any) => ({
           _id: p._id,
-          name: p.name,
+          name: ensureLocalizedObject(p.name),
           images: p.images,
           mainImage: p.mainImage,
           price: p.minPrice ?? p.price,
@@ -178,7 +185,7 @@ export default function AdminHomeCollections() {
         const toLite = (arr: any[]): ProductLite[] =>
           (arr || []).map((p: any) => ({
             _id: p._id,
-            name: p.name,
+            name: ensureLocalizedObject(p.name),
             images: p.images,
             mainImage: p.mainImage,
             price: p.minPrice ?? p.price,
@@ -226,52 +233,56 @@ export default function AdminHomeCollections() {
                     </span>
                   </div>
                   <ul className="space-y-3">
-                    {recommended.map((p, idx) => (
-                      <li
-                        key={p._id}
-                        className="flex gap-3 items-center border rounded-lg p-2"
-                      >
-                        <img
-                          src={getImage(p)}
-                          alt={p.name}
-                          className="w-16 h-16 object-cover rounded-md"
-                        />
-                        <div className="flex-1 text-right">
-                          <div className="font-medium line-clamp-1">
-                            {p.name}
-                          </div>
-                          {typeof p.price === "number" && (
-                            <div className="text-sm text-gray-500 mt-0.5">
-                              {p.price} ₪
+                    {recommended.map((p, idx) => {
+                      const displayName =
+                        getLocalizedText(p.name, locale) || p._id;
+                      return (
+                        <li
+                          key={p._id}
+                          className="flex gap-3 items-center border rounded-lg p-2"
+                        >
+                          <img
+                            src={getImage(p)}
+                            alt={displayName}
+                            className="w-16 h-16 object-cover rounded-md"
+                          />
+                          <div className="flex-1 text-right">
+                            <div className="font-medium line-clamp-1">
+                              {displayName}
                             </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => move("recommended", idx, -1)}
-                            title="أعلى"
-                          >
-                            ▲
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => move("recommended", idx, +1)}
-                            title="أسفل"
-                          >
-                            ▼
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            onClick={() => removeFromList("recommended", p._id)}
-                          >
-                            إزالة
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
+                            {typeof p.price === "number" && (
+                              <div className="text-sm text-gray-500 mt-0.5">
+                                {p.price} ₪
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => move("recommended", idx, -1)}
+                              title="أعلى"
+                            >
+                              ▲
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => move("recommended", idx, +1)}
+                              title="أسفل"
+                            >
+                              ▼
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              onClick={() => removeFromList("recommended", p._id)}
+                            >
+                              إزالة
+                            </Button>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
 
@@ -284,52 +295,56 @@ export default function AdminHomeCollections() {
                     </span>
                   </div>
                   <ul className="space-y-3">
-                    {newArrivals.map((p, idx) => (
-                      <li
-                        key={p._id}
-                        className="flex gap-3 items-center border rounded-lg p-2"
-                      >
-                        <img
-                          src={getImage(p)}
-                          alt={p.name}
-                          className="w-16 h-16 object-cover rounded-md"
-                        />
-                        <div className="flex-1 text-right">
-                          <div className="font-medium line-clamp-1">
-                            {p.name}
-                          </div>
-                          {typeof p.price === "number" && (
-                            <div className="text-sm text-gray-500 mt-0.5">
-                              {p.price} ₪
+                    {newArrivals.map((p, idx) => {
+                      const displayName =
+                        getLocalizedText(p.name, locale) || p._id;
+                      return (
+                        <li
+                          key={p._id}
+                          className="flex gap-3 items-center border rounded-lg p-2"
+                        >
+                          <img
+                            src={getImage(p)}
+                            alt={displayName}
+                            className="w-16 h-16 object-cover rounded-md"
+                          />
+                          <div className="flex-1 text-right">
+                            <div className="font-medium line-clamp-1">
+                              {displayName}
                             </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => move("new", idx, -1)}
-                            title="أعلى"
-                          >
-                            ▲
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => move("new", idx, +1)}
-                            title="أسفل"
-                          >
-                            ▼
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            onClick={() => removeFromList("new", p._id)}
-                          >
-                            إزالة
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
+                            {typeof p.price === "number" && (
+                              <div className="text-sm text-gray-500 mt-0.5">
+                                {p.price} ₪
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => move("new", idx, -1)}
+                              title="أعلى"
+                            >
+                              ▲
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => move("new", idx, +1)}
+                              title="أسفل"
+                            >
+                              ▼
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              onClick={() => removeFromList("new", p._id)}
+                            >
+                              إزالة
+                            </Button>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               </div>
@@ -373,31 +388,35 @@ export default function AdminHomeCollections() {
                 onChange={(e) => setQuery(e.target.value)}
               />
               <div className="mt-4 space-y-3 max-h-[60vh] overflow-auto">
-                {results.map((p) => (
-                  <div
-                    key={p._id}
-                    className="flex gap-3 items-center border rounded-lg p-2"
-                  >
-                    <img
-                      src={getImage(p)}
-                      alt={p.name}
-                      className="w-14 h-14 object-cover rounded-md"
-                    />
-                    <div className="flex-1 text-right">
-                      <div className="font-medium line-clamp-1">{p.name}</div>
-                      {typeof p.price === "number" && (
-                        <div className="text-sm text-gray-500 mt-0.5">
-                          {p.price} ₪
-                        </div>
-                      )}
+                {results.map((p) => {
+                  const displayName =
+                    getLocalizedText(p.name, locale) || p._id;
+                  return (
+                    <div
+                      key={p._id}
+                      className="flex gap-3 items-center border rounded-lg p-2"
+                    >
+                      <img
+                        src={getImage(p)}
+                        alt={displayName}
+                        className="w-14 h-14 object-cover rounded-md"
+                      />
+                      <div className="flex-1 text-right">
+                        <div className="font-medium line-clamp-1">{displayName}</div>
+                        {typeof p.price === "number" && (
+                          <div className="text-sm text-gray-500 mt-0.5">
+                            {p.price} ₪
+                          </div>
+                        )}
+                      </div>
+                      <Button onClick={() => addToList(p)}>
+                        {tab === "recommended"
+                          ? "إضافة للمقترحة"
+                          : "إضافة لوصل حديثًا"}
+                      </Button>
                     </div>
-                    <Button onClick={() => addToList(p)}>
-                      {tab === "recommended"
-                        ? "إضافة للمقترحة"
-                        : "إضافة لوصل حديثًا"}
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
                 {!results.length && query.trim() && (
                   <p className="text-sm text-gray-500 text-center">
                     لا توجد نتائج مطابقة…
