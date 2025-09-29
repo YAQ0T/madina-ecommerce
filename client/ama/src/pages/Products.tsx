@@ -8,6 +8,8 @@ import CategoryCircles from "@/components/CategoryCircles";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
+import { getLocalizedText, ensureLocalizedObject, type LocalizedText } from "@/lib/localized";
+import { useLanguage } from "@/context/LanguageContext";
 
 import {
   Pagination,
@@ -28,8 +30,8 @@ import {
 
 type ProductItem = {
   _id: string;
-  name: string;
-  description: string;
+  name: LocalizedText;
+  description: LocalizedText;
   images: string[];
   mainCategory?: string;
   subCategory?: string;
@@ -83,6 +85,7 @@ function buildPageWindow(
 const Products: React.FC = () => {
   const { user, token } = useAuth();
   const canUseOwnership = user?.role === "admin" || user?.role === "dealer";
+  const { locale } = useLanguage();
 
   const [selectedMainCategory, setSelectedMainCategory] = useState("الكل");
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
@@ -307,8 +310,8 @@ const Products: React.FC = () => {
 
         const mapped: ProductItem[] = (items || []).map((p: any) => ({
           _id: p._id,
-          name: p.name ?? "",
-          description: p.description ?? "",
+          name: ensureLocalizedObject(p.name),
+          description: ensureLocalizedObject(p.description),
           images: Array.isArray(p.images) ? p.images : [],
           mainCategory: p.mainCategory,
           subCategory: p.subCategory,
@@ -504,8 +507,8 @@ const Products: React.FC = () => {
         const names = Array.from(
           new Set(
             (res.data?.items || [])
-              .map((p: any) => p?.name)
-              .filter((n: any) => typeof n === "string" && n.trim())
+              .map((p: any) => getLocalizedText(p?.name, locale))
+              .filter((n: string | undefined) => typeof n === "string" && n.trim())
           )
         ) as string[];
 
@@ -520,7 +523,7 @@ const Products: React.FC = () => {
       active = false;
       clearTimeout(t);
     };
-  }, [rawSearch, token]);
+  }, [rawSearch, token, locale]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {

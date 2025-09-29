@@ -1,5 +1,14 @@
 // server/models/Order.js
 const mongoose = require("mongoose");
+const { ensureLocalizedObject } = require("../utils/localized");
+
+const LocalizedSchema = new mongoose.Schema(
+  {
+    ar: { type: String, default: "" },
+    he: { type: String, default: "" },
+  },
+  { _id: false }
+);
 
 const OrderItemSchema = new mongoose.Schema(
   {
@@ -13,7 +22,11 @@ const OrderItemSchema = new mongoose.Schema(
       ref: "Variant",
       required: true,
     },
-    name: { type: String, required: true },
+    name: {
+      type: LocalizedSchema,
+      required: true,
+      default: () => ({ ar: "", he: "" }),
+    },
     quantity: { type: Number, min: 1, required: true },
     price: { type: Number, min: 0, required: true },
     color: { type: String },
@@ -23,6 +36,11 @@ const OrderItemSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
+OrderItemSchema.pre("validate", function orderItemEnsureLocalized(next) {
+  this.name = ensureLocalizedObject(this.name);
+  next();
+});
 
 const OrderSchema = new mongoose.Schema(
   {

@@ -2,11 +2,14 @@
 import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
+import { getLocalizedText } from "@/lib/localized";
+import type { LocalizedText } from "@/lib/localized";
 
 type OrderItem = {
   productId?: string;
   variantId?: string;
-  name: string;
+  name: LocalizedText;
   quantity: number;
   price: number; // سعر الوحدة النهائي وقت الشراء
   color?: string | null;
@@ -119,6 +122,7 @@ function escapeHtml(str: string) {
 
 const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
   const { user: authUser } = useAuth();
+  const { locale } = useLanguage();
 
   if (!order) return null;
 
@@ -147,10 +151,11 @@ const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
         const unitPrice = item.price ?? 0;
         const line = qty * unitPrice;
         const measureTxt = formatMeasureWithUnit(item);
+        const printableName = getLocalizedText(item.name, "ar");
         return `
           <tr>
             <td>${escapeHtml(item.sku || "")}</td>
-            <td>${escapeHtml(item.name || "منتج")}</td>
+            <td>${escapeHtml(printableName || "منتج")}</td>
             <td>${escapeHtml(item.color || "-")}</td>
             <td>${escapeHtml(measureTxt)}</td>
             <td>${escapeHtml(currency(unitPrice))}</td>
@@ -393,13 +398,13 @@ const OrderDetailsContent: React.FC<{ order: Order | any }> = ({ order }) => {
                       {item?.image ? (
                         <img
                           src={item.image}
-                          alt={item.name}
+                          alt={getLocalizedText(item.name, locale)}
                           className="w-14 h-14 rounded-lg object-cover border"
                         />
                       ) : null}
                       <div className="flex-1">
                         <p className="font-semibold text-gray-800">
-                          {item.name || "منتج"}
+                          {getLocalizedText(item.name, locale) || "منتج"}
                         </p>
 
                         <p className="text-sm text-gray-600">

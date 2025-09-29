@@ -12,6 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { useTranslation } from "@/i18n";
+import { ensureLocalizedObject } from "@/lib/localized";
+import type { SupportedLocale } from "@/context/LanguageContext";
 
 interface ProductEditDialogProps {
   onClose: () => void;
@@ -51,7 +53,15 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
   // خيارات نوع الملكية
   const ownershipOptions = ["ours", "local"] as const;
 
+  const languages: { code: SupportedLocale; label: string }[] = [
+    { code: "ar", label: t("admin.languages.ar") },
+    { code: "he", label: t("admin.languages.he") },
+  ];
+
   if (!editingProduct) return null;
+
+  const nameState = ensureLocalizedObject(editingProduct.name);
+  const descriptionState = ensureLocalizedObject(editingProduct.description);
 
   const handleSave = async () => {
     try {
@@ -61,16 +71,24 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         ? String(editingProduct.ownershipType)
         : "ours";
 
-      const payload = {
-        name: editingProduct.name?.trim(),
+      const normalizedName = ensureLocalizedObject(editingProduct.name);
+      const normalizedDescription = ensureLocalizedObject(
+        editingProduct.description
+      );
+
+      const payload: Record<string, unknown> = {
+        name: normalizedName,
         mainCategory: editingProduct.mainCategory?.trim(),
         subCategory: editingProduct.subCategory?.trim(),
-        description: editingProduct.description?.trim(),
         images: Array.isArray(editingProduct.images)
           ? editingProduct.images
           : [],
         ownershipType, // 👈 إرسال نوع الملكية
       };
+
+      if (normalizedDescription.ar || normalizedDescription.he) {
+        payload.description = normalizedDescription;
+      }
 
       const res = await axios.put(
         `${import.meta.env.VITE_API_URL}/api/products/${editingProduct._id}`,
@@ -83,7 +101,13 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
       } else {
         const updatedProducts = products.map((p) =>
           p._id === res.data._id
-            ? { ...res.data, price: p.price, quantity: p.quantity }
+            ? {
+                ...res.data,
+                name: ensureLocalizedObject(res.data.name),
+                description: ensureLocalizedObject(res.data.description),
+                price: p.price,
+                quantity: p.quantity,
+              }
             : p
         );
         setProductsState(updatedProducts);
@@ -123,13 +147,37 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
       </DialogHeader>
 
       <div className="max-h-[70vh] overflow-y-auto grid gap-4 py-4 text-right">
-        <Input
-          placeholder={t("admin.productEdit.placeholders.name")}
-          value={editingProduct.name ?? ""}
-          onChange={(e) =>
-            setEditingProduct({ ...editingProduct, name: e.target.value })
-          }
-        />
+        <div className="grid gap-2">
+          <span className="text-sm font-medium">
+            {t("common.labels.name")}
+          </span>
+          <div className="grid gap-3">
+            {languages.map(({ code, label }) => (
+              <div key={`name-${code}`} className="grid gap-1 text-right">
+                <label className="text-xs text-muted-foreground">
+                  {label}
+                </label>
+                <Input
+                  placeholder={t(
+                    code === "ar"
+                      ? "admin.productEdit.placeholders.nameAr"
+                      : "admin.productEdit.placeholders.nameHe"
+                  )}
+                  value={nameState[code]}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      name: {
+                        ...ensureLocalizedObject(editingProduct.name),
+                        [code]: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         <Input
           list="main-categories-edit"
@@ -191,16 +239,37 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
           </p>
         </div>
 
-        <Textarea
-          placeholder={t("admin.productEdit.placeholders.description")}
-          value={editingProduct.description ?? ""}
-          onChange={(e) =>
-            setEditingProduct({
-              ...editingProduct,
-              description: e.target.value,
-            })
-          }
-        />
+        <div className="grid gap-2">
+          <span className="text-sm font-medium">
+            {t("admin.productEdit.placeholders.description")}
+          </span>
+          <div className="grid gap-3">
+            {languages.map(({ code, label }) => (
+              <div key={`desc-${code}`} className="grid gap-1 text-right">
+                <label className="text-xs text-muted-foreground">
+                  {label}
+                </label>
+                <Textarea
+                  placeholder={t(
+                    code === "ar"
+                      ? "admin.productEdit.placeholders.descriptionAr"
+                      : "admin.productEdit.placeholders.descriptionHe"
+                  )}
+                  value={descriptionState[code]}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      description: {
+                        ...ensureLocalizedObject(editingProduct.description),
+                        [code]: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* صور */}
         <div className="space-y-2">

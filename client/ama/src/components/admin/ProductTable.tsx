@@ -5,6 +5,8 @@ import axios from "axios";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import VariantManagerDialog from "@/components/admin/VariantManagerDialog";
 import { useTranslation } from "@/i18n";
+import { getLocalizedText } from "@/lib/localized";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface ProductTableProps {
   productsState: any[];
@@ -65,6 +67,7 @@ const ProductTable: React.FC<ProductTableProps> = ({
   onRefreshProducts,
 }) => {
   const { t } = useTranslation();
+  const { locale } = useLanguage();
   const [manageOpen, setManageOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -183,101 +186,109 @@ const ProductTable: React.FC<ProductTableProps> = ({
           </tr>
         </thead>
         <tbody>
-          {list.map((product, idx) => (
-            <tr
-              key={product._id}
-              className="odd:bg-white even:bg-gray-50 dark:odd:bg-zinc-900 dark:even:bg-zinc-950"
-            >
-              <td className="border px-4 py-2 align-top">{idx + 1}</td>
-              <td className="border px-4 py-2 align-top">
-                <div className="flex flex-col gap-1">
-                  <span className="font-medium">{product.name}</span>
-                  {Array.isArray(product.images) && product.images[0] && (
-                    <a
-                      href={product.images[0]}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-blue-600 hover:underline truncate max-w-[220px]"
-                      title={t("admin.productTable.previewImage")}
+          {list.map((product, idx) => {
+            const displayName =
+              getLocalizedText(product.name, locale) || product._id;
+            const previewImage =
+              Array.isArray(product.images) && product.images[0]
+                ? product.images[0]
+                : undefined;
+            return (
+              <tr
+                key={product._id}
+                className="odd:bg-white even:bg-gray-50 dark:odd:bg-zinc-900 dark:even:bg-zinc-950"
+              >
+                <td className="border px-4 py-2 align-top">{idx + 1}</td>
+                <td className="border px-4 py-2 align-top">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">{displayName}</span>
+                    {previewImage && (
+                      <a
+                        href={previewImage}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-blue-600 hover:underline truncate max-w-[220px]"
+                        title={t("admin.productTable.previewImage")}
+                      >
+                        {t("admin.productTable.previewImage")}
+                      </a>
+                    )}
+                  </div>
+                </td>
+
+                <td className="border px-4 py-2 align-top">
+                  <OwnershipBadge value={product.ownershipType} />
+                </td>
+
+                {/* ✅ خلية التحكم بالأولوية */}
+                <td className="border px-4 py-2 align-top">
+                  <div className="flex items-center gap-2 justify-end">
+                    <PriorityBadge value={product.priority} />
+                    <select
+                      className="border rounded-md p-1 text-sm bg-background"
+                      value={(product.priority || "C").toUpperCase()}
+                      onChange={(e) =>
+                        handlePriorityChange(product._id, e.target.value)
+                      }
+                      disabled={savingId === product._id}
+                      title={t("admin.productTable.changePriority")}
                     >
-                      {t("admin.productTable.previewImage")}
-                    </a>
-                  )}
-                </div>
-              </td>
+                      <option value="A">
+                        {t("admin.productTable.priorityOptions.high")}
+                      </option>
+                      <option value="B">
+                        {t("admin.productTable.priorityOptions.medium")}
+                      </option>
+                      <option value="C">
+                        {t("admin.productTable.priorityOptions.normal")}
+                      </option>
+                    </select>
+                  </div>
+                </td>
 
-              <td className="border px-4 py-2 align-top">
-                <OwnershipBadge value={product.ownershipType} />
-              </td>
-
-              {/* ✅ خلية التحكم بالأولوية */}
-              <td className="border px-4 py-2 align-top">
-                <div className="flex items-center gap-2 justify-end">
-                  <PriorityBadge value={product.priority} />
-                  <select
-                    className="border rounded-md p-1 text-sm bg-background"
-                    value={(product.priority || "C").toUpperCase()}
-                    onChange={(e) =>
-                      handlePriorityChange(product._id, e.target.value)
-                    }
-                    disabled={savingId === product._id}
-                    title={t("admin.productTable.changePriority")}
-                  >
-                    <option value="A">
-                      {t("admin.productTable.priorityOptions.high")}
-                    </option>
-                    <option value="B">
-                      {t("admin.productTable.priorityOptions.medium")}
-                    </option>
-                    <option value="C">
-                      {t("admin.productTable.priorityOptions.normal")}
-                    </option>
-                  </select>
-                </div>
-              </td>
-
-              <td className="border px-4 py-2 align-top">
-                {getDisplayPrice(product)}
-              </td>
-              <td className="border px-4 py-2 align-top">
-                {getDisplayQuantity(product)}
-              </td>
-              <td className="border px-4 py-2 align-top">
-                {product.mainCategory}
-              </td>
-              <td className="border px-4 py-2 align-top">
-                {product.subCategory}
-              </td>
-              <td className="border px-4 py-2 align-top">
-                <div className="flex flex-wrap gap-2 justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onEdit(product)}
-                  >
-                    {t("admin.productTable.actions.edit")}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedProduct(product);
-                      setManageOpen(true);
-                    }}
-                  >
-                    {t("admin.productTable.actions.variants")}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(product._id, product.name)}
-                  >
-                    {t("admin.productTable.actions.delete")}
-                  </Button>
-                </div>
-              </td>
-            </tr>
-          ))}
+                <td className="border px-4 py-2 align-top">
+                  {getDisplayPrice(product)}
+                </td>
+                <td className="border px-4 py-2 align-top">
+                  {getDisplayQuantity(product)}
+                </td>
+                <td className="border px-4 py-2 align-top">
+                  {product.mainCategory}
+                </td>
+                <td className="border px-4 py-2 align-top">
+                  {product.subCategory}
+                </td>
+                <td className="border px-4 py-2 align-top">
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onEdit(product)}
+                    >
+                      {t("admin.productTable.actions.edit")}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedProduct(product);
+                        setManageOpen(true);
+                      }}
+                    >
+                      {t("admin.productTable.actions.variants")}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(product._id, displayName)}
+                    >
+                      {t("admin.productTable.actions.delete")}
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
           {list.length === 0 && (
             <tr>
               <td

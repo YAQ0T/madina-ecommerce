@@ -9,7 +9,7 @@ import React, {
 
 import i18n, { resources } from "@/i18n";
 
-type SupportedLocale = keyof typeof resources;
+export type SupportedLocale = keyof typeof resources;
 
 type TextDirection = "ltr" | "rtl";
 

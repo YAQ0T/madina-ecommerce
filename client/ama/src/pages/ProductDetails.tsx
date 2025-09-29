@@ -5,6 +5,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/context/CartContext";
+import { getLocalizedText } from "@/lib/localized";
+import { useLanguage } from "@/context/LanguageContext";
 import clsx from "clsx";
 
 type Variant = {
@@ -61,6 +63,7 @@ function normalizeVariantsResponse(data: any): Variant[] {
 const ProductDetails: React.FC = () => {
   const { addToCart } = useCart();
   const { id } = useParams();
+  const { locale } = useLanguage();
 
   const [product, setProduct] = useState<any>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -73,6 +76,16 @@ const ProductDetails: React.FC = () => {
   const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
   const [progressPct, setProgressPct] = useState<number | null>(null);
   const [showDiscountTimer, setShowDiscountTimer] = useState(false);
+
+  const productName = useMemo(
+    () => getLocalizedText(product?.name, locale) || "",
+    [product?.name, locale]
+  );
+
+  const productDescription = useMemo(
+    () => getLocalizedText(product?.description, locale) || "",
+    [product?.description, locale]
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -281,7 +294,7 @@ const ProductDetails: React.FC = () => {
               <img
                 key={index}
                 src={src}
-                alt={product.name}
+                alt={productName}
                 className={clsx(
                   "absolute top-0 left-0 w-full h-full object-contain transition-all duration-500 pointer-events-none",
                   {
@@ -319,8 +332,8 @@ const ProductDetails: React.FC = () => {
 
           {/* ✅ التفاصيل */}
           <div>
-            <h1 className="text-3xl font-bold mb-4">{product.name}</h1>
-            <p className="text-gray-700 mb-4">{product.description}</p>
+            <h1 className="text-3xl font-bold mb-4">{productName}</h1>
+            <p className="text-gray-700 mb-4">{productDescription}</p>
 
             {/* المقاس + الوحدة */}
             {showMeasureUI && (
