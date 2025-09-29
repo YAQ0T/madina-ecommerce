@@ -15,6 +15,7 @@ export type LocalizedObject = {
 };
 
 export const emptyLocalized: LocalizedObject = { ar: "", he: "" };
+
 type EnsureLocalizedOptions = {
   trim?: boolean;
 };

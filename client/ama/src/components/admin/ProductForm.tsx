@@ -59,10 +59,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
     { code: "he", label: t("admin.languages.he") },
   ];
 
-  const nameState = ensureLocalizedObject(newProduct.name, { trim: false });
-  const descriptionState = ensureLocalizedObject(newProduct.description, {
-    trim: false,
-  });
+  const nameState = ensureLocalizedObject(newProduct.name);
+  const descriptionState = ensureLocalizedObject(newProduct.description);
 
   // إضافة صورة
   const handleAddImage = () => {
@@ -97,24 +95,13 @@ const ProductForm: React.FC<ProductFormProps> = ({
         ? String(newProduct.priority)
         : "C";
 
-      const normalizedName = ensureLocalizedObject(newProduct.name, {
-        trim: false,
-      });
+      const normalizedName = ensureLocalizedObject(newProduct.name);
       const normalizedDescription = ensureLocalizedObject(
-        newProduct.description,
-        { trim: false }
+        newProduct.description
       );
-      const sanitizedName = {
-        ar: normalizedName.ar.trim(),
-        he: normalizedName.he.trim(),
-      };
-      const sanitizedDescription = {
-        ar: normalizedDescription.ar.trim(),
-        he: normalizedDescription.he.trim(),
-      };
 
       const payload: Record<string, unknown> = {
-        name: sanitizedName,
+        name: normalizedName,
         mainCategory: newProduct.mainCategory?.trim(),
         subCategory: newProduct.subCategory?.trim(),
         images: Array.isArray(newProduct.images) ? newProduct.images : [],
@@ -122,8 +109,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
         priority,
       };
 
-      if (sanitizedDescription.ar || sanitizedDescription.he) {
-        payload.description = sanitizedDescription;
+      if (normalizedDescription.ar || normalizedDescription.he) {
+        payload.description = normalizedDescription;
       }
 
       const res = await axios.post(
@@ -187,7 +174,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                     setNewProduct((prev: any) => ({
                       ...prev,
                       name: {
-                        ...ensureLocalizedObject(prev.name, { trim: false }),
+                        ...ensureLocalizedObject(prev.name),
                         [code]: e.target.value,
                       },
                     }))
@@ -303,9 +290,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                     setNewProduct((prev: any) => ({
                       ...prev,
                       description: {
-                        ...ensureLocalizedObject(prev.description, {
-                          trim: false,
-                        }),
+                        ...ensureLocalizedObject(prev.description),
                         [code]: e.target.value,
                       },
                     }))

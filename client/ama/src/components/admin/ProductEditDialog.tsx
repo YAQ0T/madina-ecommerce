@@ -60,8 +60,10 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
 
   if (!editingProduct) return null;
 
-  const nameState = ensureLocalizedObject(editingProduct.name);
-  const descriptionState = ensureLocalizedObject(editingProduct.description);
+  const nameState = ensureLocalizedObject(editingProduct.name, { trim: false });
+  const descriptionState = ensureLocalizedObject(editingProduct.description, {
+    trim: false,
+  });
 
   const handleSave = async () => {
     try {
@@ -71,23 +73,35 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         ? String(editingProduct.ownershipType)
         : "ours";
 
-      const normalizedName = ensureLocalizedObject(editingProduct.name);
+      const normalizedName = ensureLocalizedObject(editingProduct.name, {
+        trim: false,
+      });
       const normalizedDescription = ensureLocalizedObject(
-        editingProduct.description
+        editingProduct.description,
+        { trim: false }
       );
 
+      const sanitizedName = {
+        ar: normalizedName.ar.trim(),
+        he: normalizedName.he.trim(),
+      };
+      const sanitizedDescription = {
+        ar: normalizedDescription.ar.trim(),
+        he: normalizedDescription.he.trim(),
+      };
+
       const payload: Record<string, unknown> = {
-        name: normalizedName,
+        name: sanitizedName,
         mainCategory: editingProduct.mainCategory?.trim(),
         subCategory: editingProduct.subCategory?.trim(),
         images: Array.isArray(editingProduct.images)
           ? editingProduct.images
           : [],
-        ownershipType,
+        ownershipType, // 👈 إرسال نوع الملكية
       };
 
-      if (normalizedDescription.ar || normalizedDescription.he) {
-        payload.description = normalizedDescription;
+      if (sanitizedDescription.ar || sanitizedDescription.he) {
+        payload.description = sanitizedDescription;
       }
 
       const res = await axios.put(
@@ -137,17 +151,6 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
     setEditingProduct({ ...editingProduct, images: updatedImages });
   };
 
-  // ✅ معالج صغير لعزل Textarea عن أي مستمع مفاتيح عام يمنع المسافة
-  const stopSpacePropagation: React.KeyboardEventHandler<
-    HTMLTextAreaElement
-  > = (e) => {
-    if (e.key === " " && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
-      // لا نستخدم preventDefault() حتى لا نمنع إدخال المسافة نفسها
-      e.stopPropagation(); // نمنع وصول الحدث للمستمعات العامة
-      // ملاحظة: إذا كان لديك مستمع "capture" على document قد يلزم إزالة ذاك المستمع.
-    }
-  };
-
   return (
     <DialogContent>
       <DialogHeader>
@@ -163,10 +166,6 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
               <div key={`name-${code}`} className="grid gap-1 text-right">
                 <label className="text-xs text-muted-foreground">{label}</label>
                 <Input
-                  dir="auto"
-                  inputMode="text"
-                  autoCapitalize="off"
-                  autoCorrect="off"
                   placeholder={t(
                     code === "ar"
                       ? "admin.productEdit.placeholders.nameAr"
@@ -177,8 +176,10 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
                     setEditingProduct({
                       ...editingProduct,
                       name: {
-                        ...ensureLocalizedObject(editingProduct.name),
-                        [code]: e.target.value, // يقبل المسافات والعربية/العبرية
+                        ...ensureLocalizedObject(editingProduct.name, {
+                          trim: false,
+                        }),
+                        [code]: e.target.value,
                       },
                     })
                   }
@@ -257,13 +258,6 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
               <div key={`desc-${code}`} className="grid gap-1 text-right">
                 <label className="text-xs text-muted-foreground">{label}</label>
                 <Textarea
-                  dir="auto"
-                  inputMode="text"
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  // ✅ السطران التاليان لعزل المسافة عن المستمعات العامة
-                  onKeyDownCapture={stopSpacePropagation}
-                  onKeyUpCapture={stopSpacePropagation}
                   placeholder={t(
                     code === "ar"
                       ? "admin.productEdit.placeholders.descriptionAr"
@@ -274,8 +268,10 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
                     setEditingProduct({
                       ...editingProduct,
                       description: {
-                        ...ensureLocalizedObject(editingProduct.description),
-                        [code]: e.target.value, // يقبل المسافات والعربية/العبرية
+                        ...ensureLocalizedObject(editingProduct.description, {
+                          trim: false,
+                        }),
+                        [code]: e.target.value,
                       },
                     })
                   }
