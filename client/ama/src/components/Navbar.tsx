@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ThemeToggle from "@/components/ThemeToggle";
+import LanguageToggle from "@/components/LanguageToggle";
 import { useTranslation } from "@/i18n";
 // import OfferBanner from "./common/OfferBanner";
 
@@ -17,6 +18,7 @@ const Navbar: React.FC = () => {
   // const bannerinfo = useRef(
   //   "خصم اجمالي على كل الفواتير الاعلى من ١٠٠٠ شيقل بقيمه ٥٪"
   // );
+  const showThemeToggle = !user || user.role !== "admin";
   const baseLinks = useMemo(
     () => [
       { key: "home", path: "/" },
@@ -50,15 +52,17 @@ const Navbar: React.FC = () => {
 
       <nav className="container mx-auto p-4 flex items-center justify-between">
         {/* الشعار */}
-        {!user && <ThemeToggle />}
-        {user && user.role != "admin" && <ThemeToggle />}
+        <div className="flex items-center gap-2">
+          <LanguageToggle className="w-24" />
+          {showThemeToggle && <ThemeToggle />}
+        </div>
         <Link to="/" className="text-2xl font-bold min-w-45">
           {t("navbar.brand")}
         </Link>
         {/* <div className="bg-testRed">لو ظهر أحمر، كل شيء تمام</div> */}
 
         {/* زر القائمة للجوال */}
-        <div className="flex items-center gap-4 lg:hidden">
+        <div className="flex items-center gap-3 lg:hidden">
           <CartButton />
           <Button
             variant="ghost"
@@ -160,6 +164,8 @@ const Navbar: React.FC = () => {
               </button>
             </>
           )}
+
+          <LanguageToggle className="w-full" />
         </div>
       )}
     </header>
