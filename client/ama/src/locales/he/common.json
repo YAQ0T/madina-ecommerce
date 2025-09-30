@@ -180,6 +180,35 @@
       ]
     }
   },
+  "productDetails": {
+    "loading": "טוען פרטי מוצר...",
+    "measureLabel": "מידה",
+    "colorLabel": "צבע",
+    "colorUnavailable": "— לא זמין במידה זו",
+    "price": {
+      "selectOptions": "בחרו מידה וצבע"
+    },
+    "discount": {
+      "ended": "ההנחה הסתיימה",
+      "progressAria": "הזמן שנותר להנחה",
+      "progressTitle": "משך ההנחה",
+      "endsIn": "נגמר בעוד:",
+      "parts": {
+        "days": "{{value}} ימים",
+        "hours": "{{value}} שעות",
+        "minutes": "{{value}} דקות",
+        "seconds": "{{value}} שניות"
+      }
+    },
+    "availability": {
+      "label": "זמין במלאי: {{count}}",
+      "sku": " • SKU: {{sku}}"
+    },
+    "cta": {
+      "addToCart": "הוספה לעגלה",
+      "outOfStock": "אזל מהמלאי"
+    }
+  },
   "common": {
     "all": "הכול",
     "loading": "טוען…",
