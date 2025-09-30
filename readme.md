@@ -68,3 +68,25 @@ node scripts/download-images.js --out ./my-folder --concurrency 8
 ```
 
 If any downloads fail, the script exits with a non-zero status so it can be used in automated workflows.
+
+### 9. Exporting Image Manifests
+
+To generate a quick reference of which documents own which image URLs, export manifest files with the accompanying script:
+
+```bash
+cd server
+npm run export:image-manifests
+```
+
+By default the script writes two JSON Lines files under `server/downloads/manifests/`:
+
+- `products.jsonl` — each line is a JSON object shaped like `{ "_id": "<productId>", "images": ["<url>", ...] }`.
+- `variants.jsonl` — each line uses the same structure for variant documents.
+
+Every JSON object appears entirely on a single line so it's easy to process with standard command-line tools. You can customize the output paths via CLI flags:
+
+```bash
+node scripts/export-image-manifests.js --product-out ./manifests/products.jsonl --variant-out ./manifests/variants.jsonl
+```
+
+The command exits with a non-zero code if either manifest cannot be written, which makes it safe to plug into automated workflows or CI jobs.

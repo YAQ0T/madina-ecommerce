@@ -11,6 +11,7 @@ const {
 } = require("../utils/config");
 const Product = require("../models/Product");
 const Variant = require("../models/Variant");
+const { extractImageUrls } = require("./utils/image-helpers");
 
 const DEFAULT_OUTPUT = path.join(__dirname, "..", "downloads", "images");
 const DEFAULT_CONCURRENCY = 4;
@@ -101,19 +102,6 @@ async function fetchImage(url, index, outDir) {
   }
 }
 
-function extractUrls(docs, getter) {
-  const urls = [];
-  for (const doc of docs) {
-    const values = getter(doc);
-    for (const url of values) {
-      if (typeof url === "string" && url.trim()) {
-        urls.push(url.trim());
-      }
-    }
-  }
-  return urls;
-}
-
 async function main() {
   const options = parseArgs();
   await fs.promises.mkdir(options.out, { recursive: true });
@@ -125,8 +113,8 @@ async function main() {
     Variant.find({}, { "color.images": 1 }).lean(),
   ]);
 
-  const productUrls = extractUrls(productDocs, (doc) => doc.images || []);
-  const variantUrls = extractUrls(variantDocs, (doc) => (doc.color?.images) || []);
+  const productUrls = extractImageUrls(productDocs, (doc) => doc.images || []);
+  const variantUrls = extractImageUrls(variantDocs, (doc) => doc.color?.images || []);
 
   const uniqueUrls = Array.from(new Set([...productUrls, ...variantUrls]));
   console.log(`🧮 Found ${uniqueUrls.length} unique image URL(s).`);
