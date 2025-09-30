@@ -5,7 +5,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/context/CartContext";
-import { getLocalizedText } from "@/lib/localized";
+import { getLocalizedText, type LocalizedObject } from "@/lib/localized";
+import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
 import clsx from "clsx";
@@ -192,9 +193,11 @@ const ProductDetails: React.FC = () => {
   }, [variants]);
 
   const colorLabelBySlug = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, LocalizedObject>();
     for (const v of variants) {
-      if (v.colorSlug) map.set(v.colorSlug, v.color?.name || v.colorSlug);
+      if (!v.colorSlug) continue;
+      const source = v.color?.name || v.colorSlug;
+      map.set(v.colorSlug, getColorLabel(source));
     }
     return map;
   }, [variants]);
@@ -209,9 +212,14 @@ const ProductDetails: React.FC = () => {
   // الألوان (مع استبعاد "موحّد")
   const allColors = useMemo(() => {
     return Array.from(colorLabelBySlug.entries())
-      .map(([slug, name]) => ({ slug, name }))
-      .filter((c) => !isUnified(c.name));
-  }, [colorLabelBySlug]);
+      .map(([slug, label]) => {
+        const localized = getLocalizedText(label, locale) || slug;
+        const baseName = label.ar?.trim() || label.he?.trim() || localized;
+        return { slug, name: localized, baseName };
+      })
+      .filter((c) => !isUnified(c.baseName))
+      .map(({ slug, name }) => ({ slug, name }));
+  }, [colorLabelBySlug, locale]);
 
   const colorsByMeasure = useMemo(() => {
     const m = new Map<string, Set<string>>();
