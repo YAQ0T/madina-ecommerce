@@ -6,7 +6,8 @@
     "test": "node --test",
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "download:images": "node scripts/download-images.js --out downloads/images"
+    "download:images": "node scripts/download-images.js --out downloads/images",
+    "export:image-manifests": "node scripts/export-image-manifests.js"
   },
   "keywords": [],
   "author": "",
