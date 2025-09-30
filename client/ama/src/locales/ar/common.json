@@ -216,6 +216,22 @@
       "outOfStock": "غير متوفر"
     }
   },
+  "productCard": {
+    "previousImage": "الصورة السابقة",
+    "nextImage": "الصورة التالية",
+    "addToCart": "إضافة للسلة",
+    "viewDetails": "عرض التفاصيل",
+    "sizeLabel": "المقاس",
+    "sizesLabel": "المقاسات",
+    "colorLabel": "اللون",
+    "colorsLabel": "الألوان",
+    "discountTimerTitle": "مدّة الخصم",
+    "discountTimer": "ينتهي قريبًا",
+    "dialogDescription": "اختر اللون والمقاس قبل إضافة المنتج إلى السلة.",
+    "cancel": "إلغاء",
+    "inStock": "المتوفر: {{count}}",
+    "outOfStock": "غير متوفر حالياً"
+  },
   "common": {
     "all": "الكل",
     "loading": "جارٍ التحميل…",

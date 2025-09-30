@@ -221,6 +221,22 @@
       "outOfStock": "אזל מהמלאי"
     }
   },
+  "productCard": {
+    "previousImage": "התמונה הקודמת",
+    "nextImage": "התמונה הבאה",
+    "addToCart": "הוספה לעגלה",
+    "viewDetails": "צפה בפרטים",
+    "sizeLabel": "מידה",
+    "sizesLabel": "מידות",
+    "colorLabel": "צבע",
+    "colorsLabel": "צבעים",
+    "discountTimerTitle": "משך ההנחה",
+    "discountTimer": "מסתיים בקרוב",
+    "dialogDescription": "בחרו צבע ומידה לפני הוספת המוצר לעגלה.",
+    "cancel": "ביטול",
+    "inStock": "זמין במלאי: {{count}}",
+    "outOfStock": "אזל מהמלאי"
+  },
   "common": {
     "all": "הכול",
     "loading": "טוען…",
