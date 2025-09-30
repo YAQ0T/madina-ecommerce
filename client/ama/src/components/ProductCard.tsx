@@ -6,6 +6,7 @@ import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/button";
 import { getLocalizedText, type LocalizedText } from "@/lib/localized";
 import { useLanguage } from "@/context/LanguageContext";
+import { useTranslation } from "@/i18n";
 import {
   Dialog,
   DialogContent,
@@ -72,6 +73,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const { addToCart } = useCart();
   const navigate = useNavigate();
   const { locale } = useLanguage();
+  const { t } = useTranslation();
   const productName = useMemo(
     () => getLocalizedText(product.name, locale) || product._id,
     [product.name, locale, product._id]
@@ -385,7 +387,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                   e.stopPropagation();
                   prevImage();
                 }}
-                aria-label="الصورة السابقة"
+                aria-label={t("productCard.previousImage")}
                 className={clsx(arrowBase, arrowSize, "left-2 text-white")}
               >
                 <svg
@@ -405,7 +407,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                   e.stopPropagation();
                   nextImage();
                 }}
-                aria-label="الصورة التالية"
+                aria-label={t("productCard.nextImage")}
                 className={clsx(arrowBase, arrowSize, "right-2 text-white")}
               >
                 <svg
@@ -442,8 +444,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                 e.stopPropagation();
                 handleQuickAddClick();
               }}
-              aria-label="إضافة للسلة"
-              title="إضافة للسلة"
+              aria-label={t("productCard.addToCart")}
+              title={t("productCard.addToCart")}
             >
               <img
                 src="https://www.svgrepo.com/show/533044/cart-shopping-fast.svg"
@@ -501,7 +503,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             <>
               <button
                 onClick={prevImage}
-                aria-label="الصورة السابقة"
+                aria-label={t("productCard.previousImage")}
                 className={clsx(
                   arrowBase,
                   arrowSize,
@@ -522,7 +524,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
               <button
                 onClick={nextImage}
-                aria-label="الصورة التالية"
+                aria-label={t("productCard.nextImage")}
                 className={clsx(
                   arrowBase,
                   arrowSize,
@@ -559,7 +561,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         {/* المقاسات */}
         {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
           <div className="mb-2">
-            <span className="text-sm font-medium">المقاسات: </span>
+            <span className="text-sm font-medium">
+              {t("productCard.sizesLabel")}:
+            </span>
             <div className="flex gap-2 mt-1 flex-wrap">
               {measuresFromVariants
                 .filter((m) => !isUnified(m.label))
@@ -590,7 +594,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         {/* الألوان */}
         {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
           <div className="mb-2">
-            <span className="text-sm font-medium">الألوان: </span>
+            <span className="text-sm font-medium">
+              {t("productCard.colorsLabel")}:
+            </span>
             <div className="flex gap-2 mt-1 flex-wrap">
               {allColorsFromVariants
                 .filter((c) => !isUnified(c.name))
@@ -649,7 +655,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(progressPct)}
-              title="مدّة الخصم"
+              title={t("productCard.discountTimerTitle")}
             >
               <div
                 className="h-full bg-red-600 transition-all duration-500"
@@ -657,7 +663,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               />
             </div>
             <div className="mt-1 text-xs text-red-700 font-semibold text-right">
-              ينتهي قريبًا
+              {t("productCard.discountTimer")}
             </div>
           </div>
         )}
@@ -665,11 +671,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         {/* أزرار الديسكتوب — كما هي */}
         <div className="mt-auto">
           <Button onClick={addItemToCart} className="w-full">
-            إضافة للسلة
+            {t("productCard.addToCart")}
           </Button>
           <Link to={`/products/${product._id}`}>
             <Button variant="secondary" className="w-full mt-2">
-              عرض التفاصيل
+              {t("productCard.viewDetails")}
             </Button>
           </Link>
         </div>
@@ -689,7 +695,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             <DialogHeader className="text-right">
               <DialogTitle>{productName}</DialogTitle>
               <DialogDescription>
-                اختر اللون والمقاس قبل إضافة المنتج إلى السلة.
+                {t("productCard.dialogDescription")}
               </DialogDescription>
             </DialogHeader>
 
@@ -720,7 +726,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                   <>
                     <button
                       onClick={prevImage}
-                      aria-label="الصورة السابقة"
+                      aria-label={t("productCard.previousImage")}
                       className={clsx(
                         arrowBase,
                         arrowSize,
@@ -741,7 +747,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
                     <button
                       onClick={nextImage}
-                      aria-label="الصورة التالية"
+                      aria-label={t("productCard.nextImage")}
                       className={clsx(
                         arrowBase,
                         arrowSize,
@@ -787,7 +793,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                 {measuresFromVariants.filter((m) => !isUnified(m.label))
                   .length > 0 && (
                   <div className="mb-4">
-                    <div className="text-sm font-medium mb-1">المقاس</div>
+                    <div className="text-sm font-medium mb-1">
+                      {t("productCard.sizeLabel")}
+                    </div>
                     <div className="flex flex-wrap gap-2 justify-end">
                       {measuresFromVariants
                         .filter((m) => !isUnified(m.label))
@@ -818,7 +826,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                 {allColorsFromVariants.filter((c) => !isUnified(c.name))
                   .length > 0 && (
                   <div className="mb-4">
-                    <div className="text-sm font-medium mb-1">اللون</div>
+                    <div className="text-sm font-medium mb-1">
+                      {t("productCard.colorLabel")}
+                    </div>
                     <div className="flex flex-wrap gap-2 justify-end">
                       {allColorsFromVariants
                         .filter((c) => !isUnified(c.name))
@@ -856,14 +866,18 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                 {currentVariant && (
                   <div className="text-sm text-gray-600 mb-4">
                     {currentVariant.stock?.inStock > 0
-                      ? `المتوفر: ${currentVariant.stock?.inStock}`
-                      : "غير متوفر حالياً"}
+                      ? t("productCard.inStock", {
+                          count: currentVariant.stock?.inStock,
+                        })
+                      : t("productCard.outOfStock")}
                   </div>
                 )}
 
                 <DialogFooter className="gap-2 justify-start md:justify-end">
                   <DialogClose asChild>
-                    <Button variant="secondary">إلغاء</Button>
+                    <Button variant="secondary">
+                      {t("productCard.cancel")}
+                    </Button>
                   </DialogClose>
                   <Button
                     onClick={() => {
@@ -876,7 +890,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                         (currentVariant.stock?.inStock ?? 0) <= 0)
                     }
                   >
-                    إضافة للسلة
+                    {t("productCard.addToCart")}
                   </Button>
                 </DialogFooter>
               </div>
