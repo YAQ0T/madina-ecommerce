@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/button";
 import { getLocalizedText, type LocalizedText } from "@/lib/localized";
+import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
 import {
@@ -147,15 +148,13 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const allColorsFromVariants = useMemo(() => {
     const map = new Map<string, { slug: string; name: string }>();
     for (const v of variants) {
-      if (v.colorSlug) {
-        map.set(v.colorSlug, {
-          slug: v.colorSlug,
-          name: v.color?.name || v.colorSlug,
-        });
-      }
+      if (!v.colorSlug) continue;
+      const source = v.color?.name || v.colorSlug;
+      const localized = getLocalizedText(getColorLabel(source), locale) || source;
+      map.set(v.colorSlug, { slug: v.colorSlug, name: localized });
     }
     return Array.from(map.values());
-  }, [variants]);
+  }, [variants, locale]);
 
   const colorsByMeasure = useMemo(() => {
     const m = new Map<string, Set<string>>();

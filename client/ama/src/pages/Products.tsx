@@ -8,7 +8,12 @@ import CategoryCircles from "@/components/CategoryCircles";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
-import { getLocalizedText, ensureLocalizedObject, type LocalizedText } from "@/lib/localized";
+import {
+  getLocalizedText,
+  ensureLocalizedObject,
+  type LocalizedText,
+} from "@/lib/localized";
+import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
 
@@ -891,11 +896,14 @@ const Products: React.FC = () => {
                   ? t("productsPage.filters.colors.allOption")
                   : t("productsPage.filters.colors.promptOption")}
               </option>
-              {facets.colors.map((c) => (
-                <option key={c.slug} value={c.slug}>
-                  {c.name}
-                </option>
-              ))}
+              {facets.colors.map((c) => {
+                const label = getLocalizedText(getColorLabel(c.name), locale);
+                return (
+                  <option key={c.slug} value={c.slug}>
+                    {label || c.name}
+                  </option>
+                );
+              })}
             </select>
 
             <select
