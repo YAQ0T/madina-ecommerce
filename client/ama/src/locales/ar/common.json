@@ -20,9 +20,21 @@
     "rights": "جميع الحقوق محفوظة © {{year}} متجر ديكوري",
     "contact": "للتواصل: 0599-XXXXXX",
     "socialLinks": [
-      { "key": "facebook", "href": "#", "label": "فيسبوك" },
-      { "key": "instagram", "href": "#", "label": "إنستجرام" },
-      { "key": "whatsapp", "href": "#", "label": "واتساب" }
+      {
+        "key": "facebook",
+        "href": "#",
+        "label": "فيسبوك"
+      },
+      {
+        "key": "instagram",
+        "href": "#",
+        "label": "إنستجرام"
+      },
+      {
+        "key": "whatsapp",
+        "href": "#",
+        "label": "واتساب"
+      }
     ],
     "legal": {
       "privacy": "سياسة الخصوصية",
@@ -45,17 +57,72 @@
       "newArrivals": "وصل حديثًا"
     },
     "categories": [
-      { "key": "carpentry", "label": "لوازم نجارين", "value": "لوازم نجارين", "img": "https://i.imgur.com/aPYhaQW.png" },
-      { "key": "upholstery", "label": "لوازم منجدين", "value": "لوازم منجدين", "img": "https://i.imgur.com/S9rjrsh.png" },
-      { "key": "doorHandles", "label": "مقابض ابواب", "value": "مقابض ابواب", "img": "https://i.imgur.com/O9xXLeu.png" },
-      { "key": "cabinetHandles", "label": "مقابض خزائن", "value": "مقابض خزائن", "img": "https://i.imgur.com/AEyMjHc.png" },
-      { "key": "kitchenAccessories", "label": "اكسسوارات مطابخ", "value": "اكسسوارات مطابخ", "img": "https://i.imgur.com/hlpu1oK.png" },
-      { "key": "bedroomAccessories", "label": "إكسسوارات غرف نوم", "value": "إكسسوارات غرف نوم", "img": "https://i.imgur.com/ZMr397G.png" },
-      { "key": "tools", "label": "عدة وأدوات", "value": "عدة وأدوات", "img": "https://i.imgur.com/Hf5NvqJ.png" },
-      { "key": "drawers", "label": "جوارير وسكك ومفصلات", "value": "جوارير وسكك ومفصلات", "img": "https://i.imgur.com/fE6zgKp.png" },
-      { "key": "fabrics", "label": "أقمشة كنب", "value": "أقمشة كنب", "img": "https://i.imgur.com/bf8geWx.jpeg" },
-      { "key": "fasteners", "label": "كبسات مسامير و براغي", "value": "كبسات مسامير و براغي", "img": "https://i.imgur.com/CntFVhx.png" },
-      { "key": "doorSupplies", "label": "لوازم أبواب", "value": "لوازم أبواب", "img": "https://i.imgur.com/UskLo6H.png" }
+      {
+        "key": "carpentry",
+        "label": "لوازم نجارين",
+        "value": "لوازم نجارين",
+        "img": "https://i.imgur.com/aPYhaQW.png"
+      },
+      {
+        "key": "upholstery",
+        "label": "لوازم منجدين",
+        "value": "لوازم منجدين",
+        "img": "https://i.imgur.com/S9rjrsh.png"
+      },
+      {
+        "key": "doorHandles",
+        "label": "مقابض ابواب",
+        "value": "مقابض ابواب",
+        "img": "https://i.imgur.com/O9xXLeu.png"
+      },
+      {
+        "key": "cabinetHandles",
+        "label": "مقابض خزائن",
+        "value": "مقابض خزائن",
+        "img": "https://i.imgur.com/AEyMjHc.png"
+      },
+      {
+        "key": "kitchenAccessories",
+        "label": "اكسسوارات مطابخ",
+        "value": "اكسسوارات مطابخ",
+        "img": "https://i.imgur.com/hlpu1oK.png"
+      },
+      {
+        "key": "bedroomAccessories",
+        "label": "إكسسوارات غرف نوم",
+        "value": "إكسسوارات غرف نوم",
+        "img": "https://i.imgur.com/ZMr397G.png"
+      },
+      {
+        "key": "tools",
+        "label": "عدة وأدوات",
+        "value": "عدة وأدوات",
+        "img": "https://i.imgur.com/Hf5NvqJ.png"
+      },
+      {
+        "key": "drawers",
+        "label": "جوارير وسكك ومفصلات",
+        "value": "جوارير وسكك ومفصلات",
+        "img": "https://i.imgur.com/fE6zgKp.png"
+      },
+      {
+        "key": "fabrics",
+        "label": "أقمشة كنب",
+        "value": "أقمشة كنب",
+        "img": "https://i.imgur.com/bf8geWx.jpeg"
+      },
+      {
+        "key": "fasteners",
+        "label": "كبسات مسامير و براغي",
+        "value": "كبسات مسامير و براغي",
+        "img": "https://i.imgur.com/CntFVhx.png"
+      },
+      {
+        "key": "doorSupplies",
+        "label": "لوازم أبواب",
+        "value": "لوازم أبواب",
+        "img": "https://i.imgur.com/UskLo6H.png"
+      }
     ],
     "benefits": [
       {
@@ -403,6 +470,90 @@
         "admin": "أدمن",
         "dealer": "تاجر",
         "customer": "مستخدم عادي"
+      }
+    }
+  },
+  "productsPage": {
+    "title": "جميع المنتجات",
+    "loading": "جاري التحميل…",
+    "recentUpdates": {
+      "tooltip": "عرض المنتجات التي تم تحديثها خلال آخر 7 أيام",
+      "showRecent": "آخر التحديثات",
+      "showAll": "إظهار الكل",
+      "daysTitle": "عدد الأيام",
+      "daysOptions": {
+        "7": "آخر 7 أيام",
+        "14": "آخر 14 يوم",
+        "30": "آخر 30 يوم"
+      }
+    },
+    "filters": {
+      "searchPlaceholder": "ابحث باسم المنتج...",
+      "searchButtonTitle": "بحث",
+      "pricePlaceholder": "سعر أقصى",
+      "applyPrice": "تطبيق",
+      "applyPriceTitle": "تطبيق السعر",
+      "ownership": {
+        "title": "مصدر المنتج",
+        "options": {
+          "all": "كل المصادر",
+          "ours": "مصدر ١",
+          "local": "مصدر ٢"
+        }
+      },
+      "colors": {
+        "loadingTitle": "جاري تحميل الألوان...",
+        "preFilterTitle": "اختر فئة أو ابحث أولاً لعرض الألوان",
+        "loadingOption": "جاري التحميل...",
+        "allOption": "كل الألوان",
+        "promptOption": "اختر فئة/بحث لعرض الألوان"
+      },
+      "measures": {
+        "loadingTitle": "جاري تحميل المقاسات...",
+        "preFilterTitle": "اختر فئة أو ابحث أولاً لعرض المقاسات",
+        "loadingOption": "جاري التحميل...",
+        "allOption": "كل المقاسات",
+        "promptOption": "اختر فئة/بحث لعرض المقاسات"
+      },
+      "resetColorMeasure": "مسح فلاتر اللون/المقاس"
+    },
+    "facets": {
+      "error": "تعذر تحميل خيارات الألوان والمقاسات."
+    },
+    "emptyState": "لا يوجد منتجات مطابقة للبحث",
+    "pagination": {
+      "goTo": "اذهب إلى:",
+      "goToPage": "اذهب إلى صفحة:",
+      "selectPlaceholder": "اختر صفحة",
+      "total": "من أصل {{count}}"
+    },
+    "categoryNav": {
+      "heading": "تصفّح حسب الفئة",
+      "allLabel": "الكل",
+      "showAllTooltip": "إظهار كل المنتجات",
+      "removeSubLabel": "إزالة الفرعي",
+      "removeSubTitle": "إزالة الفرع الحالي",
+      "selectSubPrompt": "اختر فرعًا",
+      "subAllTitle": "كل الفروع"
+    },
+    "categoryLabels": {
+      "main": {
+        "لوازم-نجارين": "لوازم نجارين",
+        "لوازم-منجدين": "لوازم منجدين",
+        "مقابض-ابواب": "مقابض ابواب",
+        "مقابض-خزاين": "مقابض خزائن",
+        "اكسسوارات-مطابخ": "اكسسوارات مطابخ",
+        "اكسسوارات-غرف-نوم": "إكسسوارات غرف نوم",
+        "عدة-وادوات": "عدة وأدوات",
+        "جوارير-وسكك-ومفصلات": "جوارير وسكك ومفصلات",
+        "اقمشة-كنب": "أقمشة كنب",
+        "كبسات-مسامير-و-براغي": "كبسات مسامير و براغي",
+        "لوازم-ابواب": "لوازم أبواب",
+        "مفصلات-نجارين-والامنيوم": "مفصلات نجارين والامنيوم",
+        "اصناف-اضافية": "أصناف اضافية"
+      },
+      "sub": {
+        "ارجل-طاولات": "أرجل طاولات"
       }
     }
   }
