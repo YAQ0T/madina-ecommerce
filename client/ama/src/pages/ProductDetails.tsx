@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useCart } from "@/context/CartContext";
 import { getLocalizedText } from "@/lib/localized";
 import { useLanguage } from "@/context/LanguageContext";
+import { useTranslation } from "@/i18n";
 import clsx from "clsx";
 
 type Variant = {
@@ -37,16 +38,48 @@ type Variant = {
 const clamp = (n: number, min = 0, max = 100) =>
   Math.max(min, Math.min(max, n));
 
-const formatTimeLeft = (ms: number) => {
-  if (ms <= 0) return "انتهى الخصم";
+type TimeUnit = "days" | "hours" | "minutes" | "seconds";
+
+const formatTimeLeft = (
+  ms: number
+): { expired: boolean; parts: { unit: TimeUnit; value: number }[] } => {
+  if (ms <= 0) return { expired: true, parts: [] };
+
   const totalSeconds = Math.floor(ms / 1000);
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  if (days > 0) return `${days}ي ${hours}س ${minutes}د`;
-  if (hours > 0) return `${hours}س ${minutes}د ${seconds}ث`;
-  return `${minutes}د ${seconds}ث`;
+
+  if (days > 0) {
+    return {
+      expired: false,
+      parts: [
+        { unit: "days", value: days },
+        { unit: "hours", value: hours },
+        { unit: "minutes", value: minutes },
+      ],
+    };
+  }
+
+  if (hours > 0) {
+    return {
+      expired: false,
+      parts: [
+        { unit: "hours", value: hours },
+        { unit: "minutes", value: minutes },
+        { unit: "seconds", value: seconds },
+      ],
+    };
+  }
+
+  return {
+    expired: false,
+    parts: [
+      { unit: "minutes", value: minutes },
+      { unit: "seconds", value: seconds },
+    ],
+  };
 };
 
 const normalize = (s?: string) =>
@@ -64,6 +97,7 @@ const ProductDetails: React.FC = () => {
   const { addToCart } = useCart();
   const { id } = useParams();
   const { locale } = useLanguage();
+  const { t } = useTranslation();
 
   const [product, setProduct] = useState<any>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -86,6 +120,25 @@ const ProductDetails: React.FC = () => {
     () => getLocalizedText(product?.description, locale) || "",
     [product?.description, locale]
   );
+
+  const timeLeft = useMemo(() => {
+    if (timeLeftMs === null) return null;
+    return formatTimeLeft(timeLeftMs);
+  }, [timeLeftMs]);
+
+  const timeLeftText = useMemo(() => {
+    if (!timeLeft) return "";
+    if (timeLeft.expired) {
+      return t("productDetails.discount.ended");
+    }
+    return timeLeft.parts
+      .map((part) =>
+        t(`productDetails.discount.parts.${part.unit}`, {
+          value: part.value,
+        })
+      )
+      .join(" ");
+  }, [timeLeft, t]);
 
   useEffect(() => {
     let ignore = false;
@@ -276,7 +329,9 @@ const ProductDetails: React.FC = () => {
   ]);
 
   if (!product) {
-    return <p className="text-center mt-10">جاري تحميل تفاصيل المنتج...</p>;
+    return (
+      <p className="text-center mt-10">{t("productDetails.loading")}</p>
+    );
   }
 
   // إخفاء UI المقاس إن لم يتبقَّ إلا "موحّد"
@@ -338,7 +393,9 @@ const ProductDetails: React.FC = () => {
             {/* المقاس + الوحدة */}
             {showMeasureUI && (
               <div className="mb-4">
-                <label className="block mb-1">المقاس</label>
+                <label className="block mb-1">
+                  {t("productDetails.measureLabel")}
+                </label>
                 <select
                   className="w-full border rounded p-2"
                   value={measure}
@@ -359,7 +416,9 @@ const ProductDetails: React.FC = () => {
             {/* اللون (مع إخفاء موحّد) */}
             {showColorsUI && (
               <div className="mb-4">
-                <label className="block mb-1">اللون</label>
+                <label className="block mb-1">
+                  {t("productDetails.colorLabel")}
+                </label>
                 <select
                   className="w-full border rounded p-2"
                   value={color}
@@ -370,7 +429,10 @@ const ProductDetails: React.FC = () => {
                       measure && availableColorsForMeasure.has(c.slug);
                     return (
                       <option key={c.slug} value={c.slug} disabled={!available}>
-                        {c.name} {!available ? "— غير متاح لهذا المقاس" : ""}
+                        {c.name}
+                        {!available
+                          ? ` ${t("productDetails.colorUnavailable")}`
+                          : ""}
                       </option>
                     );
                   })}
@@ -394,7 +456,7 @@ const ProductDetails: React.FC = () => {
                   {typeof finalAmount === "number" ? (
                     <>₪{finalAmount}</>
                   ) : (
-                    "اختر مقاسًا ولونًا"
+                    t("productDetails.price.selectOptions")
                   )}
                 </p>
               )}
@@ -406,12 +468,12 @@ const ProductDetails: React.FC = () => {
                 <div className="mb-4">
                   <div
                     className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
-                    aria-label="مدّة الخصم المتبقية"
+                    aria-label={t("productDetails.discount.progressAria")}
                     role="progressbar"
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.round(progressPct)}
-                    title="مدّة الخصم"
+                    title={t("productDetails.discount.progressTitle")}
                   >
                     <div
                       className="h-full bg-red-600 transition-all duration-500"
@@ -419,16 +481,18 @@ const ProductDetails: React.FC = () => {
                     />
                   </div>
                   <div className="mt-1 text-xs text-red-700 font-semibold text-right">
-                    ينتهي خلال: {formatTimeLeft(timeLeftMs)}
+                    {t("productDetails.discount.endsIn")} {timeLeftText}
                   </div>
                 </div>
               )}
 
             {currentVariant && (
               <p className="text-sm text-gray-600 mb-6">
-                المتوفر: {inStock}
+                {t("productDetails.availability.label", { count: inStock })}
                 {currentVariant.stock?.sku
-                  ? ` • SKU: ${currentVariant.stock.sku}`
+                  ? t("productDetails.availability.sku", {
+                      sku: currentVariant.stock.sku,
+                    })
                   : ""}
               </p>
             )}
@@ -451,7 +515,9 @@ const ProductDetails: React.FC = () => {
                 });
               }}
             >
-              {inStock > 0 ? "إضافة للسلة" : "غير متوفر"}
+              {inStock > 0
+                ? t("productDetails.cta.addToCart")
+                : t("productDetails.cta.outOfStock")}
             </Button>
           </div>
         </div>

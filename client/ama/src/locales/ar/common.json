@@ -120,6 +120,35 @@
       ]
     }
   },
+  "productDetails": {
+    "loading": "جاري تحميل تفاصيل المنتج...",
+    "measureLabel": "المقاس",
+    "colorLabel": "اللون",
+    "colorUnavailable": "— غير متاح لهذا المقاس",
+    "price": {
+      "selectOptions": "اختر مقاسًا ولونًا"
+    },
+    "discount": {
+      "ended": "انتهى الخصم",
+      "progressAria": "مدّة الخصم المتبقية",
+      "progressTitle": "مدّة الخصم",
+      "endsIn": "ينتهي خلال:",
+      "parts": {
+        "days": "{{value}}ي",
+        "hours": "{{value}}س",
+        "minutes": "{{value}}د",
+        "seconds": "{{value}}ث"
+      }
+    },
+    "availability": {
+      "label": "المتوفر: {{count}}",
+      "sku": " • SKU: {{sku}}"
+    },
+    "cta": {
+      "addToCart": "إضافة للسلة",
+      "outOfStock": "غير متوفر"
+    }
+  },
   "common": {
     "all": "الكل",
     "loading": "جارٍ التحميل…",
