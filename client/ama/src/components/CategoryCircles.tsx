@@ -1,5 +1,6 @@
 // src/components/common/CategoryCircles.tsx
 import React, { useMemo } from "react";
+import { useTranslation } from "@/i18n";
 
 /** مجموعة التصنيفات */
 type CategoryGroup = {
@@ -26,6 +27,8 @@ type Props = {
    *  }
    */
   subCategoryImages?: Record<string, string>;
+  allValue?: string;
+  labelMapper?: (value: string, type: "main" | "sub") => string;
 };
 
 /* =========================
@@ -185,7 +188,18 @@ const CategoryCircles: React.FC<Props> = ({
   selectedSub,
   loading = false,
   subCategoryImages = {},
+  allValue = "",
+  labelMapper,
 }) => {
+  const { t } = useTranslation();
+  const allLabel = t("productsPage.categoryNav.allLabel");
+  const headingLabel = t("productsPage.categoryNav.heading");
+  const showAllTooltip = t("productsPage.categoryNav.showAllTooltip");
+  const removeSubLabel = t("productsPage.categoryNav.removeSubLabel");
+  const removeSubTitle = t("productsPage.categoryNav.removeSubTitle");
+  const selectSubPrompt = t("productsPage.categoryNav.selectSubPrompt");
+  const subAllTitle = t("productsPage.categoryNav.subAllTitle");
+
   // بناء خرائط مطبّعة لسرعة الوصول
   const { mainImgByExact, mainImgByNorm, subImgByExact, subImgByNorm } =
     useMemo(() => {
@@ -231,10 +245,11 @@ const CategoryCircles: React.FC<Props> = ({
     return list;
   }, [categories]);
 
-  const activeGroup =
-    selectedMain && selectedMain !== "الكل"
-      ? normalized.find((g) => g.mainCategory === selectedMain)
-      : undefined;
+  const isAllSelected = !selectedMain || selectedMain === allValue;
+
+  const activeGroup = !isAllSelected
+    ? normalized.find((g) => g.mainCategory === selectedMain)
+    : undefined;
 
   // صورة الرئيسي: جرّب المطابقة النصية ثم المطبّعة
   const getMainImage = (main: string): string => {
@@ -271,17 +286,27 @@ const CategoryCircles: React.FC<Props> = ({
     return undefined;
   };
 
+  const getMainLabel = (value: string): string => {
+    if (!value) return value;
+    return labelMapper ? labelMapper(value, "main") ?? value : value;
+  };
+
+  const getSubLabel = (value: string): string => {
+    if (!value) return value;
+    return labelMapper ? labelMapper(value, "sub") ?? value : value;
+  };
+
   return (
     <section className="w-full text-right">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-base sm:text-lg font-bold">تصفّح حسب الفئة</h2>
-        {(selectedMain !== "الكل" || selectedSub) && (
+        <h2 className="text-base sm:text-lg font-bold">{headingLabel}</h2>
+        {(!isAllSelected || selectedSub) && (
           <button
-            onClick={() => onFilter("الكل", "")}
+            onClick={() => onFilter(allValue, "")}
             className="px-3 py-1.5 rounded-md text-xs sm:text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
-            title="إظهار كل المنتجات"
+            title={showAllTooltip}
           >
-            الكل
+            {allLabel}
           </button>
         )}
       </div>
@@ -302,10 +327,11 @@ const CategoryCircles: React.FC<Props> = ({
                 const main = group.mainCategory;
                 const active = selectedMain === main;
                 const img = getMainImage(main);
+                const mainLabel = getMainLabel(main);
                 return (
                   <div key={main} className="snap-start shrink-0">
                     <CircleItem
-                      title={main}
+                      title={mainLabel}
                       image={img}
                       active={active}
                       size="lg"
@@ -320,23 +346,23 @@ const CategoryCircles: React.FC<Props> = ({
       </div>
 
       {/* الفرعية */}
-      {selectedMain !== "الكل" && (
+      {!isAllSelected && (
         <div className="mt-3">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm sm:text-base font-semibold">
-              {activeGroup?.mainCategory || selectedMain}
+              {getMainLabel(activeGroup?.mainCategory || selectedMain)}
             </h3>
             {selectedSub ? (
               <button
                 onClick={() => onFilter(selectedMain, "")}
                 className="px-2.5 py-1 rounded-md text-[11px] sm:text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
-                title="إزالة الفرعي"
+                title={removeSubTitle}
               >
-                إزالة الفرعي
+                {removeSubLabel}
               </button>
             ) : (
               <span className="text-[11px] sm:text-xs text-gray-500">
-                اختر فرعًا
+                {selectSubPrompt}
               </span>
             )}
           </div>
@@ -355,11 +381,12 @@ const CategoryCircles: React.FC<Props> = ({
                   // أولاً حاول نجيب صورة بالاسم/المركّب من الخرائط
                   const mapped = getSubImage(selectedMain, sub);
                   const img = mapped || DEFAULT_SUB_IMG;
+                  const subLabel = getSubLabel(sub);
 
                   return (
                     <div key={sub} className="snap-start shrink-0">
                       <CircleItem
-                        title={sub}
+                        title={subLabel}
                         image={img}
                         size="sm"
                         active={selectedSub === sub}
@@ -373,7 +400,7 @@ const CategoryCircles: React.FC<Props> = ({
               <div className="snap-start shrink-0">
                 <CircleItem
                   key="__all__"
-                  title="الكل"
+                  title={subAllTitle}
                   image={DEFAULT_SUB_IMG}
                   size="sm"
                   active={!selectedSub}
