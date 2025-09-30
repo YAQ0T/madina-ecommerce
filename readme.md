@@ -51,3 +51,20 @@
 - No branding visuals or product images yet; to be added later
 - Static content (About Us, policies) will be created based on client input
 - Future expansion may include a mobile app and additional payment options
+
+### 8. Image Utilities
+
+To download all product and variant images currently stored in MongoDB, use the helper script located in the `server` project:
+
+```bash
+cd server
+npm run download:images
+```
+
+The script collects every unique image URL from products and variants, then streams them into `server/downloads/images` by default. You can override the destination folder or control concurrency using command-line flags:
+
+```bash
+node scripts/download-images.js --out ./my-folder --concurrency 8
+```
+
+If any downloads fail, the script exits with a non-zero status so it can be used in automated workflows.
