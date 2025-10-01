@@ -3,6 +3,8 @@ import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import OrderStatusButtons from "./OrderStatusButtons";
 import { useTranslation } from "@/i18n";
+import { getLocalizedText } from "@/lib/localized";
+import { useLanguage } from "@/context/LanguageContext";
 
 type OrderStatus =
   | "waiting_confirmation"
@@ -39,19 +41,23 @@ const currency = (n: number) => `₪${Number(n || 0).toFixed(2)}`;
 
 const useItemRenderer = () => {
   const { t } = useTranslation();
+  const { locale } = useLanguage();
   const renderItemsSummary = (items: any[] = [], notes: string | undefined) => {
     if (!items.length) return t("common.none");
     return (
       <div className="space-y-1">
         {items.map((it, i) => {
-          const name = it?.name || it?.productName || t("admin.orders.fallbacks.product");
+          const nameText =
+            getLocalizedText(it?.name, locale) ||
+            it?.productName ||
+            t("admin.orders.fallbacks.product");
           const color = it?.color || it?.selectedColor;
           const measure = it?.measure || it?.selectedMeasure;
           const unit = it?.measureUnit || it?.selectedMeasureUnit;
           const qty = it?.quantity ?? 1;
           return (
             <div key={i} className="text-sm">
-              <span className="font-medium">{name}</span>{" "}
+              <span className="font-medium">{nameText}</span>{" "}
               <span className="text-gray-500">
                 {color
                   ? `| ${t("admin.orders.itemFields.color", { value: color })} `
