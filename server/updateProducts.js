@@ -18,6 +18,12 @@ mongoose
           { tags: { $exists: false } },
           { measures: { $exists: false } },
           { colors: { $exists: false } },
+          { "name.he": { $exists: false } },
+          { "name.he": { $eq: null } },
+          { "name.he": "" },
+          { "description.he": { $exists: false } },
+          { "description.he": { $eq: null } },
+          { "description.he": "" },
         ],
       },
       {
@@ -26,6 +32,8 @@ mongoose
           tags: [],
           measures: [],
           colors: [],
+          "name.he": "",
+          "description.he": "",
         },
       }
     );
