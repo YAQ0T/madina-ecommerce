@@ -26,16 +26,38 @@ mongoose
           { "description.he": "" },
         ],
       },
-      {
-        $set: {
-          discount: 0,
-          tags: [],
-          measures: [],
-          colors: [],
-          "name.he": "",
-          "description.he": "",
+      [
+        {
+          $set: {
+            description: {
+              $cond: [
+                { $eq: [{ $type: "$description" }, "object"] },
+                "$description",
+                {
+                  ar: { $ifNull: ["$description", ""] },
+                  he: "",
+                },
+              ],
+            },
+          },
         },
-      }
+        {
+          $set: {
+            discount: { $ifNull: ["$discount", 0] },
+            tags: {
+              $cond: [{ $isArray: "$tags" }, "$tags", []],
+            },
+            measures: {
+              $cond: [{ $isArray: "$measures" }, "$measures", []],
+            },
+            colors: {
+              $cond: [{ $isArray: "$colors" }, "$colors", []],
+            },
+            "name.he": { $ifNull: ["$name.he", ""] },
+            "description.he": { $ifNull: ["$description.he", ""] },
+          },
+        },
+      ]
     );
 
     console.log(`✅ Updated ${result.modifiedCount} products`);
