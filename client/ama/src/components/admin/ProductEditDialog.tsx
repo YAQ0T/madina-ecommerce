@@ -11,6 +11,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
+import { useTranslation } from "@/i18n";
+import { ensureLocalizedObject } from "@/lib/localized";
+import type { SupportedLocale } from "@/context/LanguageContext";
 
 interface ProductEditDialogProps {
   onClose: () => void;
@@ -31,6 +34,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
   token,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const [newImage, setNewImage] = useState("");
 
   const mainCategories = useMemo(
@@ -47,12 +51,19 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
   }, [products, editingProduct?.mainCategory]);
 
   // خيارات نوع الملكية
-  const ownershipOptions = [
-    { value: "ours", label: "على اسمنا" },
-    { value: "local", label: "شراء محلي" },
-  ] as const;
+  const ownershipOptions = ["ours", "local"] as const;
+
+  const languages: { code: SupportedLocale; label: string }[] = [
+    { code: "ar", label: t("admin.languages.ar") },
+    { code: "he", label: t("admin.languages.he") },
+  ];
 
   if (!editingProduct) return null;
+
+  const nameState = ensureLocalizedObject(editingProduct.name, { trim: false });
+  const descriptionState = ensureLocalizedObject(editingProduct.description, {
+    trim: false,
+  });
 
   const handleSave = async () => {
     try {
@@ -62,16 +73,36 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
         ? String(editingProduct.ownershipType)
         : "ours";
 
-      const payload = {
-        name: editingProduct.name?.trim(),
+      const normalizedName = ensureLocalizedObject(editingProduct.name, {
+        trim: false,
+      });
+      const normalizedDescription = ensureLocalizedObject(
+        editingProduct.description,
+        { trim: false }
+      );
+
+      const sanitizedName = {
+        ar: normalizedName.ar.trim(),
+        he: normalizedName.he.trim(),
+      };
+      const sanitizedDescription = {
+        ar: normalizedDescription.ar.trim(),
+        he: normalizedDescription.he.trim(),
+      };
+
+      const payload: Record<string, unknown> = {
+        name: sanitizedName,
         mainCategory: editingProduct.mainCategory?.trim(),
         subCategory: editingProduct.subCategory?.trim(),
-        description: editingProduct.description?.trim(),
         images: Array.isArray(editingProduct.images)
           ? editingProduct.images
           : [],
         ownershipType, // 👈 إرسال نوع الملكية
       };
+
+      if (sanitizedDescription.ar || sanitizedDescription.he) {
+        payload.description = sanitizedDescription;
+      }
 
       const res = await axios.put(
         `${import.meta.env.VITE_API_URL}/api/products/${editingProduct._id}`,
@@ -84,7 +115,13 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
       } else {
         const updatedProducts = products.map((p) =>
           p._id === res.data._id
-            ? { ...res.data, price: p.price, quantity: p.quantity }
+            ? {
+                ...res.data,
+                name: ensureLocalizedObject(res.data.name),
+                description: ensureLocalizedObject(res.data.description),
+                price: p.price,
+                quantity: p.quantity,
+              }
             : p
         );
         setProductsState(updatedProducts);
@@ -94,7 +131,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
       onClose();
     } catch (err) {
       console.error("❌ Error editing product", err);
-      alert("فشل في تعديل المنتج");
+      alert(t("admin.productEdit.alerts.updateFailed"));
     }
   };
 
@@ -117,24 +154,44 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
   return (
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>تعديل منتج</DialogTitle>
-        <DialogDescription>
-          قم بتعديل الحقول التالية ثم اضغط حفظ
-        </DialogDescription>
+        <DialogTitle>{t("admin.productEdit.title")}</DialogTitle>
+        <DialogDescription>{t("admin.productEdit.subtitle")}</DialogDescription>
       </DialogHeader>
 
       <div className="max-h-[70vh] overflow-y-auto grid gap-4 py-4 text-right">
-        <Input
-          placeholder="اسم المنتج"
-          value={editingProduct.name ?? ""}
-          onChange={(e) =>
-            setEditingProduct({ ...editingProduct, name: e.target.value })
-          }
-        />
+        <div className="grid gap-2">
+          <span className="text-sm font-medium">{t("common.labels.name")}</span>
+          <div className="grid gap-3">
+            {languages.map(({ code, label }) => (
+              <div key={`name-${code}`} className="grid gap-1 text-right">
+                <label className="text-xs text-muted-foreground">{label}</label>
+                <Input
+                  placeholder={t(
+                    code === "ar"
+                      ? "admin.productEdit.placeholders.nameAr"
+                      : "admin.productEdit.placeholders.nameHe"
+                  )}
+                  value={nameState[code]}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      name: {
+                        ...ensureLocalizedObject(editingProduct.name, {
+                          trim: false,
+                        }),
+                        [code]: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         <Input
           list="main-categories-edit"
-          placeholder="التصنيف الرئيسي"
+          placeholder={t("admin.productEdit.placeholders.mainCategory")}
           value={editingProduct.mainCategory ?? ""}
           onChange={(e) =>
             setEditingProduct({
@@ -151,7 +208,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
 
         <Input
           list="sub-categories-edit"
-          placeholder="التصنيف الفرعي"
+          placeholder={t("admin.productEdit.placeholders.subCategory")}
           value={editingProduct.subCategory ?? ""}
           onChange={(e) =>
             setEditingProduct({
@@ -168,7 +225,9 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
 
         {/* نوع الملكية */}
         <div className="grid gap-2">
-          <label className="text-sm font-medium">نوع الملكية</label>
+          <label className="text-sm font-medium">
+            {t("admin.productEdit.labels.ownership")}
+          </label>
           <select
             className="border rounded-md p-2 bg-background"
             value={editingProduct.ownershipType ?? "ours"}
@@ -180,37 +239,58 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
             }
           >
             {ownershipOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
+              <option key={opt} value={opt}>
+                {t(`admin.common.ownership.${opt}` as const)}
               </option>
             ))}
           </select>
           <p className="text-xs text-muted-foreground">
-            اختر ما إذا كان المنتج على اسمنا أو يتم شراؤه محليًا.
+            {t("admin.productEdit.helpers.ownership")}
           </p>
         </div>
 
-        <Textarea
-          placeholder="وصف المنتج"
-          value={editingProduct.description ?? ""}
-          onChange={(e) =>
-            setEditingProduct({
-              ...editingProduct,
-              description: e.target.value,
-            })
-          }
-        />
+        <div className="grid gap-2">
+          <span className="text-sm font-medium">
+            {t("admin.productEdit.placeholders.description")}
+          </span>
+          <div className="grid gap-3">
+            {languages.map(({ code, label }) => (
+              <div key={`desc-${code}`} className="grid gap-1 text-right">
+                <label className="text-xs text-muted-foreground">{label}</label>
+                <Textarea
+                  placeholder={t(
+                    code === "ar"
+                      ? "admin.productEdit.placeholders.descriptionAr"
+                      : "admin.productEdit.placeholders.descriptionHe"
+                  )}
+                  value={descriptionState[code]}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      description: {
+                        ...ensureLocalizedObject(editingProduct.description, {
+                          trim: false,
+                        }),
+                        [code]: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* صور */}
         <div className="space-y-2">
           <div className="flex gap-2">
             <Input
-              placeholder="رابط صورة جديدة"
+              placeholder={t("admin.productEdit.placeholders.image")}
               value={newImage}
               onChange={(e) => setNewImage(e.target.value)}
             />
             <Button type="button" onClick={handleAddImage}>
-              إضافة صورة
+              {t("admin.productEdit.actions.addImage")}
             </Button>
           </div>
 
@@ -223,7 +303,7 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
                   size="sm"
                   onClick={() => handleRemoveImage(idx)}
                 >
-                  حذف
+                  {t("common.actions.delete")}
                 </Button>
               </li>
             ))}
@@ -232,7 +312,9 @@ const ProductEditDialog: React.FC<ProductEditDialogProps> = ({
       </div>
 
       <DialogFooter>
-        <Button onClick={handleSave}>حفظ التعديلات</Button>
+        <Button onClick={handleSave}>
+          {t("admin.productEdit.actions.save")}
+        </Button>
       </DialogFooter>
     </DialogContent>
   );

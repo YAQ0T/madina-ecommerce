@@ -157,5 +157,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    direction: inherit;
+    text-align: start;
   }
 }

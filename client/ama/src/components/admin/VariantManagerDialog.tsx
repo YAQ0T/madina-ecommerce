@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/context/LanguageContext";
+import { getLocalizedText } from "@/lib/localized";
 import axios from "axios";
 
 type Price = {
@@ -52,6 +54,7 @@ const VariantManagerDialog: React.FC<Props> = ({
   onClose,
   onChanged,
 }) => {
+  const { locale } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [form, setForm] = useState<Variant>(() => emptyForm(product._id));
@@ -76,6 +79,11 @@ const VariantManagerDialog: React.FC<Props> = ({
       "Content-Type": "application/json",
     }),
     [token]
+  );
+
+  const displayName = useMemo(
+    () => getLocalizedText(product?.name, locale) ?? product?._id ?? "",
+    [locale, product?._id, product?.name]
   );
 
   const fetchVariants = async () => {
@@ -264,7 +272,7 @@ const VariantManagerDialog: React.FC<Props> = ({
   return (
     <div className="p-4 min-w-[780px] text-right">
       <h3 className="text-xl font-semibold mb-3">
-        إدارة المتغيّرات: {product?.name}
+        إدارة المتغيّرات: {displayName}
       </h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

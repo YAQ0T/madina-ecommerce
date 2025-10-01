@@ -1,30 +1,45 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import CartButton from "@/components/CartButton";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ThemeToggle from "@/components/ThemeToggle";
+import LanguageToggle from "@/components/LanguageToggle";
+import { useTranslation } from "@/i18n";
 // import OfferBanner from "./common/OfferBanner";
 
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   // const [showBanner, setShowBanner] = useState(true);
   // const bannerinfo = useRef(
   //   "خصم اجمالي على كل الفواتير الاعلى من ١٠٠٠ شيقل بقيمه ٥٪"
   // );
-  const links = [
-    { name: "الرئيسية", path: "/" },
-    { name: "المنتجات", path: "/products" },
-    { name: "من نحن", path: "/about" },
-    { name: "تواصل معنا", path: "/contact" },
-    { name: "حسابي", path: "/account" },
-  ];
-  if (user && user.role === "admin") {
-    links.push({ name: "لوحة التحكم", path: "/admin" });
-  }
+  const showThemeToggle = !user || user.role !== "admin";
+  const baseLinks = useMemo(
+    () => [
+      { key: "home", path: "/" },
+      { key: "products", path: "/products" },
+      { key: "about", path: "/about" },
+      { key: "contact", path: "/contact" },
+      { key: "account", path: "/account" },
+    ],
+    []
+  );
+
+  const links = useMemo(() => {
+    const result = [...baseLinks];
+    if (user && user.role === "admin") {
+      result.push({ key: "dashboard", path: "/admin" });
+    }
+    return result.map((link) => ({
+      ...link,
+      name: t(`navbar.links.${link.key}` as const),
+    }));
+  }, [baseLinks, t, user]);
 
   return (
     <header className="border-b mb-6">
@@ -37,15 +52,17 @@ const Navbar: React.FC = () => {
 
       <nav className="container mx-auto p-4 flex items-center justify-between">
         {/* الشعار */}
-        {!user && <ThemeToggle />}
-        {user && user.role != "admin" && <ThemeToggle />}
+        <div className="flex items-center gap-2">
+          <LanguageToggle className="w-24" />
+          {showThemeToggle && <ThemeToggle />}
+        </div>
         <Link to="/" className="text-2xl font-bold min-w-45">
-          Dikori | ديكوري
+          {t("navbar.brand")}
         </Link>
         {/* <div className="bg-testRed">لو ظهر أحمر، كل شيء تمام</div> */}
 
         {/* زر القائمة للجوال */}
-        <div className="flex items-center gap-4 lg:hidden">
+        <div className="flex items-center gap-3 lg:hidden">
           <CartButton />
           <Button
             variant="ghost"
@@ -67,17 +84,19 @@ const Navbar: React.FC = () => {
           {!user && (
             <>
               <Button asChild variant="ghost">
-                <Link to="/login">تسجيل الدخول</Link>
+                <Link to="/login">{t("navbar.auth.login")}</Link>
               </Button>
               <Button asChild variant="ghost">
-                <Link to="/register">انشاء حساب</Link>
+                <Link to="/register">{t("navbar.auth.register")}</Link>
               </Button>
             </>
           )}
 
           {user && (
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">أهلاً، {user.name}</span>
+              <span className="text-sm font-medium">
+                {t("navbar.auth.greeting", { name: user.name })}
+              </span>
               <Button
                 variant="outline"
                 size="sm"
@@ -86,7 +105,7 @@ const Navbar: React.FC = () => {
                   navigate("/login");
                 }}
               >
-                تسجيل الخروج
+                {t("navbar.auth.logout")}
               </Button>
             </div>
           )}
@@ -116,14 +135,14 @@ const Navbar: React.FC = () => {
                 className="block py-2 text-gray-800 font-medium hover:text-black"
                 onClick={() => setMenuOpen(false)}
               >
-                تسجيل الدخول
+                {t("navbar.auth.login")}
               </Link>
               <Link
                 to="/register"
                 className="block py-2 text-gray-800 font-medium hover:text-black"
                 onClick={() => setMenuOpen(false)}
               >
-                انشاء حساب
+                {t("navbar.auth.register")}
               </Link>
             </>
           )}
@@ -131,7 +150,7 @@ const Navbar: React.FC = () => {
           {user && (
             <>
               <span className="block py-2 text-gray-800 font-medium">
-                أهلاً، {user.name}
+                {t("navbar.auth.greeting", { name: user.name })}
               </span>
               <button
                 onClick={() => {
@@ -141,10 +160,12 @@ const Navbar: React.FC = () => {
                 }}
                 className="block w-full text-right py-2 text-red-600 font-medium hover:text-red-800"
               >
-                تسجيل الخروج
+                {t("navbar.auth.logout")}
               </button>
             </>
           )}
+
+          <LanguageToggle className="w-full" />
         </div>
       )}
     </header>

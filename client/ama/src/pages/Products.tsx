@@ -1,5 +1,5 @@
 // src/pages/Products.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,14 @@ import CategoryCircles from "@/components/CategoryCircles";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
+import {
+  getLocalizedText,
+  ensureLocalizedObject,
+  type LocalizedText,
+} from "@/lib/localized";
+import { getColorLabel } from "@/lib/colors";
+import { useLanguage } from "@/context/LanguageContext";
+import { useTranslation } from "@/i18n";
 
 import {
   Pagination,
@@ -28,8 +36,8 @@ import {
 
 type ProductItem = {
   _id: string;
-  name: string;
-  description: string;
+  name: LocalizedText;
+  description: LocalizedText;
   images: string[];
   mainCategory?: string;
   subCategory?: string;
@@ -80,11 +88,24 @@ function buildPageWindow(
   return pages;
 }
 
+function slugifyLabel(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^\p{L}\p{N}-]+/gu, "");
+}
+
 const Products: React.FC = () => {
   const { user, token } = useAuth();
   const canUseOwnership = user?.role === "admin" || user?.role === "dealer";
+  const { locale } = useLanguage();
 
-  const [selectedMainCategory, setSelectedMainCategory] = useState("الكل");
+  const { t } = useTranslation();
+
+  const [selectedMainCategory, setSelectedMainCategory] = useState<string>("");
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
 
   const [rawSearch, setRawSearch] = useState("");
@@ -126,6 +147,18 @@ const Products: React.FC = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(-1);
 
+  const translateCategoryLabel = useCallback(
+    (value: string, type: "main" | "sub") => {
+      if (!value) return value;
+      const slug = slugifyLabel(value);
+      if (!slug) return value;
+      return t(`productsPage.categoryLabels.${type}.${slug}`, {
+        defaultValue: value,
+      });
+    },
+    [t]
+  );
+
   const searchRef = useRef<HTMLInputElement | null>(null);
   const searchBoxWrapperRef = useRef<HTMLDivElement | null>(null);
   const maxPriceRef = useRef<HTMLInputElement | null>(null);
@@ -146,12 +179,14 @@ const Products: React.FC = () => {
     const category = params.get("category");
     const sub = params.get("sub");
     if (category) setSelectedMainCategory(category);
+    else setSelectedMainCategory("");
     if (sub) setSelectedSubCategory(sub);
+    else setSelectedSubCategory("");
   }, [location.search]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (selectedMainCategory && selectedMainCategory !== "الكل") {
+    if (selectedMainCategory) {
       params.set("category", selectedMainCategory);
     } else {
       params.delete("category");
@@ -191,7 +226,7 @@ const Products: React.FC = () => {
       try {
         const params = new URLSearchParams();
 
-        if (selectedMainCategory && selectedMainCategory !== "الكل") {
+        if (selectedMainCategory) {
           params.set("mainCategory", selectedMainCategory);
         }
         if (selectedSubCategory) params.set("subCategory", selectedSubCategory);
@@ -234,7 +269,7 @@ const Products: React.FC = () => {
           setSelectedMeasureSlug("");
         }
       } catch (e) {
-        setFacetsError("تعذر تحميل خيارات الألوان والمقاسات.");
+        setFacetsError(t("productsPage.facets.error"));
         setFacets({ measures: [], colors: [] });
       } finally {
         setLoadingFacets(false);
@@ -254,6 +289,7 @@ const Products: React.FC = () => {
     // recentDays, // إذا فعّلتها فوق أضِفها هنا أيضاً
     selectedColorSlug,
     selectedMeasureSlug,
+    t,
   ]);
 
   // المنتجات
@@ -264,7 +300,7 @@ const Products: React.FC = () => {
       const params = new URLSearchParams();
       params.set("page", String(currentPage));
       params.set("limit", "9");
-      if (selectedMainCategory && selectedMainCategory !== "الكل") {
+      if (selectedMainCategory) {
         params.set("mainCategory", selectedMainCategory);
       }
       if (selectedSubCategory) params.set("subCategory", selectedSubCategory);
@@ -307,8 +343,8 @@ const Products: React.FC = () => {
 
         const mapped: ProductItem[] = (items || []).map((p: any) => ({
           _id: p._id,
-          name: p.name ?? "",
-          description: p.description ?? "",
+          name: ensureLocalizedObject(p.name),
+          description: ensureLocalizedObject(p.description),
           images: Array.isArray(p.images) ? p.images : [],
           mainCategory: p.mainCategory,
           subCategory: p.subCategory,
@@ -504,8 +540,8 @@ const Products: React.FC = () => {
         const names = Array.from(
           new Set(
             (res.data?.items || [])
-              .map((p: any) => p?.name)
-              .filter((n: any) => typeof n === "string" && n.trim())
+              .map((p: any) => getLocalizedText(p?.name, locale))
+              .filter((n: string | undefined) => typeof n === "string" && n.trim())
           )
         ) as string[];
 
@@ -520,7 +556,7 @@ const Products: React.FC = () => {
       active = false;
       clearTimeout(t);
     };
-  }, [rawSearch, token]);
+  }, [rawSearch, token, locale]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -633,8 +669,12 @@ const Products: React.FC = () => {
       <>
         <Navbar />
         <main className="container mx-auto p-6">
-          <h1 className="text-3xl font-bold mb-6 text-right">جميع المنتجات</h1>
-          <p className="text-center text-gray-600 text-lg">جاري التحميل…</p>
+          <h1 className="text-3xl font-bold mb-6 text-right">
+            {t("productsPage.title")}
+          </h1>
+          <p className="text-center text-gray-600 text-lg">
+            {t("productsPage.loading")}
+          </p>
         </main>
         <Footer />
       </>
@@ -649,7 +689,7 @@ const Products: React.FC = () => {
       <main className="container mx-auto p-6">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl md:text-3xl font-bold text-right">
-            جميع المنتجات
+            {t("productsPage.title")}
           </h1>
 
           <div className="flex items-center gap-2">
@@ -666,9 +706,11 @@ const Products: React.FC = () => {
                   ? "bg-black text-white"
                   : "bg-gray-100 text-black hover:bg-gray-300"
               }`}
-              title="عرض المنتجات التي تم تحديثها خلال آخر 7 أيام"
+              title={t("productsPage.recentUpdates.tooltip")}
             >
-              {recentDays ? "إظهار الكل" : "آخر التحديثات"}
+              {recentDays
+                ? t("productsPage.recentUpdates.showAll")
+                : t("productsPage.recentUpdates.showRecent")}
               {recentDays && typeof recentTotal === "number" && (
                 <span className="absolute -top-2 -right-2 text-xs rounded-full bg-red-600 text-white px-2 py-0.5">
                   {recentTotal}
@@ -685,11 +727,17 @@ const Products: React.FC = () => {
                   setRecentDays(Number.isFinite(v) && v > 0 ? v : 7);
                   setCurrentPage(1);
                 }}
-                title="عدد الأيام"
+                title={t("productsPage.recentUpdates.daysTitle")}
               >
-                <option value={7}>آخر 7 أيام</option>
-                <option value={14}>آخر 14 يوم</option>
-                <option value={30}>آخر 30 يوم</option>
+                <option value={7}>
+                  {t("productsPage.recentUpdates.daysOptions.7")}
+                </option>
+                <option value={14}>
+                  {t("productsPage.recentUpdates.daysOptions.14")}
+                </option>
+                <option value={30}>
+                  {t("productsPage.recentUpdates.daysOptions.30")}
+                </option>
               </select>
             )}
           </div>
@@ -703,6 +751,7 @@ const Products: React.FC = () => {
           selectedSub={selectedSubCategory}
           loading={loadingCategories}
           subCategoryImages={subCategoryImagesFromData}
+          labelMapper={translateCategoryLabel}
         />
 
         {/* فلاتر */}
@@ -715,7 +764,7 @@ const Products: React.FC = () => {
               <Input
                 ref={searchRef}
                 type="text"
-                placeholder="ابحث باسم المنتج..."
+                placeholder={t("productsPage.filters.searchPlaceholder")}
                 value={rawSearch}
                 autoComplete="off"
                 onChange={(e) => {
@@ -731,7 +780,7 @@ const Products: React.FC = () => {
                 type="button"
                 onClick={triggerSearch}
                 className="absolute inset-y-0 left-0 sm:left-auto sm:right-0 sm:inset-y-0 flex items-center justify-center w-12 bg-black text-white rounded-r-md sm:rounded-l-none sm:rounded-r-md hover:bg-gray-800"
-                title="بحث"
+                title={t("productsPage.filters.searchButtonTitle")}
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -782,7 +831,7 @@ const Products: React.FC = () => {
               <Input
                 ref={maxPriceRef}
                 type="number"
-                placeholder="سعر أقصى"
+                placeholder={t("productsPage.filters.pricePlaceholder")}
                 value={rawMaxPrice}
                 onChange={(e) => setRawMaxPrice(e.target.value)}
                 onKeyDown={handleMaxPriceKeyDown}
@@ -792,9 +841,9 @@ const Products: React.FC = () => {
                 type="button"
                 onClick={triggerMaxPrice}
                 className="absolute inset-y-0 left-0 sm:left-auto sm:right-0 sm:inset-y-0 flex items-center justify-center px-3 bg-black text-white rounded-r-md sm:rounded-l-none sm:rounded-r-md hover:bg-gray-800"
-                title="تطبيق السعر"
+                title={t("productsPage.filters.applyPriceTitle")}
               >
-                تطبيق
+                {t("productsPage.filters.applyPrice")}
               </button>
             </div>
 
@@ -806,11 +855,17 @@ const Products: React.FC = () => {
                   setOwnershipFilter(e.target.value as OwnershipFilter);
                   setCurrentPage(1);
                 }}
-                title="مصدر المنتج"
+                title={t("productsPage.filters.ownership.title")}
               >
-                <option value="all">كل المصادر</option>
-                <option value="ours">مصدر ١</option>
-                <option value="local">مصدر ٢</option>
+                <option value="all">
+                  {t("productsPage.filters.ownership.options.all")}
+                </option>
+                <option value="ours">
+                  {t("productsPage.filters.ownership.options.ours")}
+                </option>
+                <option value="local">
+                  {t("productsPage.filters.ownership.options.local")}
+                </option>
               </select>
             )}
           </div>
@@ -828,24 +883,27 @@ const Products: React.FC = () => {
               }
               title={
                 loadingFacets
-                  ? "جاري تحميل الألوان..."
+                  ? t("productsPage.filters.colors.loadingTitle")
                   : facetsError && facets.colors.length === 0
-                  ? "اختر فئة أو ابحث أولاً لعرض الألوان"
+                  ? t("productsPage.filters.colors.preFilterTitle")
                   : undefined
               }
             >
               <option value="">
                 {loadingFacets
-                  ? "جاري التحميل..."
+                  ? t("productsPage.filters.colors.loadingOption")
                   : facets.colors.length
-                  ? "كل الألوان"
-                  : "اختر فئة/بحث لعرض الألوان"}
+                  ? t("productsPage.filters.colors.allOption")
+                  : t("productsPage.filters.colors.promptOption")}
               </option>
-              {facets.colors.map((c) => (
-                <option key={c.slug} value={c.slug}>
-                  {c.name}
-                </option>
-              ))}
+              {facets.colors.map((c) => {
+                const label = getLocalizedText(getColorLabel(c.name), locale);
+                return (
+                  <option key={c.slug} value={c.slug}>
+                    {label || c.name}
+                  </option>
+                );
+              })}
             </select>
 
             <select
@@ -860,18 +918,18 @@ const Products: React.FC = () => {
               }
               title={
                 loadingFacets
-                  ? "جاري تحميل المقاسات..."
+                  ? t("productsPage.filters.measures.loadingTitle")
                   : facetsError && facets.measures.length === 0
-                  ? "اختر فئة أو ابحث أولاً لعرض المقاسات"
+                  ? t("productsPage.filters.measures.preFilterTitle")
                   : undefined
               }
             >
               <option value="">
                 {loadingFacets
-                  ? "جاري التحميل..."
+                  ? t("productsPage.filters.measures.loadingOption")
                   : facets.measures.length
-                  ? "كل المقاسات"
-                  : "اختر فئة/بحث لعرض المقاسات"}
+                  ? t("productsPage.filters.measures.allOption")
+                  : t("productsPage.filters.measures.promptOption")}
               </option>
               {facets.measures.map((m) => (
                 <option key={m.slug} value={m.slug}>
@@ -889,7 +947,7 @@ const Products: React.FC = () => {
                 }}
                 className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200"
               >
-                مسح فلاتر اللون/المقاس
+                {t("productsPage.filters.resetColorMeasure")}
               </button>
             )}
           </div>
@@ -897,7 +955,7 @@ const Products: React.FC = () => {
 
         {products.length === 0 ? (
           <p className="text-center text-gray-600 text-lg">
-            لا يوجد منتجات مطابقة للبحث
+            {t("productsPage.emptyState")}
           </p>
         ) : (
           <>
@@ -963,15 +1021,21 @@ const Products: React.FC = () => {
                   </Pagination>
                 </div>
 
-                <div className="mt-3 flex items-center justify-center gap-2">
-                  <span className="text-sm text-gray-700">اذهب إلى:</span>
-                  <Select
-                    value={String(currentPage)}
-                    onValueChange={(v) => setCurrentPage(Number(v))}
-                  >
-                    <SelectTrigger className="w-28">
-                      <SelectValue placeholder="اختر صفحة" />
-                    </SelectTrigger>
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <span className="text-sm text-gray-700">
+                  {t("productsPage.pagination.goTo")}
+                </span>
+                <Select
+                  value={String(currentPage)}
+                  onValueChange={(v) => setCurrentPage(Number(v))}
+                >
+                  <SelectTrigger className="w-28">
+                    <SelectValue
+                      placeholder={t(
+                        "productsPage.pagination.selectPlaceholder"
+                      )}
+                    />
+                  </SelectTrigger>
                     <SelectContent>
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                         (p) => (
@@ -1048,15 +1112,21 @@ const Products: React.FC = () => {
                     </PaginationContent>
                   </Pagination>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700">اذهب إلى صفحة:</span>
-                  <Select
-                    value={String(currentPage)}
-                    onValueChange={(v) => setCurrentPage(Number(v))}
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue placeholder="اختر صفحة" />
-                    </SelectTrigger>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">
+                  {t("productsPage.pagination.goToPage")}
+                </span>
+                <Select
+                  value={String(currentPage)}
+                  onValueChange={(v) => setCurrentPage(Number(v))}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue
+                      placeholder={t(
+                        "productsPage.pagination.selectPlaceholder"
+                      )}
+                    />
+                  </SelectTrigger>
                     <SelectContent className="max-h-40 overflow-y-auto">
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                         (p) => (
@@ -1067,10 +1137,10 @@ const Products: React.FC = () => {
                       )}
                     </SelectContent>
                   </Select>
-                  <span className="text-sm text-gray-500">
-                    من أصل {totalPages}
-                  </span>
-                </div>
+                <span className="text-sm text-gray-500">
+                  {t("productsPage.pagination.total", { count: totalPages })}
+                </span>
+              </div>
               </div>
             </div>
           </>

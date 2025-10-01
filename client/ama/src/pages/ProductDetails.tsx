@@ -5,6 +5,10 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/context/CartContext";
+import { getLocalizedText, type LocalizedObject } from "@/lib/localized";
+import { getColorLabel } from "@/lib/colors";
+import { useLanguage } from "@/context/LanguageContext";
+import { useTranslation } from "@/i18n";
 import clsx from "clsx";
 
 type Variant = {
@@ -35,16 +39,48 @@ type Variant = {
 const clamp = (n: number, min = 0, max = 100) =>
   Math.max(min, Math.min(max, n));
 
-const formatTimeLeft = (ms: number) => {
-  if (ms <= 0) return "انتهى الخصم";
+type TimeUnit = "days" | "hours" | "minutes" | "seconds";
+
+const formatTimeLeft = (
+  ms: number
+): { expired: boolean; parts: { unit: TimeUnit; value: number }[] } => {
+  if (ms <= 0) return { expired: true, parts: [] };
+
   const totalSeconds = Math.floor(ms / 1000);
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  if (days > 0) return `${days}ي ${hours}س ${minutes}د`;
-  if (hours > 0) return `${hours}س ${minutes}د ${seconds}ث`;
-  return `${minutes}د ${seconds}ث`;
+
+  if (days > 0) {
+    return {
+      expired: false,
+      parts: [
+        { unit: "days", value: days },
+        { unit: "hours", value: hours },
+        { unit: "minutes", value: minutes },
+      ],
+    };
+  }
+
+  if (hours > 0) {
+    return {
+      expired: false,
+      parts: [
+        { unit: "hours", value: hours },
+        { unit: "minutes", value: minutes },
+        { unit: "seconds", value: seconds },
+      ],
+    };
+  }
+
+  return {
+    expired: false,
+    parts: [
+      { unit: "minutes", value: minutes },
+      { unit: "seconds", value: seconds },
+    ],
+  };
 };
 
 const normalize = (s?: string) =>
@@ -61,6 +97,8 @@ function normalizeVariantsResponse(data: any): Variant[] {
 const ProductDetails: React.FC = () => {
   const { addToCart } = useCart();
   const { id } = useParams();
+  const { locale } = useLanguage();
+  const { t } = useTranslation();
 
   const [product, setProduct] = useState<any>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -73,6 +111,35 @@ const ProductDetails: React.FC = () => {
   const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
   const [progressPct, setProgressPct] = useState<number | null>(null);
   const [showDiscountTimer, setShowDiscountTimer] = useState(false);
+
+  const productName = useMemo(
+    () => getLocalizedText(product?.name, locale) || "",
+    [product?.name, locale]
+  );
+
+  const productDescription = useMemo(
+    () => getLocalizedText(product?.description, locale) || "",
+    [product?.description, locale]
+  );
+
+  const timeLeft = useMemo(() => {
+    if (timeLeftMs === null) return null;
+    return formatTimeLeft(timeLeftMs);
+  }, [timeLeftMs]);
+
+  const timeLeftText = useMemo(() => {
+    if (!timeLeft) return "";
+    if (timeLeft.expired) {
+      return t("productDetails.discount.ended");
+    }
+    return timeLeft.parts
+      .map((part) =>
+        t(`productDetails.discount.parts.${part.unit}`, {
+          value: part.value,
+        })
+      )
+      .join(" ");
+  }, [timeLeft, t]);
 
   useEffect(() => {
     let ignore = false;
@@ -126,9 +193,11 @@ const ProductDetails: React.FC = () => {
   }, [variants]);
 
   const colorLabelBySlug = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, LocalizedObject>();
     for (const v of variants) {
-      if (v.colorSlug) map.set(v.colorSlug, v.color?.name || v.colorSlug);
+      if (!v.colorSlug) continue;
+      const source = v.color?.name || v.colorSlug;
+      map.set(v.colorSlug, getColorLabel(source));
     }
     return map;
   }, [variants]);
@@ -143,9 +212,14 @@ const ProductDetails: React.FC = () => {
   // الألوان (مع استبعاد "موحّد")
   const allColors = useMemo(() => {
     return Array.from(colorLabelBySlug.entries())
-      .map(([slug, name]) => ({ slug, name }))
-      .filter((c) => !isUnified(c.name));
-  }, [colorLabelBySlug]);
+      .map(([slug, label]) => {
+        const localized = getLocalizedText(label, locale) || slug;
+        const baseName = label.ar?.trim() || label.he?.trim() || localized;
+        return { slug, name: localized, baseName };
+      })
+      .filter((c) => !isUnified(c.baseName))
+      .map(({ slug, name }) => ({ slug, name }));
+  }, [colorLabelBySlug, locale]);
 
   const colorsByMeasure = useMemo(() => {
     const m = new Map<string, Set<string>>();
@@ -263,7 +337,9 @@ const ProductDetails: React.FC = () => {
   ]);
 
   if (!product) {
-    return <p className="text-center mt-10">جاري تحميل تفاصيل المنتج...</p>;
+    return (
+      <p className="text-center mt-10">{t("productDetails.loading")}</p>
+    );
   }
 
   // إخفاء UI المقاس إن لم يتبقَّ إلا "موحّد"
@@ -281,7 +357,7 @@ const ProductDetails: React.FC = () => {
               <img
                 key={index}
                 src={src}
-                alt={product.name}
+                alt={productName}
                 className={clsx(
                   "absolute top-0 left-0 w-full h-full object-contain transition-all duration-500 pointer-events-none",
                   {
@@ -319,13 +395,15 @@ const ProductDetails: React.FC = () => {
 
           {/* ✅ التفاصيل */}
           <div>
-            <h1 className="text-3xl font-bold mb-4">{product.name}</h1>
-            <p className="text-gray-700 mb-4">{product.description}</p>
+            <h1 className="text-3xl font-bold mb-4">{productName}</h1>
+            <p className="text-gray-700 mb-4">{productDescription}</p>
 
             {/* المقاس + الوحدة */}
             {showMeasureUI && (
               <div className="mb-4">
-                <label className="block mb-1">المقاس</label>
+                <label className="block mb-1">
+                  {t("productDetails.measureLabel")}
+                </label>
                 <select
                   className="w-full border rounded p-2"
                   value={measure}
@@ -346,7 +424,9 @@ const ProductDetails: React.FC = () => {
             {/* اللون (مع إخفاء موحّد) */}
             {showColorsUI && (
               <div className="mb-4">
-                <label className="block mb-1">اللون</label>
+                <label className="block mb-1">
+                  {t("productDetails.colorLabel")}
+                </label>
                 <select
                   className="w-full border rounded p-2"
                   value={color}
@@ -357,7 +437,10 @@ const ProductDetails: React.FC = () => {
                       measure && availableColorsForMeasure.has(c.slug);
                     return (
                       <option key={c.slug} value={c.slug} disabled={!available}>
-                        {c.name} {!available ? "— غير متاح لهذا المقاس" : ""}
+                        {c.name}
+                        {!available
+                          ? ` ${t("productDetails.colorUnavailable")}`
+                          : ""}
                       </option>
                     );
                   })}
@@ -381,7 +464,7 @@ const ProductDetails: React.FC = () => {
                   {typeof finalAmount === "number" ? (
                     <>₪{finalAmount}</>
                   ) : (
-                    "اختر مقاسًا ولونًا"
+                    t("productDetails.price.selectOptions")
                   )}
                 </p>
               )}
@@ -393,12 +476,12 @@ const ProductDetails: React.FC = () => {
                 <div className="mb-4">
                   <div
                     className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
-                    aria-label="مدّة الخصم المتبقية"
+                    aria-label={t("productDetails.discount.progressAria")}
                     role="progressbar"
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.round(progressPct)}
-                    title="مدّة الخصم"
+                    title={t("productDetails.discount.progressTitle")}
                   >
                     <div
                       className="h-full bg-red-600 transition-all duration-500"
@@ -406,16 +489,18 @@ const ProductDetails: React.FC = () => {
                     />
                   </div>
                   <div className="mt-1 text-xs text-red-700 font-semibold text-right">
-                    ينتهي خلال: {formatTimeLeft(timeLeftMs)}
+                    {t("productDetails.discount.endsIn")} {timeLeftText}
                   </div>
                 </div>
               )}
 
             {currentVariant && (
               <p className="text-sm text-gray-600 mb-6">
-                المتوفر: {inStock}
+                {t("productDetails.availability.label", { count: inStock })}
                 {currentVariant.stock?.sku
-                  ? ` • SKU: ${currentVariant.stock.sku}`
+                  ? t("productDetails.availability.sku", {
+                      sku: currentVariant.stock.sku,
+                    })
                   : ""}
               </p>
             )}
@@ -438,7 +523,9 @@ const ProductDetails: React.FC = () => {
                 });
               }}
             >
-              {inStock > 0 ? "إضافة للسلة" : "غير متوفر"}
+              {inStock > 0
+                ? t("productDetails.cta.addToCart")
+                : t("productDetails.cta.outOfStock")}
             </Button>
           </div>
         </div>

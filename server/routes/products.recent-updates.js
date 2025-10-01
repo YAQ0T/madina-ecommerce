@@ -3,6 +3,7 @@ const express = require("express");
 // عدّل المسارات حسب مشروعك إذا لزم
 const Product = require("../models/Product");
 const Variant = require("../models/Variant");
+const { mapLocalizedForResponse } = require("../utils/localized");
 
 const router = express.Router();
 
@@ -137,7 +138,7 @@ router.get("/recent-updates", async (req, res) => {
       }
       return {
         _id: doc._id,
-        name: doc.name,
+        name: mapLocalizedForResponse(doc.name),
         images: doc.images || [],
         mainCategory: doc.mainCategory,
         subCategory: doc.subCategory,

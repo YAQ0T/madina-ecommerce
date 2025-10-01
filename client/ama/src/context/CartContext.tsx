@@ -1,10 +1,11 @@
 // 🧠 CartContext.tsx
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import type { LocalizedText } from "@/lib/localized";
 
 export type Product = {
   _id: string;
-  name: string;
+  name: LocalizedText;
   price: number;
   image: string;
   selectedColor?: string; // ✅ اللون المختار

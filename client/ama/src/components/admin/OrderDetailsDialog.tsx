@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import axios from "axios";
 import OrderDetailsContent from "@/components/common/OrderDetailsContent";
+import { useTranslation } from "@/i18n";
 
 interface OrderDetailsDialogProps {
   selectedOrder: any;
@@ -28,10 +29,11 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
 }) => {
   if (!selectedOrder) return null;
 
+  const { t } = useTranslation();
   const [markingPaid, setMarkingPaid] = useState(false);
 
   const handleDelete = async () => {
-    const confirmDelete = confirm("هل أنت متأكد من حذف هذا الطلب نهائيًا؟");
+    const confirmDelete = confirm(t("admin.orderDetails.confirmDelete"));
     if (!confirmDelete) return;
 
     try {
@@ -49,17 +51,17 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
       setSelectedOrder(null);
     } catch (err) {
       console.error("❌ Error deleting order", err);
-      alert("فشل في حذف الطلب");
+      alert(t("admin.orderDetails.alerts.deleteFailed"));
     }
   };
 
   const handleMarkPaid = async () => {
     if (!selectedOrder?.reference) {
-      alert("لا يوجد مرجع دفع مرتبط بهذا الطلب");
+      alert(t("admin.orderDetails.alerts.missingReference"));
       return;
     }
     if (!token) {
-      alert("رمز الأدمن غير متوفر، أعد تسجيل الدخول");
+      alert(t("admin.orderDetails.alerts.missingToken"));
       return;
     }
 
@@ -87,15 +89,17 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
         setSelectedOrder(patched);
       }
 
-      alert(data?.message || "تم وسم الطلب كمدفوع بنجاح");
+      alert(data?.message || t("admin.orderDetails.alerts.markPaidSuccess"));
     } catch (err: any) {
       const status = err?.response?.status;
       const resp = err?.response?.data;
       console.error("❌ Error marking order paid", status, resp || err);
       alert(
         resp?.message
-          ? `فشل وسم الطلب كمدفوع: ${resp.message}`
-          : "تعذر وسم الطلب كمدفوع، حاول لاحقًا"
+          ? t("admin.orderDetails.alerts.markPaidFailedWithMessage", {
+              message: resp.message,
+            })
+          : t("admin.orderDetails.alerts.markPaidFailed")
       );
     } finally {
       setMarkingPaid(false);
@@ -106,10 +110,11 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
     <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>تفاصيل الطلب</DialogTitle>
+          <DialogTitle>{t("admin.orderDetails.title")}</DialogTitle>
           <DialogDescription>
-            لمراجعة وتعديل تفاصيل الطلب رقم{" "}
-            <span className="font-semibold">{selectedOrder?._id}</span>
+            {t("admin.orderDetails.description", {
+              id: selectedOrder?._id,
+            })}
           </DialogDescription>
         </DialogHeader>
 
@@ -118,7 +123,7 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
 
         <div className="flex items-center justify-between mt-4">
           <Button size="sm" variant="destructive" onClick={handleDelete}>
-            🗑️ حذف نهائي
+            {t("admin.orderDetails.actions.delete")}
           </Button>
           <DialogFooter className="flex gap-2">
             {selectedOrder?.reference &&
@@ -129,10 +134,14 @@ const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
                   onClick={handleMarkPaid}
                   disabled={markingPaid}
                 >
-                  {markingPaid ? "جاري التحقق…" : "وسم كمدفوع (لحظة)"}
+                  {markingPaid
+                    ? t("admin.orderDetails.actions.marking")
+                    : t("admin.orderDetails.actions.markPaid")}
                 </Button>
               )}
-            <Button onClick={() => setSelectedOrder(null)}>إغلاق</Button>
+            <Button onClick={() => setSelectedOrder(null)}>
+              {t("common.actions.close")}
+            </Button>
           </DialogFooter>
         </div>
       </DialogContent>
