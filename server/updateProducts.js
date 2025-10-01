@@ -29,6 +29,20 @@ mongoose
       [
         {
           $set: {
+            name: {
+              $cond: [
+                { $eq: [{ $type: "$name" }, "object"] },
+                "$name",
+                {
+                  ar: { $ifNull: ["$name", ""] },
+                  he: "",
+                },
+              ],
+            },
+          },
+        },
+        {
+          $set: {
             description: {
               $cond: [
                 { $eq: [{ $type: "$description" }, "object"] },
