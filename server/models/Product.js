@@ -81,12 +81,23 @@ ProductSchema.set("toObject", {
 });
 
 // فهرس نصي للبحث العام
-ProductSchema.index({
-  "name.ar": "text",
-  "name.he": "text",
-  "description.ar": "text",
-  "description.he": "text",
-});
+ProductSchema.index(
+  {
+    "name.ar": "text",
+    "name.he": "text",
+    "description.ar": "text",
+    "description.he": "text",
+  },
+  {
+    default_language: "none",
+    weights: {
+      "name.ar": 10,
+      "name.he": 10,
+      "description.ar": 5,
+      "description.he": 5,
+    },
+  }
+);
 
 // فهرس مفيد للفرز الافتراضي
 ProductSchema.index({ priority: 1, createdAt: -1 });
