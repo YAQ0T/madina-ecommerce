@@ -52,6 +52,7 @@ const WEBHOOK_ALLOWED_IPS = (
 // ⚠️ موديلات مستخدمة داخل الـ webhook
 const Order = require("./models/Order");
 const Variant = require("./models/Variant");
+const Product = require("./models/Product");
 
 function getClientIp(req) {
   const xff = req.headers["x-forwarded-for"];
@@ -179,7 +180,23 @@ mongoose
     serverSelectionTimeoutMS: 15000,
     family: 4,
   })
-  .then(() => console.log("✅ MongoDB connected"))
+  .then(async () => {
+    console.log("✅ MongoDB connected");
+
+    try {
+      const dropped = await Product.syncIndexes();
+      if (Array.isArray(dropped) && dropped.length) {
+        console.log(
+          "🔁 Product indexes synchronized (dropped):",
+          dropped.join(", ")
+        );
+      } else {
+        console.log("🔁 Product indexes synchronized");
+      }
+    } catch (err) {
+      console.error("⚠️ Failed to sync Product indexes:", err?.message || err);
+    }
+  })
   .catch((err) => {
     console.error("❌ Mongo error:", err);
     process.exit(1);
