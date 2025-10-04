@@ -759,3 +759,84 @@ test(
     );
   }
 );
+
+test(
+  "Lahza webhook treats data.ref as the reference",
+  { concurrency: false },
+  async () => {
+    resetState();
+
+    const allowedIp = WEBHOOK_ALLOWED_IPS[0] || "203.0.113.5";
+    const reference = "lahza-ref-alias";
+    const orderId = new mongoose.Types.ObjectId().toString();
+    const baseOrder = {
+      _id: orderId,
+      reference,
+      total: 25,
+      subtotal: 25,
+      discount: { amount: 0 },
+      items: [],
+      paymentStatus: "unpaid",
+      paymentCurrency: "ILS",
+      status: "waiting_confirmation",
+    };
+    ordersStore.set(orderId, baseOrder);
+
+    const previousAxiosGet = axios.get;
+    axios.get = async () => ({
+      data: {
+        data: {
+          status: "success",
+          amount_minor: 2500,
+          currency: "ILS",
+          metadata: {
+            expectedAmountMinor: 2500,
+          },
+          id: "txn-ref-alias",
+        },
+      },
+    });
+
+    const eventPayload = {
+      event: "charge.success",
+      data: {
+        ref: reference,
+        amount_minor: 2500,
+        currency: "ILS",
+        metadata: {
+          expectedAmountMinor: 2500,
+        },
+      },
+    };
+    const rawBody = Buffer.from(JSON.stringify(eventPayload));
+    const signature = crypto
+      .createHmac("sha256", process.env.LAHZA_SECRET_KEY)
+      .update(rawBody)
+      .digest("hex");
+
+    const req = {
+      headers: {},
+      body: rawBody,
+      socket: { remoteAddress: allowedIp },
+      ip: allowedIp,
+      get(header) {
+        if (header && header.toLowerCase() === "x-lahza-signature") {
+          return signature;
+        }
+        return this.headers[header];
+      },
+    };
+    const res = createMockRes();
+
+    try {
+      await lahzaWebhookHandler(req, res);
+    } finally {
+      axios.get = previousAxiosGet;
+    }
+
+    assert.equal(res.statusCode, 200);
+    const saved = ordersStore.get(orderId);
+    assert.ok(saved, "order should remain stored");
+    assert.equal(saved.paymentStatus, "paid");
+  }
+);
