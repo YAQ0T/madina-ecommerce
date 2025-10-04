@@ -33,7 +33,7 @@ const ForgotPassword: React.FC = () => {
 
   // ====== المرحلة 1: طلب إرسال الرمز ======
   const [phase, setPhase] = useState<Phase>("request");
-  const [identifier, setIdentifier] = useState(""); // بريد أو جوال
+  const [phone, setPhone] = useState("");
   const [reqLoading, setReqLoading] = useState(false);
   const [reqError, setReqError] = useState("");
   const [reqInfo, setReqInfo] = useState("");
@@ -46,8 +46,11 @@ const ForgotPassword: React.FC = () => {
   const [resetError, setResetError] = useState("");
   const [resetInfo, setResetInfo] = useState("");
 
-  const isEmail = useMemo(() => identifier.includes("@"), [identifier]);
-  const canRequest = useMemo(() => identifier.trim().length > 0, [identifier]);
+  const normalizedPhone = useMemo(() => normalizePhone(phone), [phone]);
+  const canRequest = useMemo(
+    () => normalizedPhone.trim().length > 0,
+    [normalizedPhone]
+  );
 
   const canReset = useMemo(() => {
     return (
@@ -61,24 +64,19 @@ const ForgotPassword: React.FC = () => {
     setReqInfo("");
 
     if (!canRequest) {
-      setReqError("الرجاء إدخال البريد الإلكتروني أو رقم الجوال.");
+      setReqError("الرجاء إدخال رقم الجوال.");
       return;
     }
 
     try {
       setReqLoading(true);
 
-      // تجهيز الحمولة حسب المُعرّف
-      const body: any = {};
-      if (isEmail) {
-        body.email = identifier.trim().toLowerCase();
-      } else {
-        body.phone = normalizePhone(identifier);
-      }
+      const sanitized = normalizedPhone;
+      const payload = { phone: sanitized };
 
       const res = await axios.post(
         `${API_BASE}/auth/password/request-reset`,
-        body,
+        payload,
         { headers: { "Content-Type": "application/json" } }
       );
 
@@ -89,8 +87,8 @@ const ForgotPassword: React.FC = () => {
 
       // ننقل مباشرة للمرحلة الثانية
       setPhase("reset");
-      // نخزّن المُعرّف محليًا لتضمينه لاحقًا (الإيميل مفيد للـ /reset، الجوال ليس شرطًا)
-      sessionStorage.setItem("pwreset_identifier", identifier.trim());
+      sessionStorage.setItem("pwreset_phone", sanitized);
+      setPhone(sanitized);
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
@@ -122,15 +120,11 @@ const ForgotPassword: React.FC = () => {
     try {
       setResetLoading(true);
 
-      // نرسل دائمًا token و password
-      // إن كان التسجيل بالإيميل، نرسل الإيميل أيضًا (السيرفر يدعمه)
+      // نرسل دائمًا token و password (المعرّف ليس مطلوبًا حاليًا)
       const body: any = {
         token: code.trim(),
         password,
       };
-      if (isEmail) {
-        body.email = identifier.trim().toLowerCase();
-      }
 
       const res = await axios.post(`${API_BASE}/auth/password/reset`, body, {
         headers: { "Content-Type": "application/json" },
@@ -142,7 +136,7 @@ const ForgotPassword: React.FC = () => {
       setResetInfo(okMsg);
 
       // تنظيف القيم المؤقتة والتوجيه لتسجيل الدخول
-      sessionStorage.removeItem("pwreset_identifier");
+      sessionStorage.removeItem("pwreset_phone");
       setTimeout(() => navigate("/login"), 900);
     } catch (err: any) {
       const msg =
@@ -161,17 +155,16 @@ const ForgotPassword: React.FC = () => {
     setReqError("");
     setReqInfo("");
 
-    if (!identifier.trim()) {
-      setReqError("المعرّف مفقود. الرجاء العودة للخطوة الأولى وإدخاله.");
+    if (!canRequest) {
+      setReqError("رقم الجوال مفقود. الرجاء العودة للخطوة الأولى وإدخاله.");
       setPhase("request");
       return;
     }
 
     try {
       setReqLoading(true);
-      const body: any = {};
-      if (isEmail) body.email = identifier.trim().toLowerCase();
-      else body.phone = normalizePhone(identifier);
+      const sanitized = normalizedPhone;
+      const body = { phone: sanitized };
 
       const res = await axios.post(
         `${API_BASE}/auth/password/request-reset`,
@@ -201,8 +194,8 @@ const ForgotPassword: React.FC = () => {
       <main className="container mx-auto p-4 max-w-xl">
         <h1 className="text-2xl font-bold mb-2">استعادة كلمة المرور</h1>
         <p className="text-sm text-muted-foreground mb-4">
-          أدخل بريدك الإلكتروني أو رقم جوالك ليردك رمز الاستعادة عبر الرسالة
-          القصيرة (SMS) أو البريد، ثم قم بتعيين كلمة مرور جديدة.
+          أدخل رقم جوالك لتصلك رسالة قصيرة (SMS) تحوي رمز الاستعادة، ثم قم
+          بتعيين كلمة مرور جديدة.
         </p>
 
         {/* رسائل عامة للمرحلة الأولى */}
@@ -233,13 +226,11 @@ const ForgotPassword: React.FC = () => {
         {phase === "request" && (
           <form onSubmit={handleRequest} className="space-y-4">
             <div>
-              <label className="block mb-1">
-                البريد الإلكتروني أو رقم الجوال
-              </label>
+              <label className="block mb-1">رقم الجوال</label>
               <Input
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="example@mail.com أو 059XXXXXXX"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="مثال: 059XXXXXXX"
                 required
               />
             </div>
@@ -268,7 +259,7 @@ const ForgotPassword: React.FC = () => {
           <form onSubmit={handleReset} className="space-y-4">
             <div>
               <label className="block mb-1">تم إرسال الرمز إلى</label>
-              <Input value={identifier} disabled />
+              <Input value={normalizedPhone} disabled />
               <p className="text-xs text-muted-foreground mt-1">
                 لم يصلك الرمز؟{" "}
                 <button
