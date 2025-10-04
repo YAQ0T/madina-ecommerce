@@ -216,6 +216,7 @@
       "label": "זמין במלאי: {{count}}",
       "sku": " • SKU: {{sku}}"
     },
+    "quantityLabel": "כמות",
     "cta": {
       "addToCart": "הוספה לעגלה",
       "outOfStock": "אזל מהמלאי"
