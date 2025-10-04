@@ -74,7 +74,11 @@ async function ensureRecaptcha(req, res) {
 /* =============== Helpers =============== */
 const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || "";
 const DEFAULT_PAY_CURRENCY = process.env.PAY_CURRENCY || "ILS";
-const { normalizeMinorAmount, mapVerificationPayload } = require("../utils/lahza");
+const {
+  normalizeMinorAmount,
+  mapVerificationPayload,
+  resolveMinorAmount,
+} = require("../utils/lahza");
 
 async function verifyLahzaCharge(reference) {
   if (!LAHZA_SECRET_KEY) {
@@ -630,10 +634,27 @@ router.patch(
           .json({ message: "تعذر التحقق من الدفع من لحظة، حاول لاحقًا" });
       }
 
-      const amountMinor =
-        typeof verification.amountMinor === "number"
-          ? verification.amountMinor
-          : normalizeMinorAmount(verification.metadata?.expectedAmountMinor);
+      const metadataExpected = resolveMinorAmount({
+        candidates: [
+          verification.metadata?.expectedAmountMinor,
+          verification.metadata?.amountMinor,
+        ],
+      });
+      const fallbackExpected = Math.round(Number(order.total || 0) * 100);
+      const amountMinor = resolveMinorAmount({
+        candidates: [
+          verification.amountMinor,
+          verification.raw?.amount_minor,
+          verification.raw?.amountMinor,
+          verification.raw?.amount,
+          verification.metadata?.amountMinor,
+          verification.metadata?.expectedAmountMinor,
+        ],
+        expectedMinor:
+          metadataExpected !== null && Number.isFinite(metadataExpected)
+            ? metadataExpected
+            : fallbackExpected,
+      });
       const expectedMinor = Math.round(Number(order.total || 0) * 100);
       const amountMatches =
         typeof amountMinor === "number" && Number.isFinite(amountMinor)
