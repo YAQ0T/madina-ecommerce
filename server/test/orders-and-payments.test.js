@@ -6,7 +6,7 @@ const crypto = require("crypto");
 process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = process.env.JWT_SECRET || "x".repeat(32);
 process.env.LAHZA_SECRET_KEY = "test-lahza-secret";
-process.env.WEBHOOK_ALLOWED_IPS = "203.0.113.5";
+process.env.WEBHOOK_ALLOWED_IPS = "::ffff:203.0.113.5:443";
 
 const ordersRouter = require("../routes/orders");
 const paymentsRouter = require("../routes/payments");
@@ -721,8 +721,8 @@ test(
     const req = {
       headers: {},
       body: rawBody,
-      socket: { remoteAddress: `::ffff:${allowedIp}` },
-      ip: `::ffff:${allowedIp}`,
+      socket: { remoteAddress: `::ffff:${allowedIp}:8443` },
+      ip: `::ffff:${allowedIp}:8443`,
       get(header) {
         if (header && header.toLowerCase() === "x-lahza-signature") {
           return signature;
@@ -748,9 +748,14 @@ test(
       "IPv6-mapped remote address should normalize to IPv4"
     );
     assert.equal(
-      normalizeIp(` ::ffff:${allowedIp} `),
+      normalizeIp(` ::ffff:${allowedIp}:1024 `),
       allowedIp,
       "normalizeIp should strip mapped prefix and whitespace"
+    );
+    assert.equal(
+      normalizeIp(`${allowedIp}:443`),
+      allowedIp,
+      "normalizeIp should drop trailing port from IPv4"
     );
   }
 );

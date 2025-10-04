@@ -86,16 +86,27 @@ const MINOR_AMOUNT_TOLERANCE = Number.isFinite(ENV_MINOR_TOLERANCE)
 const WEBHOOK_IP_WHITELIST =
   String(process.env.WEBHOOK_IP_WHITELIST || "true") === "true";
 
+function stripIpv4Port(candidate = "") {
+  const match = String(candidate)
+    .trim()
+    .match(/^(\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/);
+  return match ? match[1] : "";
+}
+
 function normalizeIp(value = "") {
   if (!value) return "";
   const collapsed = String(value).trim().replace(/\s+/g, " ");
   if (!collapsed) return "";
   const mappedMatch = collapsed.match(/^::ffff:\s*(.+)$/i);
   if (mappedMatch) {
-    const candidate = mappedMatch[1].trim();
-    if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(candidate)) {
+    const candidate = stripIpv4Port(mappedMatch[1]);
+    if (candidate) {
       return candidate;
     }
+  }
+  const ipv4 = stripIpv4Port(collapsed);
+  if (ipv4) {
+    return ipv4;
   }
   return collapsed;
 }
