@@ -211,6 +211,7 @@
       "label": "المتوفر: {{count}}",
       "sku": " • SKU: {{sku}}"
     },
+    "quantityLabel": "الكمية",
     "cta": {
       "addToCart": "إضافة للسلة",
       "outOfStock": "غير متوفر"

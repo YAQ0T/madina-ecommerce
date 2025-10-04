@@ -4,6 +4,7 @@ import axios from "axios";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
+import QuantityInput from "@/components/common/QuantityInput";
 import { useCart } from "@/context/CartContext";
 import { getLocalizedText, type LocalizedObject } from "@/lib/localized";
 import { getColorLabel } from "@/lib/colors";
@@ -111,6 +112,7 @@ const ProductDetails: React.FC = () => {
   const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
   const [progressPct, setProgressPct] = useState<number | null>(null);
   const [showDiscountTimer, setShowDiscountTimer] = useState(false);
+  const [quantity, setQuantity] = useState(1);
 
   const productName = useMemo(
     () => getLocalizedText(product?.name, locale) || "",
@@ -246,6 +248,10 @@ const ProductDetails: React.FC = () => {
   }, [variants, measure, color]);
 
   useEffect(() => {
+    setQuantity(1);
+  }, [currentVariant?._id]);
+
+  useEffect(() => {
     if (!measure) {
       setColor("");
       return;
@@ -274,6 +280,21 @@ const ProductDetails: React.FC = () => {
   const finalAmount = currentVariant?.finalAmount;
   const compareAt = currentVariant?.displayCompareAt ?? null;
   const inStock = currentVariant?.stock?.inStock ?? 0;
+
+  const handleQuantityChange = (newQty: number) => {
+    setQuantity((prev) => {
+      const desired = Number.isFinite(newQty) ? newQty : prev;
+      if (!currentVariant) return Math.max(1, desired);
+      const max = currentVariant.stock?.inStock ?? 0;
+      if (max <= 0) return 1;
+      return clamp(desired, 1, max);
+    });
+  };
+
+  const isQuantityValid =
+    !!currentVariant && inStock > 0 && quantity >= 1 && quantity <= inStock;
+
+  const isCtaDisabled = !currentVariant || inStock <= 0 || !isQuantityValid;
 
   const discountPercent =
     typeof finalAmount === "number" &&
@@ -505,32 +526,43 @@ const ProductDetails: React.FC = () => {
               </p>
             )}
 
-            <Button
-              disabled={!currentVariant || inStock <= 0}
-              onClick={() => {
-                if (!currentVariant) return;
-                addToCart(
-                  {
-                    ...product,
-                    selectedVariantId: currentVariant._id,
-                    selectedSku: currentVariant.stock.sku,
-                    selectedMeasure: currentVariant.measure,
-                    selectedMeasureUnit:
-                      currentVariant.measureUnit || undefined, // ✅
-                    selectedColor: currentVariant.color?.name,
-                    price:
-                      typeof currentVariant.finalAmount === "number"
-                        ? currentVariant.finalAmount
-                        : currentVariant.price?.amount,
-                  },
-                  1
-                );
-              }}
-            >
+            <div className="flex items-end gap-4 mt-6">
+              <div className="flex flex-col gap-2 text-right">
+                <label className="text-sm font-medium">
+                  {t("productDetails.quantityLabel")}
+                </label>
+                <QuantityInput
+                  quantity={quantity}
+                  onChange={handleQuantityChange}
+                />
+              </div>
+              <Button
+                disabled={isCtaDisabled}
+                onClick={() => {
+                  if (!currentVariant || isCtaDisabled) return;
+                  addToCart(
+                    {
+                      ...product,
+                      selectedVariantId: currentVariant._id,
+                      selectedSku: currentVariant.stock.sku,
+                      selectedMeasure: currentVariant.measure,
+                      selectedMeasureUnit:
+                        currentVariant.measureUnit || undefined, // ✅
+                      selectedColor: currentVariant.color?.name,
+                      price:
+                        typeof currentVariant.finalAmount === "number"
+                          ? currentVariant.finalAmount
+                          : currentVariant.price?.amount,
+                    },
+                    quantity
+                  );
+                }}
+              >
               {inStock > 0
                 ? t("productDetails.cta.addToCart")
                 : t("productDetails.cta.outOfStock")}
-            </Button>
+              </Button>
+            </div>
           </div>
         </div>
       </main>
