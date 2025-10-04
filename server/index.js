@@ -78,6 +78,11 @@ app.set("trust proxy", 1);
  * ===================================================== */
 
 const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || "";
+// Minor-unit tolerance (e.g., 1 = allow 0.01 currency unit difference)
+const ENV_MINOR_TOLERANCE = Number(process.env.PAYMENT_MINOR_TOLERANCE);
+const MINOR_AMOUNT_TOLERANCE = Number.isFinite(ENV_MINOR_TOLERANCE)
+  ? Math.max(0, Math.round(ENV_MINOR_TOLERANCE))
+  : 1;
 const WEBHOOK_IP_WHITELIST =
   String(process.env.WEBHOOK_IP_WHITELIST || "true") === "true";
 const WEBHOOK_ALLOWED_IPS = (
@@ -251,9 +256,13 @@ app.post(
           .toUpperCase();
         const expectedCurrency = storedCurrency || fallbackCurrency;
 
+        const amountDelta =
+          typeof amountMinor === "number" && Number.isFinite(amountMinor)
+            ? Math.abs(amountMinor - expectedMinor)
+            : null;
         const amountMatches =
           typeof amountMinor === "number" && Number.isFinite(amountMinor)
-            ? amountMinor === expectedMinor
+            ? amountDelta <= MINOR_AMOUNT_TOLERANCE
             : false;
         const currencyMatches =
           !expectedCurrency || !verifiedCurrency
@@ -271,6 +280,8 @@ app.post(
             reference,
             amountMinor,
             expectedMinor,
+            amountDelta,
+            toleranceMinor: MINOR_AMOUNT_TOLERANCE,
             verifiedCurrency,
             expectedCurrency,
           });

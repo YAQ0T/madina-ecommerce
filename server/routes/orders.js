@@ -74,6 +74,11 @@ async function ensureRecaptcha(req, res) {
 /* =============== Helpers =============== */
 const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || "";
 const DEFAULT_PAY_CURRENCY = process.env.PAY_CURRENCY || "ILS";
+// Minor-unit tolerance shared with webhook handler
+const ENV_MINOR_TOLERANCE = Number(process.env.PAYMENT_MINOR_TOLERANCE);
+const MINOR_AMOUNT_TOLERANCE = Number.isFinite(ENV_MINOR_TOLERANCE)
+  ? Math.max(0, Math.round(ENV_MINOR_TOLERANCE))
+  : 1;
 const {
   normalizeMinorAmount,
   mapVerificationPayload,
@@ -656,9 +661,13 @@ router.patch(
             : fallbackExpected,
       });
       const expectedMinor = Math.round(Number(order.total || 0) * 100);
+      const amountDelta =
+        typeof amountMinor === "number" && Number.isFinite(amountMinor)
+          ? Math.abs(amountMinor - expectedMinor)
+          : null;
       const amountMatches =
         typeof amountMinor === "number" && Number.isFinite(amountMinor)
-          ? amountMinor === expectedMinor
+          ? amountDelta <= MINOR_AMOUNT_TOLERANCE
           : false;
 
       const actualCurrency = (verification.currency || "")
@@ -692,6 +701,8 @@ router.patch(
           reference,
           amountMinor,
           expectedMinor,
+          amountDelta,
+          toleranceMinor: MINOR_AMOUNT_TOLERANCE,
           actualCurrency,
           expectedCurrency,
         });
@@ -705,6 +716,8 @@ router.patch(
           details: {
             expectedAmountMinor: expectedMinor,
             actualAmountMinor: amountMinor ?? null,
+            amountDelta: amountDelta ?? null,
+            toleranceMinor: MINOR_AMOUNT_TOLERANCE,
             expectedCurrency,
             actualCurrency: actualCurrency || null,
           },
