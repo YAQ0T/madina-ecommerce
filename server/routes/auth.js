@@ -10,6 +10,19 @@ const { getJwtSecret } = require("../utils/config");
 
 const router = express.Router();
 
+const DEFAULT_RESET_PASSWORD_MAX_ATTEMPTS = 5;
+const parsedResetAttempts = Number.parseInt(
+  process.env.RESET_PASSWORD_MAX_ATTEMPTS,
+  10
+);
+const RESET_PASSWORD_MAX_ATTEMPTS =
+  Number.isInteger(parsedResetAttempts) && parsedResetAttempts > 0
+    ? parsedResetAttempts
+    : DEFAULT_RESET_PASSWORD_MAX_ATTEMPTS;
+
+const RESET_PASSWORD_THROTTLE_MESSAGE =
+  "تجاوزت الحد المسموح لمحاولات التحقق. اطلب رمزًا جديدًا.";
+
 /* =========================
    ضبط بيئة/إعدادات
 ========================= */
@@ -512,9 +525,22 @@ router.post("/password/reset", async (req, res) => {
       return res.status(400).json({ message: "رمز غير صحيح أو منتهي" });
     }
 
+    const attempts = Number.isFinite(Number(user.resetPasswordAttempts))
+      ? Number(user.resetPasswordAttempts)
+      : 0;
+    if (attempts >= RESET_PASSWORD_MAX_ATTEMPTS) {
+      return res
+        .status(429)
+        .json({ message: RESET_PASSWORD_THROTTLE_MESSAGE });
+    }
+
     const ok = await bcrypt.compare(String(token), user.resetPasswordCodeHash);
     if (!ok) {
-      return res.status(400).json({ message: "رمز غير صحيح أو منتهي" });
+      user.resetPasswordAttempts = attempts + 1;
+      await user.save();
+      return res
+        .status(429)
+        .json({ message: RESET_PASSWORD_THROTTLE_MESSAGE });
     }
 
     const newPassword = String(password);
