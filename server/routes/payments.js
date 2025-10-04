@@ -100,6 +100,7 @@ router.post("/create", verifyTokenOptional, async (req, res) => {
         $set: {
           reference,
           paymentMethod: "card",
+          paymentCurrency: currency,
         },
       },
       { new: true }

@@ -97,6 +97,10 @@ const OrderSchema = new mongoose.Schema(
       default: "cod",
       index: true,
     },
+    paymentCurrency: {
+      type: String,
+      default: () => process.env.PAY_CURRENCY || "ILS",
+    },
     paymentStatus: {
       type: String,
       enum: ["unpaid", "paid", "failed"],
@@ -104,6 +108,9 @@ const OrderSchema = new mongoose.Schema(
       index: true,
     },
     reference: { type: String, index: true, default: null },
+    paymentVerifiedAmount: { type: Number, min: 0, default: null },
+    paymentVerifiedCurrency: { type: String, default: "" },
+    paymentTransactionId: { type: String, default: "" },
     notes: { type: String, default: "" },
   },
   { timestamps: true }

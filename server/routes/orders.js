@@ -73,6 +73,8 @@ async function ensureRecaptcha(req, res) {
 
 /* =============== Helpers =============== */
 const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || "";
+const DEFAULT_PAY_CURRENCY = process.env.PAY_CURRENCY || "ILS";
+const { normalizeMinorAmount, mapVerificationPayload } = require("../utils/lahza");
 
 async function verifyLahzaCharge(reference) {
   if (!LAHZA_SECRET_KEY) {
@@ -93,7 +95,16 @@ async function verifyLahzaCharge(reference) {
     timeout: 15000,
   });
 
-  return String(data?.data?.status || "").toLowerCase() === "success";
+  const payload = mapVerificationPayload(data?.data || {});
+  return {
+    status: payload.status,
+    amountMinor: payload.amountMinor,
+    amount: payload.amountMinor != null ? payload.amountMinor / 100 : null,
+    currency: payload.currency,
+    metadata: payload.metadata,
+    transactionId: payload.transactionId,
+    raw: data?.data || {},
+  };
 }
 
 const isNonEmpty = (s) => typeof s === "string" && s.trim().length > 0;
@@ -417,6 +428,7 @@ router.post("/", verifyTokenOptional, async (req, res) => {
         ? status
         : "waiting_confirmation",
       paymentMethod: "cod",
+      paymentCurrency: DEFAULT_PAY_CURRENCY,
       paymentStatus: "unpaid",
 
       reference: null,
@@ -570,6 +582,7 @@ router.post("/prepare-card", verifyTokenOptional, async (req, res) => {
       address: String(address).trim(),
       status: "waiting_confirmation",
       paymentMethod: "card",
+      paymentCurrency: DEFAULT_PAY_CURRENCY,
       paymentStatus: "unpaid",
       reference: null,
       notes: isNonEmpty(notes) ? String(notes).trim() : "",
@@ -592,9 +605,16 @@ router.patch(
       const reference = String(req.params.reference || "").trim();
       if (!reference)
         return res.status(400).json({ message: "reference مطلوب" });
+
+      const order = await Order.findOne({ reference }).lean();
+      if (!order) {
+        return res.status(404).json({ message: "طلب غير موجود لهذا المرجع" });
+      }
+
+      let verification;
       try {
-        const verified = await verifyLahzaCharge(reference);
-        if (!verified) {
+        verification = await verifyLahzaCharge(reference);
+        if (!verification || verification.status !== "success") {
           return res
             .status(400)
             .json({ message: "فشل تأكيد الدفع من لحظة لهذا المرجع" });
@@ -610,16 +630,84 @@ router.patch(
           .json({ message: "تعذر التحقق من الدفع من لحظة، حاول لاحقًا" });
       }
 
+      const amountMinor =
+        typeof verification.amountMinor === "number"
+          ? verification.amountMinor
+          : normalizeMinorAmount(verification.metadata?.expectedAmountMinor);
+      const expectedMinor = Math.round(Number(order.total || 0) * 100);
+      const amountMatches =
+        typeof amountMinor === "number" && Number.isFinite(amountMinor)
+          ? amountMinor === expectedMinor
+          : false;
+
+      const actualCurrency = (verification.currency || "")
+        .toString()
+        .trim()
+        .toUpperCase();
+      const expectedCurrency = (order.paymentCurrency || DEFAULT_PAY_CURRENCY || "")
+        .toString()
+        .trim()
+        .toUpperCase();
+      const currencyMatches = expectedCurrency
+        ? actualCurrency && actualCurrency === expectedCurrency
+        : true;
+
+      const amountForStorage =
+        typeof amountMinor === "number" && Number.isFinite(amountMinor)
+          ? Number((amountMinor / 100).toFixed(2))
+          : null;
+      const transactionId = verification.transactionId || null;
+
+      const paymentDetailsUpdate = {};
+      if (amountForStorage !== null)
+        paymentDetailsUpdate.paymentVerifiedAmount = amountForStorage;
+      if (actualCurrency)
+        paymentDetailsUpdate.paymentVerifiedCurrency = actualCurrency;
+      if (transactionId)
+        paymentDetailsUpdate.paymentTransactionId = String(transactionId);
+
+      if (!amountMatches || !currencyMatches) {
+        console.error("🚫 Admin pay: تعارض في مبلغ/عملة الدفع", {
+          reference,
+          amountMinor,
+          expectedMinor,
+          actualCurrency,
+          expectedCurrency,
+        });
+
+        if (Object.keys(paymentDetailsUpdate).length) {
+          await Order.updateOne({ _id: order._id }, { $set: paymentDetailsUpdate });
+        }
+
+        return res.status(400).json({
+          message: "مبلغ أو عملة الدفع لا تطابق الطلب",
+          details: {
+            expectedAmountMinor: expectedMinor,
+            actualAmountMinor: amountMinor ?? null,
+            expectedCurrency,
+            actualCurrency: actualCurrency || null,
+          },
+        });
+      }
+
+      const updateSet = {
+        paymentStatus: "paid",
+        status: "waiting_confirmation",
+        ...paymentDetailsUpdate,
+      };
+      if (!order.paymentCurrency && actualCurrency) {
+        updateSet.paymentCurrency = actualCurrency;
+      }
+
       const updated = await Order.findOneAndUpdate(
-        { reference, paymentStatus: { $ne: "paid" } },
-        { $set: { paymentStatus: "paid", status: "waiting_confirmation" } },
+        { _id: order._id, paymentStatus: { $ne: "paid" } },
+        { $set: updateSet },
         { new: true }
       ).lean();
 
       if (!updated) {
-        const existing = await Order.findOne({ reference }).lean();
-        if (!existing)
-          return res.status(404).json({ message: "طلب غير موجود لهذا المرجع" });
+        await Order.updateOne({ _id: order._id }, { $set: updateSet });
+        const existing = await Order.findOne({ _id: order._id }).lean();
         return res.json({ message: "الطلب مدفوع مسبقًا", order: existing });
       }
 
