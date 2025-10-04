@@ -15,13 +15,50 @@ function toNumber(value) {
 }
 
 function normalizeMinorAmount(...candidates) {
+  return resolveMinorAmount({ candidates });
+}
+
+function resolveMinorAmount({ candidates = [], expectedMinor = null } = {}) {
+  const normalizedCandidates = [];
   for (const candidate of candidates) {
     const num = toNumber(candidate);
     if (num === null) continue;
-    // Lahza amounts are returned in the smallest currency unit.
-    return Math.round(num);
+    normalizedCandidates.push(num);
   }
-  return null;
+
+  const expectedValue = toNumber(expectedMinor);
+  const normalizedExpected =
+    expectedValue !== null && Number.isFinite(expectedValue)
+      ? Math.round(expectedValue)
+      : null;
+
+  if (normalizedExpected !== null) {
+    for (const num of normalizedCandidates) {
+      if (Math.round(num) === normalizedExpected) {
+        return normalizedExpected;
+      }
+    }
+
+    for (const num of normalizedCandidates) {
+      const scaledUp = Math.round(num * 100);
+      if (scaledUp === normalizedExpected) {
+        return scaledUp;
+      }
+    }
+
+    for (const num of normalizedCandidates) {
+      const scaledDown = Math.round(num / 100);
+      if (scaledDown === normalizedExpected) {
+        return normalizedExpected;
+      }
+    }
+  }
+
+  if (normalizedCandidates.length) {
+    return Math.round(normalizedCandidates[0]);
+  }
+
+  return normalizedExpected;
 }
 
 function parseMetadata(raw) {
@@ -64,13 +101,19 @@ function extractTransactionId(data = {}) {
 
 function mapVerificationPayload(raw = {}) {
   const metadata = parseMetadata(raw.metadata);
-  const amountMinor = normalizeMinorAmount(
-    raw.amount_minor,
-    raw.amountMinor,
-    raw.amount,
-    metadata.amountMinor,
-    metadata.expectedAmountMinor
-  );
+  const expectedMinor = resolveMinorAmount({
+    candidates: [metadata.expectedAmountMinor, metadata.amountMinor],
+  });
+  const amountMinor = resolveMinorAmount({
+    candidates: [
+      raw.amount_minor,
+      raw.amountMinor,
+      raw.amount,
+      metadata.amountMinor,
+      metadata.expectedAmountMinor,
+    ],
+    expectedMinor,
+  });
 
   return {
     status: String(raw.status || "").toLowerCase(),
@@ -85,4 +128,5 @@ module.exports = {
   normalizeMinorAmount,
   parseMetadata,
   mapVerificationPayload,
+  resolveMinorAmount,
 };

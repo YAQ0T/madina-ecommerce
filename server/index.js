@@ -95,6 +95,7 @@ const {
   normalizeMinorAmount,
   parseMetadata,
   mapVerificationPayload,
+  resolveMinorAmount,
 } = require("./utils/lahza");
 
 function getClientIp(req) {
@@ -203,16 +204,46 @@ app.post(
           return res.sendStatus(200);
         }
 
-        const amountMinor =
-          verification.amountMinor ??
-          eventSnapshot.amountMinor ??
-          normalizeMinorAmount(eventMetadata.expectedAmountMinor);
+        const verificationExpected = resolveMinorAmount({
+          candidates: [
+            verification.metadata?.expectedAmountMinor,
+            verification.metadata?.amountMinor,
+          ],
+        });
+        const eventExpected = resolveMinorAmount({
+          candidates: [
+            eventSnapshot.metadata?.expectedAmountMinor,
+            eventSnapshot.metadata?.amountMinor,
+            eventMetadata.expectedAmountMinor,
+            eventMetadata.amountMinor,
+          ],
+        });
+        const orderExpectedMinor = Math.round(Number(order.total || 0) * 100);
+        const expectedHint = Number.isFinite(verificationExpected)
+          ? verificationExpected
+          : Number.isFinite(eventExpected)
+          ? eventExpected
+          : orderExpectedMinor;
+        const amountMinor = resolveMinorAmount({
+          candidates: [
+            verification.amountMinor,
+            eventSnapshot.amountMinor,
+            eventPayload.amount_minor,
+            eventPayload.amountMinor,
+            eventPayload.amount,
+            verification.metadata?.amountMinor,
+            verification.metadata?.expectedAmountMinor,
+            eventMetadata.amountMinor,
+            eventMetadata.expectedAmountMinor,
+          ],
+          expectedMinor: expectedHint,
+        });
         const verifiedCurrency = (verification.currency || eventSnapshot.currency || "")
           .toString()
           .trim()
           .toUpperCase();
 
-        const expectedMinor = Math.round(Number(order.total || 0) * 100);
+        const expectedMinor = orderExpectedMinor;
         const storedCurrency = (order.paymentCurrency || "").toString().trim().toUpperCase();
         const fallbackCurrency = (eventMetadata.expectedCurrency || "")
           .toString()

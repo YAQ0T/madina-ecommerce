@@ -17,6 +17,9 @@ const axios = require("axios");
 
 const ordersStore = new Map();
 
+const defaultAxiosGet = async () => ({ data: { data: {} } });
+axios.get = defaultAxiosGet;
+
 Order.create = async (doc) => {
   const _id = new mongoose.Types.ObjectId().toString();
   const saved = { ...doc, _id };
@@ -45,6 +48,67 @@ if (typeof originalFindOneAndUpdate !== "function") {
     lean: async () => null,
   });
 }
+
+function normalizeComparable(value) {
+  if (value === null || value === undefined) return value;
+  if (value instanceof mongoose.Types.ObjectId) {
+    return value.toString();
+  }
+  if (typeof value === "object" && typeof value.toString === "function") {
+    return value.toString();
+  }
+  return value;
+}
+
+function matchesFilter(doc, filter = {}) {
+  if (!filter || typeof filter !== "object") return true;
+  return Object.entries(filter).every(([key, value]) => {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      if (Object.prototype.hasOwnProperty.call(value, "$ne")) {
+        return (
+          normalizeComparable(doc[key]) !== normalizeComparable(value.$ne)
+        );
+      }
+      return false;
+    }
+    return normalizeComparable(doc[key]) === normalizeComparable(value);
+  });
+}
+
+Order.findOne = (filter = {}) => ({
+  lean: async () => {
+    for (const order of ordersStore.values()) {
+      if (matchesFilter(order, filter)) {
+        return { ...order };
+      }
+    }
+    return null;
+  },
+});
+
+Order.findOneAndUpdate = (filter = {}, update = {}, options = {}) => ({
+  lean: async () => {
+    for (const [id, order] of ordersStore.entries()) {
+      if (!matchesFilter(order, filter)) continue;
+      const set = { ...(update?.$set || {}) };
+      const updated = { ...order, ...set };
+      ordersStore.set(id, updated);
+      return options?.new ? { ...updated } : { ...order };
+    }
+    return null;
+  },
+});
+
+Order.updateOne = async (filter = {}, update = {}) => {
+  for (const [id, order] of ordersStore.entries()) {
+    if (!matchesFilter(order, filter)) continue;
+    const set = { ...(update?.$set || {}) };
+    const updated = { ...order, ...set };
+    ordersStore.set(id, updated);
+    return { acknowledged: true, matchedCount: 1, modifiedCount: 1 };
+  }
+  return { acknowledged: false, matchedCount: 0, modifiedCount: 0 };
+};
 
 let variantResolver = () => null;
 Variant.findOne = (query) => ({
@@ -92,6 +156,7 @@ function resetState() {
   variantResolver = () => null;
   productResolver = () => null;
   discountResolver = () => null;
+  axios.get = defaultAxiosGet;
 }
 
 function createMockRes() {
@@ -131,6 +196,11 @@ const prepareCardHandler = getRouteHandler(
   "/prepare-card"
 );
 const lahzaCreateHandler = getRouteHandler(paymentsRouter, "post", "/create");
+const adminPayHandler = getRouteHandler(
+  ordersRouter,
+  "patch",
+  "/by-reference/:reference/pay"
+);
 test(
   "COD orders force paymentStatus to unpaid",
   { concurrency: false },
@@ -467,5 +537,71 @@ test(
     assert.equal(saved.total, expectedTotal);
     assert.equal(saved.reference, "lahza-ref-123");
     assert.equal(saved.paymentMethod, "card");
+  }
+);
+
+test(
+  "Admin pay accepts Lahza verification amounts returned in major units",
+  { concurrency: false },
+  async () => {
+    resetState();
+
+    const reference = "lahza-major-amount";
+    const orderId = new mongoose.Types.ObjectId().toString();
+    const baseOrder = {
+      _id: orderId,
+      reference,
+      total: 120,
+      subtotal: 120,
+      discount: { amount: 0 },
+      items: [],
+      paymentStatus: "unpaid",
+      paymentCurrency: "ILS",
+      status: "waiting_confirmation",
+    };
+    ordersStore.set(orderId, baseOrder);
+
+    const previousAxiosGet = axios.get;
+    axios.get = async (url) => {
+      assert.ok(
+        url.includes(reference),
+        "verification call should target the order reference"
+      );
+      return {
+        data: {
+          data: {
+            status: "success",
+            amount: 120,
+            currency: "ILS",
+            metadata: {
+              expectedAmountMinor: 12000,
+            },
+            reference,
+            id: "txn-120",
+          },
+        },
+      };
+    };
+
+    const req = {
+      params: { reference },
+      user: { id: new mongoose.Types.ObjectId().toString(), role: "admin" },
+    };
+    const res = createMockRes();
+
+    try {
+      await adminPayHandler(req, res);
+    } finally {
+      axios.get = previousAxiosGet;
+    }
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.paymentStatus, "paid");
+    assert.equal(res.body.paymentVerifiedAmount, 120);
+
+    const saved = ordersStore.get(orderId);
+    assert.ok(saved, "order should remain stored");
+    assert.equal(saved.paymentStatus, "paid");
+    assert.equal(saved.paymentVerifiedAmount, 120);
   }
 );
