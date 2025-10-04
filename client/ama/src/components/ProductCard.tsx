@@ -8,6 +8,7 @@ import { getLocalizedText, type LocalizedText } from "@/lib/localized";
 import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
+import QuantityInput from "@/components/common/QuantityInput";
 import {
   Dialog,
   DialogContent,
@@ -95,6 +96,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   // Dialog للموبايل
   const [openDialog, setOpenDialog] = useState(false);
+  const [quantity, setQuantity] = useState(1);
 
   // جلب المتغيّرات
   useEffect(() => {
@@ -181,6 +183,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     );
   }, [variants, selectedMeasure, selectedColor]);
 
+  const currentVariantId = currentVariant?._id ?? "no-variant";
+
   const displayedImages = useMemo(() => {
     const variantColorImages =
       currentVariant?.color?.images?.filter(Boolean) ?? [];
@@ -210,6 +214,16 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   useEffect(() => {
     setCurrentImage(0);
   }, [displayedImages]);
+
+  useEffect(() => {
+    setQuantity(1);
+  }, [currentVariantId]);
+
+  useEffect(() => {
+    if (!openDialog) {
+      setQuantity(1);
+    }
+  }, [openDialog]);
 
   // الأسعار/الخصم
   const variantFinal = currentVariant?.finalAmount;
@@ -289,7 +303,21 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const arrowIcon = "pointer-events-none select-none";
 
   // إضافة للسلة
+  const handleQuantityChange = useCallback(
+    (newQty: number) => {
+      const maxQty = currentVariant?.stock?.inStock;
+      const safeQty = clamp(
+        newQty,
+        1,
+        typeof maxQty === "number" && maxQty > 0 ? maxQty : newQty
+      );
+      setQuantity(safeQty);
+    },
+    [currentVariant?.stock?.inStock]
+  );
+
   const addItemToCart = useCallback(() => {
+    const effectiveQuantity = Math.max(1, quantity);
     if (variants.length > 0) {
       if (!currentVariant) return;
       if ((currentVariant.stock?.inStock ?? 0) <= 0) return;
@@ -307,7 +335,12 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             ? currentVariant.finalAmount
             : currentVariant.price?.amount ?? product.price ?? 0,
       };
-      addToCart(itemForCart, 1);
+      const maxQty = currentVariant.stock?.inStock;
+      const finalQuantity =
+        typeof maxQty === "number" && maxQty > 0
+          ? clamp(effectiveQuantity, 1, maxQty)
+          : effectiveQuantity;
+      addToCart(itemForCart, finalQuantity);
     } else {
       const productForCart = {
         ...product,
@@ -316,7 +349,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         selectedColor,
         price: product.price ?? 0,
       };
-      addToCart(productForCart, 1);
+      addToCart(productForCart, effectiveQuantity);
     }
   }, [
     addToCart,
@@ -326,14 +359,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     displayedImages,
     selectedMeasure,
     selectedColor,
+    quantity,
   ]);
 
   const handleQuickAddClick = () => {
-    // لو ما في متغيّرات: أضف فوراً
-    if (variants.length === 0) {
-      addItemToCart();
-      return;
-    }
     // افتح الديالوج للموبايل
     setOpenDialog(true);
   };
@@ -685,12 +714,15 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         )}
 
         {/* أزرار الديسكتوب — كما هي */}
-        <div className="mt-auto">
-          <Button onClick={addItemToCart} className="w-full">
-            {t("productCard.addToCart")}
-          </Button>
+        <div className="mt-auto flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <QuantityInput quantity={quantity} onChange={handleQuantityChange} />
+            <Button onClick={addItemToCart} className="flex-1">
+              {t("productCard.addToCart")}
+            </Button>
+          </div>
           <Link to={`/products/${product._id}`}>
-            <Button variant="secondary" className="w-full mt-2">
+            <Button variant="secondary" className="w-full">
               {t("productCard.viewDetails")}
             </Button>
           </Link>
@@ -888,6 +920,16 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                       : t("productCard.outOfStock")}
                   </div>
                 )}
+
+                <div className="mb-4 flex items-center gap-3 justify-end">
+                  <span className="text-sm text-gray-700">
+                    {t("productCard.quantityLabel")}
+                  </span>
+                  <QuantityInput
+                    quantity={quantity}
+                    onChange={handleQuantityChange}
+                  />
+                </div>
 
                 <DialogFooter className="gap-2 justify-start md:justify-end">
                   <DialogClose asChild>

@@ -229,6 +229,7 @@
     "discountTimer": "ينتهي قريبًا",
     "dialogDescription": "اختر اللون والمقاس قبل إضافة المنتج إلى السلة.",
     "cancel": "إلغاء",
+    "quantityLabel": "الكمية",
     "inStock": "المتوفر: {{count}}",
     "outOfStock": "غير متوفر حالياً"
   },

@@ -234,6 +234,7 @@
     "discountTimer": "מסתיים בקרוב",
     "dialogDescription": "בחרו צבע ומידה לפני הוספת המוצר לעגלה.",
     "cancel": "ביטול",
+    "quantityLabel": "כמות",
     "inStock": "זמין במלאי: {{count}}",
     "outOfStock": "אזל מהמלאי"
   },
