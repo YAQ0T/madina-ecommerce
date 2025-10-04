@@ -38,9 +38,15 @@ router.patch("/:id/status", verifyToken, isAdmin, async (req, res) => {
       });
     }
 
+    const updateSet = { status };
+    if (status === "delivered") {
+      updateSet.paymentStatus = "paid";
+      updateSet.deliveredAt = new Date();
+    }
+
     const updated = await Order.findByIdAndUpdate(
       id,
-      { $set: { status } },
+      { $set: updateSet },
       { new: true, runValidators: true }
     ).lean();
 

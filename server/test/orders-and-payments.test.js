@@ -8,6 +8,7 @@ process.env.LAHZA_SECRET_KEY = "test-lahza-secret";
 
 const ordersRouter = require("../routes/orders");
 const paymentsRouter = require("../routes/payments");
+const orderStatusRouter = require("../routes/order-status");
 
 const Order = require("../models/Order");
 const Product = require("../models/Product");
@@ -200,6 +201,50 @@ const adminPayHandler = getRouteHandler(
   ordersRouter,
   "patch",
   "/by-reference/:reference/pay"
+);
+const orderStatusHandler = getRouteHandler(
+  orderStatusRouter,
+  "patch",
+  "/:id/status"
+);
+
+test(
+  "Updating an order to delivered marks it as paid",
+  { concurrency: false },
+  async () => {
+    resetState();
+
+    const orderId = new mongoose.Types.ObjectId().toString();
+    const baseOrder = {
+      _id: orderId,
+      status: "on_the_way",
+      paymentStatus: "unpaid",
+      items: [],
+      subtotal: 0,
+      total: 0,
+      discount: { amount: 0 },
+      address: "Delivery Lane",
+    };
+    ordersStore.set(orderId, baseOrder);
+
+    const req = {
+      params: { id: orderId },
+      body: { status: "delivered" },
+      user: { id: new mongoose.Types.ObjectId().toString(), role: "admin" },
+    };
+    const res = createMockRes();
+
+    await orderStatusHandler(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.status, "delivered");
+    assert.equal(res.body.paymentStatus, "paid");
+    assert.ok(res.body.deliveredAt instanceof Date);
+
+    const saved = ordersStore.get(orderId);
+    assert.equal(saved.paymentStatus, "paid");
+    assert.ok(saved.deliveredAt instanceof Date);
+  }
 );
 test(
   "COD orders force paymentStatus to unpaid",
