@@ -90,3 +90,15 @@ node scripts/export-image-manifests.js --product-out ./manifests/products.jsonl 
 ```
 
 The command exits with a non-zero code if either manifest cannot be written, which makes it safe to plug into automated workflows or CI jobs.
+
+### 10. CORS Configuration
+
+The API only issues credentialed CORS responses to trusted front-end origins. Configure the allowlist with the `CLIENT_ORIGINS`
+environment variable, supplying a comma-separated list of fully-qualified origins (for example,
+```
+CLIENT_ORIGINS="https://shop.example.com,https://admin.example.com"
+```).
+
+If `CLIENT_ORIGINS` is omitted the server automatically allows localhost and 127.0.0.1 origins so developers can work without
+extra configuration. Requests arriving from any other origin receive a non-credentialed CORS response, preventing browsers from
+sending or receiving cookies and other sensitive credentials.

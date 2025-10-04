@@ -13,18 +13,56 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+const normalizeOrigin = (value = "") => {
+  if (!value) return "";
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value.trim().replace(/\/$/, "");
+  }
+};
+
+const parseOriginList = (value = "") =>
+  String(value)
+    .split(",")
+    .map((origin) => normalizeOrigin(origin.trim()))
+    .filter(Boolean);
+
+const ENV_CLIENT_ORIGINS = parseOriginList(process.env.CLIENT_ORIGINS);
+const DEFAULT_DEV_ORIGIN_MATCHERS = [
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i,
+];
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true; // Allow non-CORS/SSR requests.
+  const normalizedOrigin = normalizeOrigin(origin);
+  if (ENV_CLIENT_ORIGINS.length) {
+    return ENV_CLIENT_ORIGINS.some((allowed) => allowed === normalizedOrigin);
+  }
+  return DEFAULT_DEV_ORIGIN_MATCHERS.some((regex) => regex.test(normalizedOrigin));
+};
+
+const corsBaseOptions = {
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-forwarded-for",
+    "x-lahza-signature",
+  ],
+};
+
 /* ---------- CORS ---------- */
 app.use(
-  cors({
-    origin: (origin, cb) => cb(null, true),
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "x-forwarded-for",
-      "x-lahza-signature",
-    ],
-    credentials: true,
+  cors((req, cb) => {
+    const origin = req.headers.origin;
+    const allowed = isOriginAllowed(origin);
+
+    cb(null, {
+      ...corsBaseOptions,
+      origin: origin ? (allowed ? origin : false) : true,
+      credentials: allowed,
+    });
   })
 );
 
