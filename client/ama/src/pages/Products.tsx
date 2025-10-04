@@ -105,8 +105,14 @@ const Products: React.FC = () => {
 
   const { t } = useTranslation();
 
-  const [selectedMainCategory, setSelectedMainCategory] = useState<string>("");
-  const [selectedSubCategory, setSelectedSubCategory] = useState("");
+  const location = useLocation();
+
+  const [selectedMainCategory, setSelectedMainCategory] = useState<string>(() => {
+    return new URLSearchParams(location.search).get("category") ?? "";
+  });
+  const [selectedSubCategory, setSelectedSubCategory] = useState(() => {
+    return new URLSearchParams(location.search).get("sub") ?? "";
+  });
 
   const [rawSearch, setRawSearch] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -128,7 +134,6 @@ const Products: React.FC = () => {
   const [loadingFacets, setLoadingFacets] = useState(false);
   const [facetsError, setFacetsError] = useState<string | null>(null);
 
-  const location = useLocation();
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -176,12 +181,11 @@ const Products: React.FC = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const category = params.get("category");
-    const sub = params.get("sub");
-    if (category) setSelectedMainCategory(category);
-    else setSelectedMainCategory("");
-    if (sub) setSelectedSubCategory(sub);
-    else setSelectedSubCategory("");
+    const category = params.get("category") ?? "";
+    const sub = params.get("sub") ?? "";
+
+    setSelectedMainCategory((prev) => (prev === category ? prev : category));
+    setSelectedSubCategory((prev) => (prev === sub ? prev : sub));
   }, [location.search]);
 
   useEffect(() => {
