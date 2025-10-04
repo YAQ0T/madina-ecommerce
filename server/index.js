@@ -207,8 +207,23 @@ async function lahzaWebhookHandler(req, res) {
     }
 
     // إذا كان حدث نجاح الدفع
-    if (event?.event === "charge.success" && event?.data?.reference) {
-      const reference = String(event.data.reference).trim();
+    if (event?.event === "charge.success") {
+      const rawReference =
+        event?.data?.reference !== undefined && event?.data?.reference !== null
+          ? event.data.reference
+          : event?.data?.ref;
+
+      if (rawReference === undefined || rawReference === null) {
+        console.warn("⚠️ Webhook: charge.success بدون مرجع");
+        return res.sendStatus(200);
+      }
+
+      const reference = String(rawReference).trim();
+      if (!reference) {
+        console.warn("⚠️ Webhook: charge.success بمرجع فارغ");
+        return res.sendStatus(200);
+      }
+
       const order = await Order.findOne({ reference }).lean();
       if (!order) {
         console.warn("⚠️ Webhook: لم يتم العثور على طلب للمرجع", reference);
