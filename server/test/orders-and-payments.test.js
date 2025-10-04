@@ -1,10 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = process.env.JWT_SECRET || "x".repeat(32);
 process.env.LAHZA_SECRET_KEY = "test-lahza-secret";
+process.env.WEBHOOK_ALLOWED_IPS = "203.0.113.5";
 
 const ordersRouter = require("../routes/orders");
 const paymentsRouter = require("../routes/payments");
@@ -15,6 +17,12 @@ const Product = require("../models/Product");
 const Variant = require("../models/Variant");
 const DiscountRule = require("../models/DiscountRule");
 const axios = require("axios");
+const {
+  lahzaWebhookHandler,
+  getClientIp,
+  normalizeIp,
+  WEBHOOK_ALLOWED_IPS,
+} = require("../index");
 
 const ordersStore = new Map();
 
@@ -170,6 +178,11 @@ function createMockRes() {
     },
     json(payload) {
       this.body = payload;
+      return this;
+    },
+    sendStatus(code) {
+      this.statusCode = code;
+      this.body = undefined;
       return this;
     },
   };
@@ -648,5 +661,96 @@ test(
     assert.ok(saved, "order should remain stored");
     assert.equal(saved.paymentStatus, "paid");
     assert.equal(saved.paymentVerifiedAmount, 120);
+  }
+);
+
+test(
+  "Lahza webhook accepts IPv6-mapped allowed IPs",
+  { concurrency: false },
+  async () => {
+    resetState();
+
+    const allowedIp = WEBHOOK_ALLOWED_IPS[0] || "203.0.113.5";
+    const reference = "lahza-ipv6-whitelist";
+    const orderId = new mongoose.Types.ObjectId().toString();
+    const baseOrder = {
+      _id: orderId,
+      reference,
+      total: 50,
+      subtotal: 50,
+      discount: { amount: 0 },
+      items: [],
+      paymentStatus: "unpaid",
+      paymentCurrency: "ILS",
+      status: "waiting_confirmation",
+    };
+    ordersStore.set(orderId, baseOrder);
+
+    const previousAxiosGet = axios.get;
+    axios.get = async () => ({
+      data: {
+        data: {
+          status: "success",
+          amount_minor: 5000,
+          currency: "ILS",
+          metadata: {
+            expectedAmountMinor: 5000,
+          },
+          id: "txn-ipv6",
+        },
+      },
+    });
+
+    const eventPayload = {
+      event: "charge.success",
+      data: {
+        reference,
+        amount_minor: 5000,
+        currency: "ILS",
+        metadata: {
+          expectedAmountMinor: 5000,
+        },
+      },
+    };
+    const rawBody = Buffer.from(JSON.stringify(eventPayload));
+    const signature = crypto
+      .createHmac("sha256", process.env.LAHZA_SECRET_KEY)
+      .update(rawBody)
+      .digest("hex");
+
+    const req = {
+      headers: {},
+      body: rawBody,
+      socket: { remoteAddress: `::ffff:${allowedIp}` },
+      ip: `::ffff:${allowedIp}`,
+      get(header) {
+        if (header && header.toLowerCase() === "x-lahza-signature") {
+          return signature;
+        }
+        return this.headers[header];
+      },
+    };
+    const res = createMockRes();
+
+    try {
+      await lahzaWebhookHandler(req, res);
+    } finally {
+      axios.get = previousAxiosGet;
+    }
+
+    assert.equal(res.statusCode, 200);
+    const saved = ordersStore.get(orderId);
+    assert.ok(saved, "order should remain stored");
+    assert.equal(saved.paymentStatus, "paid");
+    assert.equal(
+      getClientIp(req),
+      allowedIp,
+      "IPv6-mapped remote address should normalize to IPv4"
+    );
+    assert.equal(
+      normalizeIp(` ::ffff:${allowedIp} `),
+      allowedIp,
+      "normalizeIp should strip mapped prefix and whitespace"
+    );
   }
 );

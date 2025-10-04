@@ -85,11 +85,26 @@ const MINOR_AMOUNT_TOLERANCE = Number.isFinite(ENV_MINOR_TOLERANCE)
   : 1;
 const WEBHOOK_IP_WHITELIST =
   String(process.env.WEBHOOK_IP_WHITELIST || "true") === "true";
+
+function normalizeIp(value = "") {
+  if (!value) return "";
+  const collapsed = String(value).trim().replace(/\s+/g, " ");
+  if (!collapsed) return "";
+  const mappedMatch = collapsed.match(/^::ffff:\s*(.+)$/i);
+  if (mappedMatch) {
+    const candidate = mappedMatch[1].trim();
+    if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(candidate)) {
+      return candidate;
+    }
+  }
+  return collapsed;
+}
+
 const WEBHOOK_ALLOWED_IPS = (
   process.env.WEBHOOK_ALLOWED_IPS || "161.35.20.140,165.227.134.20"
 )
   .split(",")
-  .map((s) => s.trim())
+  .map((s) => normalizeIp(s))
   .filter(Boolean);
 
 // ⚠️ موديلات مستخدمة داخل الـ webhook
@@ -105,8 +120,17 @@ const {
 
 function getClientIp(req) {
   const xff = req.headers["x-forwarded-for"];
-  if (xff) return xff.split(",")[0].trim();
-  return req.socket?.remoteAddress || req.ip || "";
+  if (xff) {
+    const first = xff.split(",")[0];
+    return normalizeIp(first);
+  }
+  if (req.socket?.remoteAddress) {
+    return normalizeIp(req.socket.remoteAddress);
+  }
+  if (req.ip) {
+    return normalizeIp(req.ip);
+  }
+  return "";
 }
 
 async function decrementStockByOrderItems(items = []) {
@@ -120,214 +144,220 @@ async function decrementStockByOrderItems(items = []) {
   );
 }
 
+async function lahzaWebhookHandler(req, res) {
+  try {
+    if (!LAHZA_SECRET_KEY) {
+      console.error("⚠️ LAHZA_SECRET_KEY غير معرّف في .env");
+      return res.sendStatus(200);
+    }
+
+    if (WEBHOOK_IP_WHITELIST && WEBHOOK_ALLOWED_IPS.length) {
+      const ip = getClientIp(req);
+      const pass = WEBHOOK_ALLOWED_IPS.some((allowed) => ip === allowed);
+      if (!pass) {
+        console.warn("🚫 Webhook مرفوض من IP غير مسموح:", ip);
+        return res.sendStatus(200);
+      }
+    }
+
+    const signature = req.get("x-lahza-signature") || "";
+    let computed;
+    try {
+      computed = crypto
+        .createHmac("sha256", LAHZA_SECRET_KEY)
+        .update(req.body)
+        .digest("hex");
+    } catch (e) {
+      console.error("❌ فشل إنشاء HMAC:", e.message);
+      return res.sendStatus(200);
+    }
+
+    let verified = false;
+    try {
+      verified = crypto.timingSafeEqual(
+        Buffer.from(computed, "hex"),
+        Buffer.from(signature, "hex")
+      );
+    } catch {
+      verified = false;
+    }
+
+    if (!verified) {
+      console.warn("⚠️ توقيع Webhook غير صالح");
+      return res.sendStatus(200);
+    }
+
+    let event;
+    try {
+      event = JSON.parse(req.body.toString("utf8"));
+    } catch (e) {
+      console.error("❌ جسم Webhook ليس JSON صالح");
+      return res.sendStatus(200);
+    }
+
+    // إذا كان حدث نجاح الدفع
+    if (event?.event === "charge.success" && event?.data?.reference) {
+      const reference = String(event.data.reference).trim();
+      const order = await Order.findOne({ reference }).lean();
+      if (!order) {
+        console.warn("⚠️ Webhook: لم يتم العثور على طلب للمرجع", reference);
+        return res.sendStatus(200);
+      }
+
+      const eventPayload = event.data || {};
+      const eventMetadata = parseMetadata(eventPayload.metadata);
+      const eventSnapshot = mapVerificationPayload({
+        ...eventPayload,
+        metadata: eventMetadata,
+      });
+
+      let verification;
+      try {
+        const url = `https://api.lahza.io/transaction/verify/${encodeURIComponent(
+          reference
+        )}`;
+        const { data } = await axios.get(url, {
+          headers: {
+            Authorization: `Bearer ${LAHZA_SECRET_KEY}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 15000,
+        });
+
+        verification = mapVerificationPayload(data?.data || {});
+        if (verification.status !== "success") {
+          return res.sendStatus(200);
+        }
+      } catch (e) {
+        console.warn("⚠️ فشل التحقق من Lahza:", e?.message || e);
+        return res.sendStatus(200);
+      }
+
+      const verificationExpected = resolveMinorAmount({
+        candidates: [
+          verification.metadata?.expectedAmountMinor,
+          verification.metadata?.amountMinor,
+        ],
+      });
+      const eventExpected = resolveMinorAmount({
+        candidates: [
+          eventSnapshot.metadata?.expectedAmountMinor,
+          eventSnapshot.metadata?.amountMinor,
+          eventMetadata.expectedAmountMinor,
+          eventMetadata.amountMinor,
+        ],
+      });
+      const orderExpectedMinor = Math.round(Number(order.total || 0) * 100);
+      const expectedHint = Number.isFinite(verificationExpected)
+        ? verificationExpected
+        : Number.isFinite(eventExpected)
+        ? eventExpected
+        : orderExpectedMinor;
+      const amountMinor = resolveMinorAmount({
+        candidates: [
+          verification.amountMinor,
+          eventSnapshot.amountMinor,
+          eventPayload.amount_minor,
+          eventPayload.amountMinor,
+          eventPayload.amount,
+          verification.metadata?.amountMinor,
+          verification.metadata?.expectedAmountMinor,
+          eventMetadata.amountMinor,
+          eventMetadata.expectedAmountMinor,
+        ],
+        expectedMinor: expectedHint,
+      });
+      const verifiedCurrency = (verification.currency || eventSnapshot.currency || "")
+        .toString()
+        .trim()
+        .toUpperCase();
+
+      const expectedMinor = orderExpectedMinor;
+      const storedCurrency = (order.paymentCurrency || "").toString().trim().toUpperCase();
+      const fallbackCurrency = (eventMetadata.expectedCurrency || "")
+        .toString()
+        .trim()
+        .toUpperCase();
+      const expectedCurrency = storedCurrency || fallbackCurrency;
+
+      const amountDelta =
+        typeof amountMinor === "number" && Number.isFinite(amountMinor)
+          ? Math.abs(amountMinor - expectedMinor)
+          : null;
+      const amountMatches =
+        typeof amountMinor === "number" && Number.isFinite(amountMinor)
+          ? amountDelta <= MINOR_AMOUNT_TOLERANCE
+          : false;
+      const currencyMatches =
+        !expectedCurrency || !verifiedCurrency
+          ? true
+          : verifiedCurrency === expectedCurrency;
+
+      const amountForStorage =
+        typeof amountMinor === "number" && Number.isFinite(amountMinor)
+          ? Number((amountMinor / 100).toFixed(2))
+          : null;
+      const transactionId =
+        verification.transactionId || eventSnapshot.transactionId || null;
+
+      if (!amountMatches || !currencyMatches) {
+        console.error("🚫 Webhook: تعارض في مبلغ أو عملة الدفع", {
+          reference,
+          amountMinor,
+          expectedMinor,
+          amountDelta,
+          toleranceMinor: MINOR_AMOUNT_TOLERANCE,
+          verifiedCurrency,
+          expectedCurrency,
+        });
+
+        const mismatchSet = {};
+        if (amountForStorage !== null) mismatchSet.paymentVerifiedAmount = amountForStorage;
+        if (verifiedCurrency) mismatchSet.paymentVerifiedCurrency = verifiedCurrency;
+        if (transactionId) mismatchSet.paymentTransactionId = String(transactionId);
+        if (Object.keys(mismatchSet).length) {
+          await Order.updateOne({ _id: order._id }, { $set: mismatchSet });
+        }
+        return res.sendStatus(200);
+      }
+
+      const baseSet = {
+        paymentStatus: "paid",
+        status: "waiting_confirmation",
+      };
+      if (amountForStorage !== null) baseSet.paymentVerifiedAmount = amountForStorage;
+      if (verifiedCurrency) baseSet.paymentVerifiedCurrency = verifiedCurrency;
+      if (transactionId) baseSet.paymentTransactionId = String(transactionId);
+      if (!storedCurrency && verifiedCurrency) {
+        baseSet.paymentCurrency = verifiedCurrency;
+      }
+
+      const updated = await Order.findOneAndUpdate(
+        { _id: order._id, paymentStatus: { $ne: "paid" } },
+        { $set: baseSet },
+        { new: true }
+      ).lean();
+
+      if (!updated) {
+        await Order.updateOne({ _id: order._id }, { $set: baseSet });
+      }
+
+      if (updated) {
+        await decrementStockByOrderItems(updated.items || []);
+      }
+    }
+
+    return res.sendStatus(200);
+  } catch (e) {
+    console.error("🔥 Webhook handler error:", e);
+    return res.sendStatus(200);
+  }
+}
+
 app.post(
   "/api/webhooks/lahza",
   express.raw({ type: "application/json" }),
-  async (req, res) => {
-    try {
-      if (!LAHZA_SECRET_KEY) {
-        console.error("⚠️ LAHZA_SECRET_KEY غير معرّف في .env");
-        return res.sendStatus(200);
-      }
-
-      if (WEBHOOK_IP_WHITELIST && WEBHOOK_ALLOWED_IPS.length) {
-        const ip = getClientIp(req);
-        const pass = WEBHOOK_ALLOWED_IPS.some((a) => ip === a);
-        if (!pass) {
-          console.warn("🚫 Webhook مرفوض من IP غير مسموح:", ip);
-          return res.sendStatus(200);
-        }
-      }
-
-      const signature = req.get("x-lahza-signature") || "";
-      let computed;
-      try {
-        computed = crypto
-          .createHmac("sha256", LAHZA_SECRET_KEY)
-          .update(req.body)
-          .digest("hex");
-      } catch (e) {
-        console.error("❌ فشل إنشاء HMAC:", e.message);
-        return res.sendStatus(200);
-      }
-
-      let verified = false;
-      try {
-        verified = crypto.timingSafeEqual(
-          Buffer.from(computed, "hex"),
-          Buffer.from(signature, "hex")
-        );
-      } catch {
-        verified = false;
-      }
-
-      if (!verified) {
-        console.warn("⚠️ توقيع Webhook غير صالح");
-        return res.sendStatus(200);
-      }
-
-      let event;
-      try {
-        event = JSON.parse(req.body.toString("utf8"));
-      } catch (e) {
-        console.error("❌ جسم Webhook ليس JSON صالح");
-        return res.sendStatus(200);
-      }
-
-      // إذا كان حدث نجاح الدفع
-      if (event?.event === "charge.success" && event?.data?.reference) {
-        const reference = String(event.data.reference).trim();
-        const order = await Order.findOne({ reference }).lean();
-        if (!order) {
-          console.warn("⚠️ Webhook: لم يتم العثور على طلب للمرجع", reference);
-          return res.sendStatus(200);
-        }
-
-        const eventPayload = event.data || {};
-        const eventMetadata = parseMetadata(eventPayload.metadata);
-        const eventSnapshot = mapVerificationPayload({ ...eventPayload, metadata: eventMetadata });
-
-        let verification;
-        try {
-          const url = `https://api.lahza.io/transaction/verify/${encodeURIComponent(
-            reference
-          )}`;
-          const { data } = await axios.get(url, {
-            headers: {
-              Authorization: `Bearer ${LAHZA_SECRET_KEY}`,
-              "Content-Type": "application/json",
-            },
-            timeout: 15000,
-          });
-
-          verification = mapVerificationPayload(data?.data || {});
-          if (verification.status !== "success") {
-            return res.sendStatus(200);
-          }
-        } catch (e) {
-          console.warn("⚠️ فشل التحقق من Lahza:", e?.message || e);
-          return res.sendStatus(200);
-        }
-
-        const verificationExpected = resolveMinorAmount({
-          candidates: [
-            verification.metadata?.expectedAmountMinor,
-            verification.metadata?.amountMinor,
-          ],
-        });
-        const eventExpected = resolveMinorAmount({
-          candidates: [
-            eventSnapshot.metadata?.expectedAmountMinor,
-            eventSnapshot.metadata?.amountMinor,
-            eventMetadata.expectedAmountMinor,
-            eventMetadata.amountMinor,
-          ],
-        });
-        const orderExpectedMinor = Math.round(Number(order.total || 0) * 100);
-        const expectedHint = Number.isFinite(verificationExpected)
-          ? verificationExpected
-          : Number.isFinite(eventExpected)
-          ? eventExpected
-          : orderExpectedMinor;
-        const amountMinor = resolveMinorAmount({
-          candidates: [
-            verification.amountMinor,
-            eventSnapshot.amountMinor,
-            eventPayload.amount_minor,
-            eventPayload.amountMinor,
-            eventPayload.amount,
-            verification.metadata?.amountMinor,
-            verification.metadata?.expectedAmountMinor,
-            eventMetadata.amountMinor,
-            eventMetadata.expectedAmountMinor,
-          ],
-          expectedMinor: expectedHint,
-        });
-        const verifiedCurrency = (verification.currency || eventSnapshot.currency || "")
-          .toString()
-          .trim()
-          .toUpperCase();
-
-        const expectedMinor = orderExpectedMinor;
-        const storedCurrency = (order.paymentCurrency || "").toString().trim().toUpperCase();
-        const fallbackCurrency = (eventMetadata.expectedCurrency || "")
-          .toString()
-          .trim()
-          .toUpperCase();
-        const expectedCurrency = storedCurrency || fallbackCurrency;
-
-        const amountDelta =
-          typeof amountMinor === "number" && Number.isFinite(amountMinor)
-            ? Math.abs(amountMinor - expectedMinor)
-            : null;
-        const amountMatches =
-          typeof amountMinor === "number" && Number.isFinite(amountMinor)
-            ? amountDelta <= MINOR_AMOUNT_TOLERANCE
-            : false;
-        const currencyMatches =
-          !expectedCurrency || !verifiedCurrency
-            ? true
-            : verifiedCurrency === expectedCurrency;
-
-        const amountForStorage =
-          typeof amountMinor === "number" && Number.isFinite(amountMinor)
-            ? Number((amountMinor / 100).toFixed(2))
-            : null;
-        const transactionId = verification.transactionId || eventSnapshot.transactionId || null;
-
-        if (!amountMatches || !currencyMatches) {
-          console.error("🚫 Webhook: تعارض في مبلغ أو عملة الدفع", {
-            reference,
-            amountMinor,
-            expectedMinor,
-            amountDelta,
-            toleranceMinor: MINOR_AMOUNT_TOLERANCE,
-            verifiedCurrency,
-            expectedCurrency,
-          });
-
-          const mismatchSet = {};
-          if (amountForStorage !== null) mismatchSet.paymentVerifiedAmount = amountForStorage;
-          if (verifiedCurrency) mismatchSet.paymentVerifiedCurrency = verifiedCurrency;
-          if (transactionId) mismatchSet.paymentTransactionId = String(transactionId);
-          if (Object.keys(mismatchSet).length) {
-            await Order.updateOne({ _id: order._id }, { $set: mismatchSet });
-          }
-          return res.sendStatus(200);
-        }
-
-        const baseSet = {
-          paymentStatus: "paid",
-          status: "waiting_confirmation",
-        };
-        if (amountForStorage !== null) baseSet.paymentVerifiedAmount = amountForStorage;
-        if (verifiedCurrency) baseSet.paymentVerifiedCurrency = verifiedCurrency;
-        if (transactionId) baseSet.paymentTransactionId = String(transactionId);
-        if (!storedCurrency && verifiedCurrency) {
-          baseSet.paymentCurrency = verifiedCurrency;
-        }
-
-        const updated = await Order.findOneAndUpdate(
-          { _id: order._id, paymentStatus: { $ne: "paid" } },
-          { $set: baseSet },
-          { new: true }
-        ).lean();
-
-        if (!updated) {
-          await Order.updateOne({ _id: order._id }, { $set: baseSet });
-        }
-
-        if (updated) {
-          await decrementStockByOrderItems(updated.items || []);
-        }
-      }
-
-      return res.sendStatus(200);
-    } catch (e) {
-      console.error("🔥 Webhook handler error:", e);
-      return res.sendStatus(200);
-    }
-  }
+  lahzaWebhookHandler
 );
 
 /* ---------- JSON parsers بعد الـ webhook ---------- */
@@ -335,32 +365,35 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 /* ---------- Mongo ---------- */
-mongoose
-  .connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 15000,
-    family: 4,
-  })
-  .then(async () => {
-    console.log("✅ MongoDB connected");
 
-    try {
-      const dropped = await Product.syncIndexes();
-      if (Array.isArray(dropped) && dropped.length) {
-        console.log(
-          "🔁 Product indexes synchronized (dropped):",
-          dropped.join(", ")
-        );
-      } else {
-        console.log("🔁 Product indexes synchronized");
+if (process.env.NODE_ENV !== "test") {
+  mongoose
+    .connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 15000,
+      family: 4,
+    })
+    .then(async () => {
+      console.log("✅ MongoDB connected");
+
+      try {
+        const dropped = await Product.syncIndexes();
+        if (Array.isArray(dropped) && dropped.length) {
+          console.log(
+            "🔁 Product indexes synchronized (dropped):",
+            dropped.join(", ")
+          );
+        } else {
+          console.log("🔁 Product indexes synchronized");
+        }
+      } catch (err) {
+        console.error("⚠️ Failed to sync Product indexes:", err?.message || err);
       }
-    } catch (err) {
-      console.error("⚠️ Failed to sync Product indexes:", err?.message || err);
-    }
-  })
-  .catch((err) => {
-    console.error("❌ Mongo error:", err);
-    process.exit(1);
-  });
+    })
+    .catch((err) => {
+      console.error("❌ Mongo error:", err);
+      process.exit(1);
+    });
+}
 
 /* ---------- Routes ---------- */
 app.use("/api/contact", require("./routes/contact"));
@@ -380,17 +413,28 @@ app.use("/api/orders", require("./routes/order-status"));
 app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
 /* ---------- boot ---------- */
-const server = app.listen(PORT, () => console.log(`🚀 Server on :${PORT}`));
+let server = null;
+if (process.env.NODE_ENV !== "test") {
+  server = app.listen(PORT, () => console.log(`🚀 Server on :${PORT}`));
 
-/* ---------- Graceful Shutdown ---------- */
-const shutdown = () => {
-  console.log("🛑 Shutting down...");
-  server.close(() => {
-    mongoose.connection.close(false, () => {
-      console.log("🔌 MongoDB connection closed");
-      process.exit(0);
+  /* ---------- Graceful Shutdown ---------- */
+  const shutdown = () => {
+    console.log("🛑 Shutting down...");
+    server.close(() => {
+      mongoose.connection.close(false, () => {
+        console.log("🔌 MongoDB connection closed");
+        process.exit(0);
+      });
     });
-  });
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+}
+
+module.exports = {
+  app,
+  getClientIp,
+  normalizeIp,
+  lahzaWebhookHandler,
+  WEBHOOK_ALLOWED_IPS,
 };
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
