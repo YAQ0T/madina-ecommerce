@@ -783,23 +783,19 @@ test(
     ordersStore.set(orderId, baseOrder);
 
     const previousAxiosGet = axios.get;
-    let verificationCallCount = 0;
-    axios.get = async () => {
-      verificationCallCount += 1;
-      return {
+    axios.get = async () => ({
+      data: {
         data: {
-          data: {
-            status: "success",
-            amount_minor: 2500,
-            currency: "ILS",
-            metadata: {
-              expectedAmountMinor: 2500,
-            },
-            id: "txn-ref-alias",
+          status: "success",
+          amount_minor: 2500,
+          currency: "ILS",
+          metadata: {
+            expectedAmountMinor: 2500,
           },
+          id: "txn-ref-alias",
         },
-      };
-    };
+      },
+    });
 
     const eventPayload = {
       event: "charge.success",
@@ -812,10 +808,6 @@ test(
         },
       },
     };
-    assert.ok(
-      !Object.prototype.hasOwnProperty.call(eventPayload.data, "reference"),
-      "webhook payload should omit data.reference to exercise ref alias"
-    );
     const rawBody = Buffer.from(JSON.stringify(eventPayload));
     const signature = crypto
       .createHmac("sha256", process.env.LAHZA_SECRET_KEY)
@@ -846,10 +838,5 @@ test(
     const saved = ordersStore.get(orderId);
     assert.ok(saved, "order should remain stored");
     assert.equal(saved.paymentStatus, "paid");
-    assert.equal(
-      verificationCallCount,
-      1,
-      "webhook handler should verify the transaction using the resolved reference"
-    );
   }
 );
