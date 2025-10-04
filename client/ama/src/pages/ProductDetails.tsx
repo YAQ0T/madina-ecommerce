@@ -509,18 +509,22 @@ const ProductDetails: React.FC = () => {
               disabled={!currentVariant || inStock <= 0}
               onClick={() => {
                 if (!currentVariant) return;
-                addToCart({
-                  ...product,
-                  selectedVariantId: currentVariant._id,
-                  selectedSku: currentVariant.stock.sku,
-                  selectedMeasure: currentVariant.measure,
-                  selectedMeasureUnit: currentVariant.measureUnit || undefined, // ✅
-                  selectedColor: currentVariant.color?.name,
-                  price:
-                    typeof currentVariant.finalAmount === "number"
-                      ? currentVariant.finalAmount
-                      : currentVariant.price?.amount,
-                });
+                addToCart(
+                  {
+                    ...product,
+                    selectedVariantId: currentVariant._id,
+                    selectedSku: currentVariant.stock.sku,
+                    selectedMeasure: currentVariant.measure,
+                    selectedMeasureUnit:
+                      currentVariant.measureUnit || undefined, // ✅
+                    selectedColor: currentVariant.color?.name,
+                    price:
+                      typeof currentVariant.finalAmount === "number"
+                        ? currentVariant.finalAmount
+                        : currentVariant.price?.amount,
+                  },
+                  1
+                );
               }}
             >
               {inStock > 0
