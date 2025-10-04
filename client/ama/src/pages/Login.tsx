@@ -19,11 +19,13 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const [identifier, setIdentifier] = useState(""); // بريد أو جوال
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+
+  const normalizePhone = (value: string) => value.replace(/\D+/g, "");
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,12 +34,8 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      const emailLike = identifier.includes("@") ? identifier : undefined;
-      const phoneLike = !emailLike ? identifier : undefined;
-
       await login({
-        email: emailLike,
-        phone: phoneLike,
+        phone: normalizePhone(phone),
         password,
       });
 
@@ -106,12 +104,12 @@ const Login: React.FC = () => {
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <label className="block mb-1">
-              البريد الإلكتروني أو رقم الجوال
+              رقم الجوال
             </label>
             <Input
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="example@mail.com أو 059XXXXXXX"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="أدخل رقم جوالك"
               required
             />
           </div>
