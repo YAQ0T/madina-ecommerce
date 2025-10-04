@@ -477,7 +477,18 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
       {/* ============ ديسكتوب (كما هو لديك) ============ */}
       <div className="hidden md:flex group border rounded-lg p-4 text-right hover:shadow relative flex-col justify-between h-full">
-        <div className="relative w-full aspect-[3/4] mb-3 overflow-hidden rounded bg-white">
+        <div
+          className="relative w-full aspect-[3/4] mb-3 overflow-hidden rounded bg-white cursor-pointer"
+          onClick={() => navigate(`/products/${product._id}`)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              navigate(`/products/${product._id}`);
+            }
+          }}
+        >
           {displayedImages.map((src, index) => (
             <img
               key={`${src}-${index}`}
@@ -501,7 +512,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           {displayedImages.length > 1 && (
             <>
               <button
-                onClick={prevImage}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  prevImage();
+                }}
                 aria-label={t("productCard.previousImage")}
                 className={clsx(
                   arrowBase,
@@ -522,7 +536,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               </button>
 
               <button
-                onClick={nextImage}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  nextImage();
+                }}
                 aria-label={t("productCard.nextImage")}
                 className={clsx(
                   arrowBase,
