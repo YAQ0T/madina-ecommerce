@@ -16,7 +16,7 @@ type CartItem = Product & { quantity: number };
 
 type CartContextType = {
   cart: CartItem[];
-  addToCart: (product: Product) => void;
+  addToCart: (product: Product, quantity?: number) => void;
   removeFromCart: (
     productId: string,
     selectedColor?: string,
@@ -75,8 +75,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, quantity = 1) => {
     setCart((prev) => {
+      const clampedQuantity = Math.max(1, quantity);
       const existing = prev.find(
         (item) =>
           item._id === product._id &&
@@ -89,13 +90,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           item._id === product._id &&
           item.selectedColor === product.selectedColor &&
           item.selectedMeasure === product.selectedMeasure
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + clampedQuantity }
             : item
         );
       }
 
       // تأكد من وجود quantity 初 مرة
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { ...product, quantity: clampedQuantity }];
     });
   };
 

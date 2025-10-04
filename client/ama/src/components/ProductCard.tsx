@@ -307,7 +307,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             ? currentVariant.finalAmount
             : currentVariant.price?.amount ?? product.price ?? 0,
       };
-      addToCart(itemForCart);
+      addToCart(itemForCart, 1);
     } else {
       const productForCart = {
         ...product,
@@ -316,7 +316,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         selectedColor,
         price: product.price ?? 0,
       };
-      addToCart(productForCart);
+      addToCart(productForCart, 1);
     }
   }, [
     addToCart,
