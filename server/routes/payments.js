@@ -3,6 +3,10 @@ const express = require("express");
 const axios = require("axios");
 const { verifyTokenOptional } = require("../middleware/authMiddleware");
 const Order = require("../models/Order");
+const {
+  prepareLahzaPaymentUpdate,
+  verifyLahzaTransaction,
+} = require("../utils/lahza");
 
 const router = express.Router();
 
@@ -120,20 +124,98 @@ router.get("/status/:reference", async (req, res) => {
     if (!LAHZA_SECRET_KEY) {
       return res.status(500).json({ error: "LAHZA secret key is missing" });
     }
+
     const reference = req.params.reference;
-    const url = `https://api.lahza.io/transaction/verify/${encodeURIComponent(
-      reference
-    )}`;
 
-    const resp = await axios.get(url, {
-      headers: {
-        Authorization: `Bearer ${LAHZA_SECRET_KEY}`,
-        "Content-Type": "application/json",
-      },
-      timeout: 15000,
+    let verification;
+    try {
+      verification = await verifyLahzaTransaction(reference);
+    } catch (err) {
+      const status = err?.response?.status || 500;
+      const data = err?.response?.data || {
+        error: err?.message || "Verify failed",
+      };
+      return res.status(status).json(data);
+    }
+
+    return res.json(verification.response || {});
+  } catch (err) {
+    const status = err?.response?.status || 500;
+    const data = err?.response?.data || {
+      error: err.message || "Verify failed",
+    };
+    return res.status(status).json(data);
+  }
+});
+
+router.post("/status/:reference/confirm", async (req, res) => {
+  try {
+    if (!LAHZA_SECRET_KEY) {
+      return res.status(500).json({ error: "LAHZA secret key is missing" });
+    }
+
+    const reference = req.params.reference;
+
+    let verification;
+    try {
+      verification = await verifyLahzaTransaction(reference);
+    } catch (err) {
+      const status = err?.response?.status || 500;
+      const data = err?.response?.data || {
+        error: err?.message || "Verify failed",
+      };
+      return res.status(status).json(data);
+    }
+
+    const responsePayload = verification.response || {};
+
+    const result = {
+      updated: false,
+      alreadyPaid: false,
+      mismatch: false,
+      orderId: null,
+    };
+
+    if (verification.status === "success") {
+      const order = await Order.findOne({ reference }).lean();
+      if (order) {
+        result.orderId = String(order._id);
+
+        const {
+          amountMatches,
+          currencyMatches,
+          successSet,
+          mismatchSet,
+        } = prepareLahzaPaymentUpdate({ order, verification });
+
+        if (!amountMatches || !currencyMatches) {
+          result.mismatch = true;
+          if (Object.keys(mismatchSet).length) {
+            await Order.updateOne({ _id: order._id }, { $set: mismatchSet });
+          }
+        } else {
+          const updated = await Order.findOneAndUpdate(
+            { _id: order._id, paymentStatus: { $ne: "paid" } },
+            { $set: successSet },
+            { new: true }
+          ).lean();
+
+          if (updated) {
+            result.updated = true;
+          } else {
+            result.alreadyPaid = order.paymentStatus === "paid";
+            await Order.updateOne({ _id: order._id }, { $set: successSet });
+          }
+        }
+      }
+    }
+
+    return res.json({
+      ok: true,
+      status: verification.status,
+      ...result,
+      data: responsePayload,
     });
-
-    return res.json(resp.data);
   } catch (err) {
     const status = err?.response?.status || 500;
     const data = err?.response?.data || {

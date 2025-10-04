@@ -85,6 +85,29 @@ const CheckoutSuccess: React.FC = () => {
           setMessage("فشل تأكيد الدفع من السيرفر.");
           return;
         }
+
+        const confirmResp = await fetch(
+          `${base}/api/payments/status/${ref}/confirm`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        if (!confirmResp.ok) {
+          setState("fail");
+          setMessage("تعذر تثبيت حالة الدفع على الطلب.");
+          return;
+        }
+
+        const confirmJson = await confirmResp.json();
+        const confirmStatus = String(confirmJson?.status || "").toLowerCase();
+        if (confirmStatus !== "success" || confirmJson?.mismatch) {
+          setState("fail");
+          setMessage("حدث خلل أثناء تثبيت الدفع على الطلب.");
+          return;
+        }
+
         let summary: OrderSummary | null = null;
 
         // محاولة جلب بيانات الطلب من الخادم بالمرجع لضمان عرض معلومات دقيقة
@@ -106,6 +129,11 @@ const CheckoutSuccess: React.FC = () => {
                     ? orderData.total
                     : undefined,
                 status: orderData?.status,
+              };
+            } else if (confirmJson?.orderId) {
+              summary = {
+                id: confirmJson.orderId,
+                reference: ref,
               };
             }
           } catch (err) {
@@ -132,7 +160,11 @@ const CheckoutSuccess: React.FC = () => {
               metadata.amountMinor ??
               metadata.amount_minor;
             summary = {
-              id: metadata.orderId || metadata.order_id || undefined,
+              id:
+                metadata.orderId ||
+                metadata.order_id ||
+                confirmJson?.orderId ||
+                undefined,
               reference: ref,
               total:
                 typeof amountMinor !== "undefined"
@@ -145,6 +177,10 @@ const CheckoutSuccess: React.FC = () => {
           } else {
             summary = { reference: ref };
           }
+        }
+
+        if (!summary && confirmJson?.orderId) {
+          summary = { reference: ref, id: confirmJson.orderId };
         }
 
         clearCart();

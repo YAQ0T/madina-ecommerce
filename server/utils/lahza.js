@@ -1,4 +1,13 @@
 // server/utils/lahza.js
+const axios = require("axios");
+
+const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || "";
+// Minor-unit tolerance (e.g., 1 = allow 0.01 currency unit difference)
+const ENV_MINOR_TOLERANCE = Number(process.env.PAYMENT_MINOR_TOLERANCE);
+const MINOR_AMOUNT_TOLERANCE = Number.isFinite(ENV_MINOR_TOLERANCE)
+  ? Math.max(0, Math.round(ENV_MINOR_TOLERANCE))
+  : 1;
+
 function toNumber(value) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -124,9 +133,155 @@ function mapVerificationPayload(raw = {}) {
   };
 }
 
+async function verifyLahzaTransaction(reference) {
+  if (!LAHZA_SECRET_KEY) {
+    const err = new Error("LAHZA_SECRET_KEY is not configured");
+    err.code = "NO_SECRET";
+    throw err;
+  }
+
+  const url = `https://api.lahza.io/transaction/verify/${encodeURIComponent(
+    reference
+  )}`;
+
+  const resp = await axios.get(url, {
+    headers: {
+      Authorization: `Bearer ${LAHZA_SECRET_KEY}`,
+      "Content-Type": "application/json",
+    },
+    timeout: 15000,
+  });
+
+  const rawResponse = resp?.data || {};
+  const raw = rawResponse?.data || {};
+  const payload = mapVerificationPayload(raw);
+
+  return { ...payload, raw, response: rawResponse };
+}
+
+function prepareLahzaPaymentUpdate({
+  order = {},
+  verification = {},
+  eventPayload = null,
+  tolerance = MINOR_AMOUNT_TOLERANCE,
+} = {}) {
+  const eventMetadata = parseMetadata(eventPayload?.metadata);
+  const eventSnapshot = mapVerificationPayload({
+    ...(eventPayload ? eventPayload : {}),
+    metadata: eventMetadata,
+  });
+
+  const verificationExpected = resolveMinorAmount({
+    candidates: [
+      verification?.metadata?.expectedAmountMinor,
+      verification?.metadata?.amountMinor,
+    ],
+  });
+  const eventExpected = resolveMinorAmount({
+    candidates: [
+      eventSnapshot?.metadata?.expectedAmountMinor,
+      eventSnapshot?.metadata?.amountMinor,
+      eventMetadata?.expectedAmountMinor,
+      eventMetadata?.amountMinor,
+    ],
+  });
+
+  const orderExpectedMinor = Math.round(Number(order.total || 0) * 100);
+  const expectedHint = Number.isFinite(verificationExpected)
+    ? verificationExpected
+    : Number.isFinite(eventExpected)
+    ? eventExpected
+    : orderExpectedMinor;
+
+  const amountMinor = resolveMinorAmount({
+    candidates: [
+      verification?.amountMinor,
+      eventSnapshot?.amountMinor,
+      eventPayload?.amount_minor,
+      eventPayload?.amountMinor,
+      eventPayload?.amount,
+      verification?.metadata?.amountMinor,
+      verification?.metadata?.expectedAmountMinor,
+      eventMetadata?.amountMinor,
+      eventMetadata?.expectedAmountMinor,
+    ],
+    expectedMinor: expectedHint,
+  });
+
+  const verifiedCurrency = (
+    verification?.currency || eventSnapshot?.currency || ""
+  )
+    .toString()
+    .trim()
+    .toUpperCase();
+
+  const storedCurrency = (order.paymentCurrency || "").toString().trim().toUpperCase();
+  const fallbackCurrency = (eventMetadata?.expectedCurrency || "")
+    .toString()
+    .trim()
+    .toUpperCase();
+  const expectedCurrency = storedCurrency || fallbackCurrency;
+
+  const expectedMinor = orderExpectedMinor;
+  const amountDelta =
+    typeof amountMinor === "number" && Number.isFinite(amountMinor)
+      ? Math.abs(amountMinor - expectedMinor)
+      : null;
+  const amountMatches =
+    typeof amountMinor === "number" && Number.isFinite(amountMinor)
+      ? amountDelta <= tolerance
+      : false;
+  const currencyMatches =
+    !expectedCurrency || !verifiedCurrency
+      ? true
+      : verifiedCurrency === expectedCurrency;
+
+  const amountForStorage =
+    typeof amountMinor === "number" && Number.isFinite(amountMinor)
+      ? Number((amountMinor / 100).toFixed(2))
+      : null;
+  const transactionId =
+    verification?.transactionId || eventSnapshot?.transactionId || null;
+
+  const successSet = {
+    paymentStatus: "paid",
+    status: "waiting_confirmation",
+  };
+  if (amountForStorage !== null) successSet.paymentVerifiedAmount = amountForStorage;
+  if (verifiedCurrency) successSet.paymentVerifiedCurrency = verifiedCurrency;
+  if (transactionId) successSet.paymentTransactionId = String(transactionId);
+  if (!storedCurrency && verifiedCurrency) {
+    successSet.paymentCurrency = verifiedCurrency;
+  }
+
+  const mismatchSet = {};
+  if (amountForStorage !== null)
+    mismatchSet.paymentVerifiedAmount = amountForStorage;
+  if (verifiedCurrency) mismatchSet.paymentVerifiedCurrency = verifiedCurrency;
+  if (transactionId) mismatchSet.paymentTransactionId = String(transactionId);
+
+  return {
+    amountMatches,
+    currencyMatches,
+    amountMinor,
+    expectedMinor,
+    amountDelta,
+    toleranceMinor: tolerance,
+    verifiedCurrency,
+    expectedCurrency,
+    amountForStorage,
+    transactionId,
+    successSet,
+    mismatchSet,
+  };
+}
+
 module.exports = {
   normalizeMinorAmount,
   parseMetadata,
   mapVerificationPayload,
   resolveMinorAmount,
+  verifyLahzaTransaction,
+  prepareLahzaPaymentUpdate,
+  MINOR_AMOUNT_TOLERANCE,
 };
