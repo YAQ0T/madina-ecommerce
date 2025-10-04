@@ -579,7 +579,6 @@ const Products: React.FC = () => {
     setSelectedMainCategory(main);
     setSelectedSubCategory(sub);
     setCurrentPage(1);
-    searchRef.current?.focus();
   };
 
   const categoryGroups = useMemo(() => {
