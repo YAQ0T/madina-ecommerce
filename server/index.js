@@ -211,11 +211,9 @@ async function lahzaWebhookHandler(req, res) {
       const rawReference =
         event?.data?.reference !== undefined && event?.data?.reference !== null
           ? event.data.reference
-          : event?.data?.ref !== undefined && event?.data?.ref !== null
-          ? event.data.ref
-          : undefined;
+          : event?.data?.ref;
 
-      if (rawReference === undefined) {
+      if (rawReference === undefined || rawReference === null) {
         console.warn("⚠️ Webhook: charge.success بدون مرجع");
         return res.sendStatus(200);
       }
