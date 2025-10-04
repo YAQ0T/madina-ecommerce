@@ -210,6 +210,11 @@ const prepareCardHandler = getRouteHandler(
   "/prepare-card"
 );
 const lahzaCreateHandler = getRouteHandler(paymentsRouter, "post", "/create");
+const lahzaConfirmHandler = getRouteHandler(
+  paymentsRouter,
+  "post",
+  "/status/:reference/confirm"
+);
 const adminPayHandler = getRouteHandler(
   ordersRouter,
   "patch",
@@ -838,5 +843,71 @@ test(
     const saved = ordersStore.get(orderId);
     assert.ok(saved, "order should remain stored");
     assert.equal(saved.paymentStatus, "paid");
+  }
+);
+
+test(
+  "Lahza confirm endpoint marks order paid without webhook",
+  { concurrency: false },
+  async () => {
+    resetState();
+
+    const reference = "lahza-fallback-confirm";
+    const orderId = new mongoose.Types.ObjectId().toString();
+    const baseOrder = {
+      _id: orderId,
+      reference,
+      total: 50,
+      subtotal: 50,
+      discount: { amount: 0 },
+      items: [],
+      paymentStatus: "unpaid",
+      paymentCurrency: "ILS",
+      status: "pending",
+    };
+    ordersStore.set(orderId, baseOrder);
+
+    const previousAxiosGet = axios.get;
+    axios.get = async (url) => {
+      assert.ok(url.includes(reference));
+      return {
+        data: {
+          data: {
+            status: "success",
+            amount_minor: 5000,
+            currency: "ILS",
+            metadata: {
+              expectedAmountMinor: 5000,
+              expectedCurrency: "ILS",
+            },
+            id: "txn-fallback",
+          },
+        },
+      };
+    };
+
+    const req = { params: { reference } };
+    const res = createMockRes();
+
+    try {
+      await lahzaConfirmHandler(req, res);
+    } finally {
+      axios.get = previousAxiosGet;
+    }
+
+    assert.equal(res.statusCode, 200);
+    assert.ok(res.body?.ok, "confirm endpoint should respond with ok");
+    assert.equal(res.body?.status, "success");
+    assert.equal(res.body?.orderId, orderId);
+    assert.equal(res.body?.updated, true);
+    assert.equal(res.body?.mismatch, false);
+
+    const saved = ordersStore.get(orderId);
+    assert.ok(saved, "order should remain stored");
+    assert.equal(saved.paymentStatus, "paid");
+    assert.equal(saved.paymentVerifiedAmount, 50);
+    assert.equal(saved.paymentVerifiedCurrency, "ILS");
+    assert.equal(saved.paymentTransactionId, "txn-fallback");
+    assert.equal(saved.status, "waiting_confirmation");
   }
 );

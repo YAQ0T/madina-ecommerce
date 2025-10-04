@@ -7,7 +7,6 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
-const axios = require("axios");
 require("dotenv").config();
 
 const app = express();
@@ -78,11 +77,6 @@ app.set("trust proxy", 1);
  * ===================================================== */
 
 const LAHZA_SECRET_KEY = process.env.LAHZA_SECRET_KEY || "";
-// Minor-unit tolerance (e.g., 1 = allow 0.01 currency unit difference)
-const ENV_MINOR_TOLERANCE = Number(process.env.PAYMENT_MINOR_TOLERANCE);
-const MINOR_AMOUNT_TOLERANCE = Number.isFinite(ENV_MINOR_TOLERANCE)
-  ? Math.max(0, Math.round(ENV_MINOR_TOLERANCE))
-  : 1;
 const WEBHOOK_IP_WHITELIST =
   String(process.env.WEBHOOK_IP_WHITELIST || "true") === "true";
 
@@ -122,12 +116,7 @@ const WEBHOOK_ALLOWED_IPS = (
 const Order = require("./models/Order");
 const Variant = require("./models/Variant");
 const Product = require("./models/Product");
-const {
-  normalizeMinorAmount,
-  parseMetadata,
-  mapVerificationPayload,
-  resolveMinorAmount,
-} = require("./utils/lahza");
+const { prepareLahzaPaymentUpdate, verifyLahzaTransaction } = require("./utils/lahza");
 
 function getClientIp(req) {
   const xff = req.headers["x-forwarded-for"];
@@ -231,26 +220,10 @@ async function lahzaWebhookHandler(req, res) {
       }
 
       const eventPayload = event.data || {};
-      const eventMetadata = parseMetadata(eventPayload.metadata);
-      const eventSnapshot = mapVerificationPayload({
-        ...eventPayload,
-        metadata: eventMetadata,
-      });
 
       let verification;
       try {
-        const url = `https://api.lahza.io/transaction/verify/${encodeURIComponent(
-          reference
-        )}`;
-        const { data } = await axios.get(url, {
-          headers: {
-            Authorization: `Bearer ${LAHZA_SECRET_KEY}`,
-            "Content-Type": "application/json",
-          },
-          timeout: 15000,
-        });
-
-        verification = mapVerificationPayload(data?.data || {});
+        verification = await verifyLahzaTransaction(reference);
         if (verification.status !== "success") {
           return res.sendStatus(200);
         }
@@ -259,72 +232,24 @@ async function lahzaWebhookHandler(req, res) {
         return res.sendStatus(200);
       }
 
-      const verificationExpected = resolveMinorAmount({
-        candidates: [
-          verification.metadata?.expectedAmountMinor,
-          verification.metadata?.amountMinor,
-        ],
+      const {
+        amountMatches,
+        currencyMatches,
+        amountMinor,
+        expectedMinor,
+        amountDelta,
+        toleranceMinor,
+        verifiedCurrency,
+        expectedCurrency,
+        amountForStorage,
+        transactionId,
+        successSet,
+        mismatchSet,
+      } = prepareLahzaPaymentUpdate({
+        order,
+        verification,
+        eventPayload,
       });
-      const eventExpected = resolveMinorAmount({
-        candidates: [
-          eventSnapshot.metadata?.expectedAmountMinor,
-          eventSnapshot.metadata?.amountMinor,
-          eventMetadata.expectedAmountMinor,
-          eventMetadata.amountMinor,
-        ],
-      });
-      const orderExpectedMinor = Math.round(Number(order.total || 0) * 100);
-      const expectedHint = Number.isFinite(verificationExpected)
-        ? verificationExpected
-        : Number.isFinite(eventExpected)
-        ? eventExpected
-        : orderExpectedMinor;
-      const amountMinor = resolveMinorAmount({
-        candidates: [
-          verification.amountMinor,
-          eventSnapshot.amountMinor,
-          eventPayload.amount_minor,
-          eventPayload.amountMinor,
-          eventPayload.amount,
-          verification.metadata?.amountMinor,
-          verification.metadata?.expectedAmountMinor,
-          eventMetadata.amountMinor,
-          eventMetadata.expectedAmountMinor,
-        ],
-        expectedMinor: expectedHint,
-      });
-      const verifiedCurrency = (verification.currency || eventSnapshot.currency || "")
-        .toString()
-        .trim()
-        .toUpperCase();
-
-      const expectedMinor = orderExpectedMinor;
-      const storedCurrency = (order.paymentCurrency || "").toString().trim().toUpperCase();
-      const fallbackCurrency = (eventMetadata.expectedCurrency || "")
-        .toString()
-        .trim()
-        .toUpperCase();
-      const expectedCurrency = storedCurrency || fallbackCurrency;
-
-      const amountDelta =
-        typeof amountMinor === "number" && Number.isFinite(amountMinor)
-          ? Math.abs(amountMinor - expectedMinor)
-          : null;
-      const amountMatches =
-        typeof amountMinor === "number" && Number.isFinite(amountMinor)
-          ? amountDelta <= MINOR_AMOUNT_TOLERANCE
-          : false;
-      const currencyMatches =
-        !expectedCurrency || !verifiedCurrency
-          ? true
-          : verifiedCurrency === expectedCurrency;
-
-      const amountForStorage =
-        typeof amountMinor === "number" && Number.isFinite(amountMinor)
-          ? Number((amountMinor / 100).toFixed(2))
-          : null;
-      const transactionId =
-        verification.transactionId || eventSnapshot.transactionId || null;
 
       if (!amountMatches || !currencyMatches) {
         console.error("🚫 Webhook: تعارض في مبلغ أو عملة الدفع", {
@@ -332,40 +257,25 @@ async function lahzaWebhookHandler(req, res) {
           amountMinor,
           expectedMinor,
           amountDelta,
-          toleranceMinor: MINOR_AMOUNT_TOLERANCE,
+          toleranceMinor,
           verifiedCurrency,
           expectedCurrency,
         });
 
-        const mismatchSet = {};
-        if (amountForStorage !== null) mismatchSet.paymentVerifiedAmount = amountForStorage;
-        if (verifiedCurrency) mismatchSet.paymentVerifiedCurrency = verifiedCurrency;
-        if (transactionId) mismatchSet.paymentTransactionId = String(transactionId);
         if (Object.keys(mismatchSet).length) {
           await Order.updateOne({ _id: order._id }, { $set: mismatchSet });
         }
         return res.sendStatus(200);
       }
 
-      const baseSet = {
-        paymentStatus: "paid",
-        status: "waiting_confirmation",
-      };
-      if (amountForStorage !== null) baseSet.paymentVerifiedAmount = amountForStorage;
-      if (verifiedCurrency) baseSet.paymentVerifiedCurrency = verifiedCurrency;
-      if (transactionId) baseSet.paymentTransactionId = String(transactionId);
-      if (!storedCurrency && verifiedCurrency) {
-        baseSet.paymentCurrency = verifiedCurrency;
-      }
-
       const updated = await Order.findOneAndUpdate(
         { _id: order._id, paymentStatus: { $ne: "paid" } },
-        { $set: baseSet },
+        { $set: successSet },
         { new: true }
       ).lean();
 
       if (!updated) {
-        await Order.updateOne({ _id: order._id }, { $set: baseSet });
+        await Order.updateOne({ _id: order._id }, { $set: successSet });
       }
 
       if (updated) {
