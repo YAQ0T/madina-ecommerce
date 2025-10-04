@@ -210,6 +210,11 @@ const prepareCardHandler = getRouteHandler(
   "/prepare-card"
 );
 const lahzaCreateHandler = getRouteHandler(paymentsRouter, "post", "/create");
+const lahzaConfirmHandler = getRouteHandler(
+  paymentsRouter,
+  "post",
+  "/status/:reference/confirm"
+);
 const adminPayHandler = getRouteHandler(
   ordersRouter,
   "patch",
@@ -757,5 +762,152 @@ test(
       allowedIp,
       "normalizeIp should drop trailing port from IPv4"
     );
+  }
+);
+
+test(
+  "Lahza webhook treats data.ref as the reference",
+  { concurrency: false },
+  async () => {
+    resetState();
+
+    const allowedIp = WEBHOOK_ALLOWED_IPS[0] || "203.0.113.5";
+    const reference = "lahza-ref-alias";
+    const orderId = new mongoose.Types.ObjectId().toString();
+    const baseOrder = {
+      _id: orderId,
+      reference,
+      total: 25,
+      subtotal: 25,
+      discount: { amount: 0 },
+      items: [],
+      paymentStatus: "unpaid",
+      paymentCurrency: "ILS",
+      status: "waiting_confirmation",
+    };
+    ordersStore.set(orderId, baseOrder);
+
+    const previousAxiosGet = axios.get;
+    axios.get = async () => ({
+      data: {
+        data: {
+          status: "success",
+          amount_minor: 2500,
+          currency: "ILS",
+          metadata: {
+            expectedAmountMinor: 2500,
+          },
+          id: "txn-ref-alias",
+        },
+      },
+    });
+
+    const eventPayload = {
+      event: "charge.success",
+      data: {
+        ref: reference,
+        amount_minor: 2500,
+        currency: "ILS",
+        metadata: {
+          expectedAmountMinor: 2500,
+        },
+      },
+    };
+    const rawBody = Buffer.from(JSON.stringify(eventPayload));
+    const signature = crypto
+      .createHmac("sha256", process.env.LAHZA_SECRET_KEY)
+      .update(rawBody)
+      .digest("hex");
+
+    const req = {
+      headers: {},
+      body: rawBody,
+      socket: { remoteAddress: allowedIp },
+      ip: allowedIp,
+      get(header) {
+        if (header && header.toLowerCase() === "x-lahza-signature") {
+          return signature;
+        }
+        return this.headers[header];
+      },
+    };
+    const res = createMockRes();
+
+    try {
+      await lahzaWebhookHandler(req, res);
+    } finally {
+      axios.get = previousAxiosGet;
+    }
+
+    assert.equal(res.statusCode, 200);
+    const saved = ordersStore.get(orderId);
+    assert.ok(saved, "order should remain stored");
+    assert.equal(saved.paymentStatus, "paid");
+  }
+);
+
+test(
+  "Lahza confirm endpoint marks order paid without webhook",
+  { concurrency: false },
+  async () => {
+    resetState();
+
+    const reference = "lahza-fallback-confirm";
+    const orderId = new mongoose.Types.ObjectId().toString();
+    const baseOrder = {
+      _id: orderId,
+      reference,
+      total: 50,
+      subtotal: 50,
+      discount: { amount: 0 },
+      items: [],
+      paymentStatus: "unpaid",
+      paymentCurrency: "ILS",
+      status: "pending",
+    };
+    ordersStore.set(orderId, baseOrder);
+
+    const previousAxiosGet = axios.get;
+    axios.get = async (url) => {
+      assert.ok(url.includes(reference));
+      return {
+        data: {
+          data: {
+            status: "success",
+            amount_minor: 5000,
+            currency: "ILS",
+            metadata: {
+              expectedAmountMinor: 5000,
+              expectedCurrency: "ILS",
+            },
+            id: "txn-fallback",
+          },
+        },
+      };
+    };
+
+    const req = { params: { reference } };
+    const res = createMockRes();
+
+    try {
+      await lahzaConfirmHandler(req, res);
+    } finally {
+      axios.get = previousAxiosGet;
+    }
+
+    assert.equal(res.statusCode, 200);
+    assert.ok(res.body?.ok, "confirm endpoint should respond with ok");
+    assert.equal(res.body?.status, "success");
+    assert.equal(res.body?.orderId, orderId);
+    assert.equal(res.body?.updated, true);
+    assert.equal(res.body?.mismatch, false);
+
+    const saved = ordersStore.get(orderId);
+    assert.ok(saved, "order should remain stored");
+    assert.equal(saved.paymentStatus, "paid");
+    assert.equal(saved.paymentVerifiedAmount, 50);
+    assert.equal(saved.paymentVerifiedCurrency, "ILS");
+    assert.equal(saved.paymentTransactionId, "txn-fallback");
+    assert.equal(saved.status, "waiting_confirmation");
   }
 );
