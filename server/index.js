@@ -91,6 +91,11 @@ const WEBHOOK_ALLOWED_IPS = (
 const Order = require("./models/Order");
 const Variant = require("./models/Variant");
 const Product = require("./models/Product");
+const {
+  normalizeMinorAmount,
+  parseMetadata,
+  mapVerificationPayload,
+} = require("./utils/lahza");
 
 function getClientIp(req) {
   const xff = req.headers["x-forwarded-for"];
@@ -166,8 +171,17 @@ app.post(
       // إذا كان حدث نجاح الدفع
       if (event?.event === "charge.success" && event?.data?.reference) {
         const reference = String(event.data.reference).trim();
+        const order = await Order.findOne({ reference }).lean();
+        if (!order) {
+          console.warn("⚠️ Webhook: لم يتم العثور على طلب للمرجع", reference);
+          return res.sendStatus(200);
+        }
 
-        // تأكيد من Lahza (تحقق ثانوي)
+        const eventPayload = event.data || {};
+        const eventMetadata = parseMetadata(eventPayload.metadata);
+        const eventSnapshot = mapVerificationPayload({ ...eventPayload, metadata: eventMetadata });
+
+        let verification;
         try {
           const url = `https://api.lahza.io/transaction/verify/${encodeURIComponent(
             reference
@@ -180,7 +194,8 @@ app.post(
             timeout: 15000,
           });
 
-          if (String(data?.data?.status || "").toLowerCase() !== "success") {
+          verification = mapVerificationPayload(data?.data || {});
+          if (verification.status !== "success") {
             return res.sendStatus(200);
           }
         } catch (e) {
@@ -188,12 +203,77 @@ app.post(
           return res.sendStatus(200);
         }
 
-        // تحديث الطلب (Idempotent): إن كان غير مدفوع -> مدفوع ثم خصم المخزون
+        const amountMinor =
+          verification.amountMinor ??
+          eventSnapshot.amountMinor ??
+          normalizeMinorAmount(eventMetadata.expectedAmountMinor);
+        const verifiedCurrency = (verification.currency || eventSnapshot.currency || "")
+          .toString()
+          .trim()
+          .toUpperCase();
+
+        const expectedMinor = Math.round(Number(order.total || 0) * 100);
+        const storedCurrency = (order.paymentCurrency || "").toString().trim().toUpperCase();
+        const fallbackCurrency = (eventMetadata.expectedCurrency || "")
+          .toString()
+          .trim()
+          .toUpperCase();
+        const expectedCurrency = storedCurrency || fallbackCurrency;
+
+        const amountMatches =
+          typeof amountMinor === "number" && Number.isFinite(amountMinor)
+            ? amountMinor === expectedMinor
+            : false;
+        const currencyMatches =
+          !expectedCurrency || !verifiedCurrency
+            ? true
+            : verifiedCurrency === expectedCurrency;
+
+        const amountForStorage =
+          typeof amountMinor === "number" && Number.isFinite(amountMinor)
+            ? Number((amountMinor / 100).toFixed(2))
+            : null;
+        const transactionId = verification.transactionId || eventSnapshot.transactionId || null;
+
+        if (!amountMatches || !currencyMatches) {
+          console.error("🚫 Webhook: تعارض في مبلغ أو عملة الدفع", {
+            reference,
+            amountMinor,
+            expectedMinor,
+            verifiedCurrency,
+            expectedCurrency,
+          });
+
+          const mismatchSet = {};
+          if (amountForStorage !== null) mismatchSet.paymentVerifiedAmount = amountForStorage;
+          if (verifiedCurrency) mismatchSet.paymentVerifiedCurrency = verifiedCurrency;
+          if (transactionId) mismatchSet.paymentTransactionId = String(transactionId);
+          if (Object.keys(mismatchSet).length) {
+            await Order.updateOne({ _id: order._id }, { $set: mismatchSet });
+          }
+          return res.sendStatus(200);
+        }
+
+        const baseSet = {
+          paymentStatus: "paid",
+          status: "waiting_confirmation",
+        };
+        if (amountForStorage !== null) baseSet.paymentVerifiedAmount = amountForStorage;
+        if (verifiedCurrency) baseSet.paymentVerifiedCurrency = verifiedCurrency;
+        if (transactionId) baseSet.paymentTransactionId = String(transactionId);
+        if (!storedCurrency && verifiedCurrency) {
+          baseSet.paymentCurrency = verifiedCurrency;
+        }
+
         const updated = await Order.findOneAndUpdate(
-          { reference, paymentStatus: { $ne: "paid" } },
-          { $set: { paymentStatus: "paid", status: "waiting_confirmation" } },
+          { _id: order._id, paymentStatus: { $ne: "paid" } },
+          { $set: baseSet },
           { new: true }
         ).lean();
+
+        if (!updated) {
+          await Order.updateOne({ _id: order._id }, { $set: baseSet });
+        }
 
         if (updated) {
           await decrementStockByOrderItems(updated.items || []);
