@@ -28,7 +28,7 @@ const Register: React.FC = () => {
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
-  const [identifier, setIdentifier] = useState(""); // بريد أو جوال
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
 
@@ -42,24 +42,20 @@ const Register: React.FC = () => {
     setInfo("");
 
     const trimmedName = name.trim();
-    const id = identifier.trim();
+    const trimmedPhone = phone.trim();
 
     if (!trimmedName) return setError("الاسم مطلوب.");
-    if (!id) return setError("الرجاء إدخال البريد أو رقم الجوال.");
+    if (!trimmedPhone) return setError("الرجاء إدخال رقم الجوال.");
     if (password.length < 6)
       return setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل.");
     if (password !== confirm) return setError("تأكيد كلمة المرور غير مطابق.");
 
-    const isEmail = id.includes("@");
+    const normalizedPhone = normalizePhone(trimmedPhone);
     const payload: any = {
       name: trimmedName,
       password,
     };
-    if (isEmail) {
-      payload.email = id.toLowerCase();
-    } else {
-      payload.phone = normalizePhone(id);
-    }
+    payload.phone = normalizedPhone;
 
     try {
       setLoading(true);
@@ -75,7 +71,7 @@ const Register: React.FC = () => {
 
       setInfo(
         message ||
-          "تم إنشاء الحساب. إن كان الجوال مضافًا فسيتم إرسال رمز تحقق (OTP)."
+          "تم إنشاء الحساب. سيتم إرسال رمز تحقق (OTP) إلى رقم جوالك."
       );
 
       // توجيه لصفحة التحقق إن كان التسجيل بالجوال
@@ -104,7 +100,7 @@ const Register: React.FC = () => {
       <main className="container mx-auto p-4 max-w-xl">
         <h1 className="text-2xl font-bold mb-2">إنشاء حساب</h1>
         <p className="text-sm text-muted-foreground mb-4">
-          يمكنك التسجيل بالبريد الإلكتروني أو برقم الجوال.
+          يمكنك التسجيل باستخدام رقم جوالك.
         </p>
 
         {info && (
@@ -128,13 +124,11 @@ const Register: React.FC = () => {
           </div>
 
           <div>
-            <label className="block mb-1">
-              البريد الإلكتروني أو رقم الجوال
-            </label>
+            <label className="block mb-1">رقم الجوال</label>
             <Input
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="example@mail.com أو 059XXXXXXX"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="مثال: 059XXXXXXX"
               required
             />
           </div>
