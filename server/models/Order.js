@@ -91,6 +91,7 @@ const OrderSchema = new mongoose.Schema(
       default: "waiting_confirmation",
       index: true,
     },
+    deliveredAt: { type: Date },
     paymentMethod: {
       type: String,
       enum: ["card", "cod"],
