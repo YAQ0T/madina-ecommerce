@@ -48,6 +48,33 @@ const emptyForm = (productId: string): Variant => ({
   tags: [],
 });
 
+const easternArabicDigits: Record<string, string> = {
+  "٠": "0",
+  "١": "1",
+  "٢": "2",
+  "٣": "3",
+  "٤": "4",
+  "٥": "5",
+  "٦": "6",
+  "٧": "7",
+  "٨": "8",
+  "٩": "9",
+};
+
+const normalizeDigits = (value: string): string => {
+  if (!value) return "";
+
+  let normalized = value.replace(/[٠-٩]/g, (char) => easternArabicDigits[char] || char);
+  normalized = normalized.replace(/[٫،]/g, ".");
+  normalized = normalized.replace(/[٬\s]/g, "");
+  if (normalized.includes(".")) {
+    normalized = normalized.replace(/,/g, "");
+  } else {
+    normalized = normalized.replace(/,/g, ".");
+  }
+  return normalized.trim();
+};
+
 const VariantManagerDialog: React.FC<Props> = ({
   product,
   token,
@@ -58,6 +85,8 @@ const VariantManagerDialog: React.FC<Props> = ({
   const [loading, setLoading] = useState(true);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [form, setForm] = useState<Variant>(() => emptyForm(product._id));
+  const [priceInput, setPriceInput] = useState<string>(() => "0");
+  const [compareAtInput, setCompareAtInput] = useState<string>("");
   const [isEditingId, setIsEditingId] = useState<string | null>(null);
   const [newColorImage, setNewColorImage] = useState("");
 
@@ -116,6 +145,8 @@ const VariantManagerDialog: React.FC<Props> = ({
     setForm(emptyForm(product._id));
     setIsEditingId(null);
     setNewColorImage("");
+    setPriceInput("0");
+    setCompareAtInput("");
   };
 
   const handleAddColorImage = () => {
@@ -174,6 +205,20 @@ const VariantManagerDialog: React.FC<Props> = ({
       tags: v.tags || [],
       _id: v._id,
     });
+    const amountValue =
+      typeof v.price?.amount === "number" && Number.isFinite(v.price.amount)
+        ? v.price.amount
+        : 0;
+    setPriceInput(String(amountValue));
+    const compareAtValue =
+      typeof v.price?.compareAt === "number" && Number.isFinite(v.price.compareAt)
+        ? v.price.compareAt
+        : amountValue;
+    setCompareAtInput(
+      typeof compareAtValue === "number" && Number.isFinite(compareAtValue)
+        ? String(compareAtValue)
+        : ""
+    );
   };
 
   const updateVariant = async () => {
@@ -387,35 +432,50 @@ const VariantManagerDialog: React.FC<Props> = ({
 
             <div className="grid grid-cols-2 gap-2">
               <Input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 placeholder="السعر"
-                value={form.price.amount}
-                onChange={(e) =>
+                value={priceInput}
+                onChange={(e) => {
+                  const normalized = normalizeDigits(e.target.value);
+                  setPriceInput(normalized);
+                  const parsed = parseFloat(normalized);
+                  if (normalized === "") return;
+                  if (!Number.isFinite(parsed)) return;
                   setForm({
                     ...form,
                     price: {
                       ...form.price,
-                      amount: Number(e.target.value) || 0,
+                      amount: parsed,
                     },
-                  })
-                }
+                  });
+                }}
               />
               <Input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 placeholder="Compare At (اختياري)"
-                value={form.price.compareAt ?? ""}
-                onChange={(e) =>
+                value={compareAtInput}
+                onChange={(e) => {
+                  const normalized = normalizeDigits(e.target.value);
+                  setCompareAtInput(normalized);
+                  if (normalized === "") {
+                    setForm({
+                      ...form,
+                      price: { ...form.price, compareAt: undefined },
+                    });
+                    return;
+                  }
+                  const parsed = parseFloat(normalized);
+                  if (!Number.isFinite(parsed)) return;
                   setForm({
                     ...form,
                     price: {
                       ...form.price,
-                      compareAt:
-                        e.target.value === ""
-                          ? undefined
-                          : Number(e.target.value) || 0,
+                      compareAt: parsed,
                     },
-                  })
-                }
+                  });
+                }}
               />
             </div>
 
