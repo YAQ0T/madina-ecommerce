@@ -370,10 +370,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   // سكيليتون
   if (vLoading) {
     return (
-      <div className="group border rounded-lg p-3 text-right relative h-full animate-pulse">
-        <div className="w-full aspect-[3/4] mb-3 rounded bg-gray-200" />
+      <div className="group border rounded-lg p-2 text-right relative h-full animate-pulse">
+        <div className="w-full aspect-[4/5] mb-2 rounded bg-gray-200" />
         <div className="h-5 w-2/3 bg-gray-200 rounded mb-2" />
-        <div className="h-4 w-1/3 bg-gray-200 rounded mb-3" />
+        <div className="h-4 w-1/3 bg-gray-200 rounded mb-2" />
         <div className="h-10 w-full bg-gray-200 rounded" />
       </div>
     );
@@ -383,11 +383,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     <>
       {/* ============ موبايل (واجهة مبسّطة + كل البطاقة تفتح التفاصيل) ============ */}
       <div
-        className="relative border rounded-lg p-3 text-right hover:shadow flex flex-col h-full md:hidden cursor-pointer"
+        className="relative border rounded-lg p-2 text-right hover:shadow flex flex-col h-full md:hidden cursor-pointer"
         onClick={() => navigate(`/products/${product._id}`)}
       >
         {/* محتوى البطاقة */}
-        <div className="relative w-full aspect-[3/4] mb-2 overflow-hidden rounded bg-white">
+        <div className="relative w-full aspect-[4/5] mb-1.5 overflow-hidden rounded bg-white">
           {displayedImages.map((src, index) => (
             <img
               key={`${src}-${index}`}
@@ -460,8 +460,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         </div>
 
         <div className="pr-0">
-          <div className="flex items-start justify-between gap-2">
-            <span className="block text-base font-medium mb-1 line-clamp-2">
+          <div className="flex items-start justify-between gap-1.5">
+            <span className="block text-sm font-medium mb-1 line-clamp-2">
               {productName}
             </span>
 
@@ -487,17 +487,17 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           </div>
 
           <div className="mt-1">
-            <div className="flex items-baseline gap-2">
+            <div className="flex items-baseline gap-1.5">
               {typeof variantCompare === "number" &&
               variantCompare > displayPrice ? (
                 <>
                   <span className="text-gray-500 line-through">
                     ₪{variantCompare}
                   </span>
-                  <span className="font-bold text-lg">₪{displayPrice}</span>
+                  <span className="font-semibold text-base">₪{displayPrice}</span>
                 </>
               ) : (
-                <span className="font-bold text-lg">₪{displayPrice}</span>
+                <span className="font-semibold text-base">₪{displayPrice}</span>
               )}
             </div>
           </div>
@@ -505,9 +505,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       </div>
 
       {/* ============ ديسكتوب (كما هو لديك) ============ */}
-      <div className="hidden md:flex group border rounded-lg p-4 text-right hover:shadow relative flex-col justify-between h-full">
+      <div className="hidden md:flex group border rounded-lg p-3 text-right hover:shadow relative flex-col justify-between h-full">
         <div
-          className="relative w-full aspect-[3/4] mb-3 overflow-hidden rounded bg-white cursor-pointer"
+          className="relative w-full aspect-[4/5] mb-2 overflow-hidden rounded bg-white cursor-pointer"
           onClick={() => navigate(`/products/${product._id}`)}
           role="button"
           tabIndex={0}
@@ -597,19 +597,19 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           )}
         </div>
 
-        <h3 className="text-lg font-medium mb-1">{productName}</h3>
+        <h3 className="text-base font-medium mb-1">{productName}</h3>
 
         {product.subCategory && (
-          <p className="text-sm text-gray-500 mb-2">{product.subCategory}</p>
+          <p className="text-xs text-gray-500 mb-1.5">{product.subCategory}</p>
         )}
 
         {/* المقاسات */}
         {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
-          <div className="mb-2">
+          <div className="mb-1.5">
             <span className="text-sm font-medium">
               {t("productCard.sizesLabel")}:
             </span>
-            <div className="flex gap-2 mt-1 flex-wrap">
+            <div className="flex gap-1.5 mt-1 flex-wrap">
               {measuresFromVariants
                 .filter((m) => !isUnified(m.label))
                 .map((m) => {
@@ -638,11 +638,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
         {/* الألوان */}
         {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
-          <div className="mb-2">
+          <div className="mb-1.5">
             <span className="text-sm font-medium">
               {t("productCard.colorsLabel")}:
             </span>
-            <div className="flex gap-2 mt-1 flex-wrap">
+            <div className="flex gap-1.5 mt-1 flex-wrap">
               {allColorsFromVariants
                 .filter((c) => !isUnified(c.name))
                 .map((c) => {
@@ -677,23 +677,23 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         )}
 
         {/* السعر */}
-        <div className="mb-2">
+        <div className="mb-1.5">
           {typeof variantCompare === "number" &&
           variantCompare > displayPrice ? (
-            <div className="flex items-baseline gap-2">
+            <div className="flex items-baseline gap-1.5">
               <span className="text-gray-500 line-through">
                 ₪{variantCompare}
               </span>
-              <span className="font-bold text-lg">₪{displayPrice}</span>
+              <span className="font-semibold text-base">₪{displayPrice}</span>
             </div>
           ) : (
-            <p className="font-bold mb-0">₪{displayPrice}</p>
+            <p className="font-semibold text-base mb-0">₪{displayPrice}</p>
           )}
         </div>
 
         {/* تايمر خصم */}
         {showDiscountTimer && progressPct !== null && timeLeftMs !== null && (
-          <div className="mb-3">
+          <div className="mb-2.5">
             <div
               className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
               role="progressbar"
@@ -714,8 +714,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         )}
 
         {/* أزرار الديسكتوب — كما هي */}
-        <div className="mt-auto flex flex-col gap-2">
-          <div className="flex items-center gap-2">
+        <div className="mt-auto flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5">
             <QuantityInput
               quantity={quantity}
               onChange={handleQuantityChange}
@@ -754,7 +754,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
             <div className="grid md:grid-cols-2 gap-4 mt-2">
               {/* صورة كبيرة */}
-              <div className="relative w-full aspect-[3/4] overflow-hidden rounded bg-white">
+              <div className="relative w-full aspect-[4/5] overflow-hidden rounded bg-white">
                 {displayedImages.map((src, index) => (
                   <img
                     key={`${src}-${index}`}
