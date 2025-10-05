@@ -593,7 +593,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         <button
           type="button"
           onClick={toggleDesktopDetails}
-          className="absolute left-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 z-40"
+          className={clsx(
+            "absolute top-3 [inset-inline-end:0.75rem] inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-900 shadow-sm transition hover:bg-gray-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 z-40",
+            isDesktopDetailsOpen &&
+              "bg-black text-white hover:bg-black border-black shadow-md"
+          )}
           aria-expanded={isDesktopDetailsOpen}
           aria-controls={desktopDetailsId}
           aria-label={
