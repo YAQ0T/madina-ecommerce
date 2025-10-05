@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import clsx from "clsx";
@@ -9,6 +9,8 @@ import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
 import QuantityInput from "@/components/common/QuantityInput";
+import { Loader2, Check } from "lucide-react";
+import { dispatchCartHighlight } from "@/lib/cartHighlight";
 import {
   Dialog,
   DialogContent,
@@ -97,6 +99,17 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   // Dialog للموبايل
   const [openDialog, setOpenDialog] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [isAdding, setIsAdding] = useState(false);
+  const [justAdded, setJustAdded] = useState(false);
+  const resetJustAddedTimeout = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (resetJustAddedTimeout.current !== null) {
+        window.clearTimeout(resetJustAddedTimeout.current);
+      }
+    };
+  }, []);
 
   // جلب المتغيّرات
   useEffect(() => {
@@ -316,56 +329,86 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     [currentVariant?.stock?.inStock]
   );
 
-  const addItemToCart = useCallback(() => {
-    const effectiveQuantity = Math.max(1, quantity);
-    if (variants.length > 0) {
-      if (!currentVariant) return;
-      if ((currentVariant.stock?.inStock ?? 0) <= 0) return;
+  const addItemToCart = useCallback(async () => {
+    if (isAdding) return false;
 
-      const itemForCart = {
-        ...product,
-        image: displayedImages?.[0] || fallbackImg,
-        selectedVariantId: currentVariant._id,
-        selectedSku: currentVariant.stock?.sku,
-        selectedMeasure: currentVariant.measure,
-        selectedMeasureUnit: currentVariant.measureUnit || undefined,
-        selectedColor: currentVariant.color?.name,
-        price:
-          typeof currentVariant.finalAmount === "number"
-            ? currentVariant.finalAmount
-            : currentVariant.price?.amount ?? product.price ?? 0,
-      };
-      const maxQty = currentVariant.stock?.inStock;
-      const finalQuantity =
-        typeof maxQty === "number" && maxQty > 0
-          ? clamp(effectiveQuantity, 1, maxQty)
-          : effectiveQuantity;
-      addToCart(itemForCart, finalQuantity);
-    } else {
-      const productForCart = {
-        ...product,
-        image: displayedImages?.[0] || fallbackImg,
-        selectedMeasure,
-        selectedColor,
-        price: product.price ?? 0,
-      };
-      addToCart(productForCart, effectiveQuantity);
+    setIsAdding(true);
+
+    try {
+      const effectiveQuantity = Math.max(1, quantity);
+      let added = false;
+
+      if (variants.length > 0) {
+        if (!currentVariant) return false;
+        if ((currentVariant.stock?.inStock ?? 0) <= 0) return false;
+
+        const itemForCart = {
+          ...product,
+          image: displayedImages?.[0] || fallbackImg,
+          selectedVariantId: currentVariant._id,
+          selectedSku: currentVariant.stock?.sku,
+          selectedMeasure: currentVariant.measure,
+          selectedMeasureUnit: currentVariant.measureUnit || undefined,
+          selectedColor: currentVariant.color?.name,
+          price:
+            typeof currentVariant.finalAmount === "number"
+              ? currentVariant.finalAmount
+              : currentVariant.price?.amount ?? product.price ?? 0,
+        };
+        const maxQty = currentVariant.stock?.inStock;
+        const finalQuantity =
+          typeof maxQty === "number" && maxQty > 0
+            ? clamp(effectiveQuantity, 1, maxQty)
+            : effectiveQuantity;
+        addToCart(itemForCart, finalQuantity);
+        added = true;
+      } else {
+        const productForCart = {
+          ...product,
+          image: displayedImages?.[0] || fallbackImg,
+          selectedMeasure,
+          selectedColor,
+          price: product.price ?? 0,
+        };
+        addToCart(productForCart, effectiveQuantity);
+        added = true;
+      }
+
+      if (added) {
+        setJustAdded(true);
+        dispatchCartHighlight();
+        if (resetJustAddedTimeout.current !== null) {
+          window.clearTimeout(resetJustAddedTimeout.current);
+        }
+        resetJustAddedTimeout.current = window.setTimeout(() => {
+          setJustAdded(false);
+        }, 1000);
+      }
+
+      return added;
+    } finally {
+      setIsAdding(false);
     }
   }, [
-    addToCart,
+    isAdding,
+    quantity,
     variants.length,
     currentVariant,
+    addToCart,
     product,
     displayedImages,
     selectedMeasure,
     selectedColor,
-    quantity,
   ]);
 
   const handleQuickAddClick = () => {
     // افتح الديالوج للموبايل
     setOpenDialog(true);
   };
+
+  const isVariantUnavailable =
+    variants.length > 0 &&
+    (!currentVariant || (currentVariant.stock?.inStock ?? 0) <= 0);
 
   // سكيليتون
   if (vLoading) {
@@ -722,8 +765,34 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               placeholder="الكمية"
               placeholderQuantity={1}
             />
-            <Button onClick={addItemToCart} className="flex-1">
-              {t("productCard.addToCart")}
+            <Button
+              onClick={() => {
+                void addItemToCart();
+              }}
+              className={clsx(
+                "flex-1 transition-transform duration-200",
+                justAdded &&
+                  "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
+                isAdding && "opacity-80 cursor-not-allowed",
+                !isAdding && !justAdded && "hover:scale-[1.01]"
+              )}
+              disabled={isAdding || isVariantUnavailable}
+            >
+              {justAdded ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <Check className="h-4 w-4" />
+                  {t("productCard.addedToCart")}
+                </span>
+              ) : isVariantUnavailable ? (
+                t("productCard.outOfStock")
+              ) : isAdding ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t("productCard.addingToCart")}
+                </span>
+              ) : (
+                t("productCard.addToCart")
+              )}
             </Button>
           </div>
           <Link to={`/products/${product._id}`}>
@@ -945,17 +1014,36 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                     </Button>
                   </DialogClose>
                   <Button
-                    onClick={() => {
-                      addItemToCart();
-                      setOpenDialog(false);
+                    onClick={async () => {
+                      const added = await addItemToCart();
+                      if (added) {
+                        setOpenDialog(false);
+                      }
                     }}
-                    disabled={
-                      variants.length > 0 &&
-                      (!currentVariant ||
-                        (currentVariant.stock?.inStock ?? 0) <= 0)
-                    }
+                    disabled={isAdding || isVariantUnavailable}
+                    className={clsx(
+                      "transition-transform duration-200",
+                      justAdded &&
+                        "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
+                      isAdding && "opacity-80 cursor-not-allowed",
+                      !isAdding && !justAdded && "hover:scale-[1.01]"
+                    )}
                   >
-                    {t("productCard.addToCart")}
+                    {justAdded ? (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <Check className="h-4 w-4" />
+                        {t("productCard.addedToCart")}
+                      </span>
+                    ) : isVariantUnavailable ? (
+                      t("productCard.outOfStock")
+                    ) : isAdding ? (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {t("productCard.addingToCart")}
+                      </span>
+                    ) : (
+                      t("productCard.addToCart")
+                    )}
                   </Button>
                 </DialogFooter>
               </div>

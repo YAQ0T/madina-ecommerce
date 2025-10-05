@@ -221,6 +221,8 @@
     "previousImage": "الصورة السابقة",
     "nextImage": "الصورة التالية",
     "addToCart": "إضافة للسلة",
+    "addingToCart": "جاري الإضافة…",
+    "addedToCart": "أُضيفت للسلة",
     "viewDetails": "عرض التفاصيل",
     "sizeLabel": "المقاس",
     "sizesLabel": "المقاسات",
