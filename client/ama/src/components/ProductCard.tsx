@@ -203,7 +203,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     for (const v of variants) {
       if (!v.colorSlug) continue;
       const source = v.color?.name || v.colorSlug;
-      const localized = getLocalizedText(getColorLabel(source), locale) || source;
+      const localized =
+        getLocalizedText(getColorLabel(source), locale) || source;
       map.set(v.colorSlug, { slug: v.colorSlug, name: localized });
     }
     return Array.from(map.values());
@@ -281,7 +282,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
     const previousOverflow = document.body.style.overflow;
     const previousPaddingRight = document.body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
 
     document.body.style.overflow = "hidden";
     if (scrollbarWidth > 0) {
@@ -645,7 +647,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                   <span className="text-gray-500 line-through">
                     ₪{variantCompare}
                   </span>
-                  <span className="font-semibold text-base">₪{displayPrice}</span>
+                  <span className="font-semibold text-base">
+                    ₪{displayPrice}
+                  </span>
                 </>
               ) : (
                 <span className="font-semibold text-base">₪{displayPrice}</span>
@@ -777,14 +781,18 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           <h3 className="text-base font-medium mb-1">{productName}</h3>
 
           {product.subCategory && (
-            <p className="text-xs text-gray-500 mb-1.5">{product.subCategory}</p>
+            <p className="text-xs text-gray-500 mb-1.5">
+              {product.subCategory}
+            </p>
           )}
 
           <div className="mb-1.5">
             {typeof variantCompare === "number" &&
             variantCompare > displayPrice ? (
               <div className="flex items-baseline gap-1.5 justify-end">
-                <span className="text-gray-500 line-through">₪{variantCompare}</span>
+                <span className="text-gray-500 line-through">
+                  ₪{variantCompare}
+                </span>
                 <span className="font-semibold text-base">₪{displayPrice}</span>
               </div>
             ) : (
@@ -810,7 +818,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                     </p>
                   )}
 
-                  {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
+                  {measuresFromVariants.filter((m) => !isUnified(m.label))
+                    .length > 0 && (
                     <div>
                       <div className="mb-1 text-sm font-medium">
                         {t("productCard.sizeLabel")}
@@ -845,7 +854,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                     </div>
                   )}
 
-                  {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
+                  {allColorsFromVariants.filter((c) => !isUnified(c.name))
+                    .length > 0 && (
                     <div>
                       <div className="mb-1 text-sm font-medium">
                         {t("productCard.colorLabel")}
@@ -873,7 +883,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                                   selectedColor === c.slug && isAvailable
                                     ? "border-black font-bold"
                                     : "border-gray-300",
-                                  !isAvailable && "opacity-40 cursor-not-allowed"
+                                  !isAvailable &&
+                                    "opacity-40 cursor-not-allowed"
                                 )}
                               >
                                 {c.name}
@@ -894,26 +905,28 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                     </div>
                   )}
 
-                  {showDiscountTimer && progressPct !== null && timeLeftMs !== null && (
-                    <div>
-                      <div
-                        className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
-                        role="progressbar"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={Math.round(progressPct)}
-                        title={t("productCard.discountTimerTitle")}
-                      >
+                  {showDiscountTimer &&
+                    progressPct !== null &&
+                    timeLeftMs !== null && (
+                      <div>
                         <div
-                          className="h-full bg-red-600 transition-all duration-500"
-                          style={{ width: `${progressPct}%` }}
-                        />
+                          className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
+                          role="progressbar"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={Math.round(progressPct)}
+                          title={t("productCard.discountTimerTitle")}
+                        >
+                          <div
+                            className="h-full bg-red-600 transition-all duration-500"
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                        <div className="mt-1 text-xs text-red-700 font-semibold text-right">
+                          {t("productCard.discountTimer")}
+                        </div>
                       </div>
-                      <div className="mt-1 text-xs text-red-700 font-semibold text-right">
-                        {t("productCard.discountTimer")}
-                      </div>
-                    </div>
-                  )}
+                    )}
 
                   <div className="mt-auto flex flex-col gap-1.5">
                     <div className="flex items-center gap-1.5">
@@ -1031,9 +1044,12 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                           className={clsx(
                             "absolute inset-0 h-full w-full object-contain transition-all duration-500",
                             {
-                              "opacity-100 translate-x-0 z-10": index === currentImage,
-                              "opacity-0 translate-x-full z-0": index > currentImage,
-                              "opacity-0 -translate-x-full z-0": index < currentImage,
+                              "opacity-100 translate-x-0 z-10":
+                                index === currentImage,
+                              "opacity-0 translate-x-full z-0":
+                                index > currentImage,
+                              "opacity-0 -translate-x-full z-0":
+                                index < currentImage,
                             }
                           )}
                           loading="lazy"
@@ -1109,10 +1125,14 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                             <span className="text-gray-500 line-through">
                               ₪{variantCompare}
                             </span>
-                            <span className="text-lg font-bold">₪{displayPrice}</span>
+                            <span className="text-lg font-bold">
+                              ₪{displayPrice}
+                            </span>
                           </>
                         ) : (
-                          <span className="text-lg font-bold">₪{displayPrice}</span>
+                          <span className="text-lg font-bold">
+                            ₪{displayPrice}
+                          </span>
                         )}
                       </div>
 
@@ -1122,7 +1142,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                         </p>
                       )}
 
-                      {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
+                      {measuresFromVariants.filter((m) => !isUnified(m.label))
+                        .length > 0 && (
                         <div>
                           <div className="mb-1 text-sm font-medium">
                             {t("productCard.sizeLabel")}
@@ -1156,7 +1177,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                         </div>
                       )}
 
-                      {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
+                      {allColorsFromVariants.filter((c) => !isUnified(c.name))
+                        .length > 0 && (
                         <div>
                           <div className="mb-1 text-sm font-medium">
                             {t("productCard.colorLabel")}
@@ -1167,7 +1189,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                               .map((c) => {
                                 const isAvailable =
                                   selectedMeasure &&
-                                  availableColorSlugsForSelectedMeasure.has(c.slug);
+                                  availableColorSlugsForSelectedMeasure.has(
+                                    c.slug
+                                  );
                                 return (
                                   <button
                                     key={c.slug}
@@ -1183,7 +1207,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                                       selectedColor === c.slug && isAvailable
                                         ? "border-black font-bold"
                                         : "border-gray-300 hover:border-gray-400",
-                                      !isAvailable && "cursor-not-allowed opacity-40"
+                                      !isAvailable &&
+                                        "cursor-not-allowed opacity-40"
                                     )}
                                   >
                                     {c.name}
@@ -1269,7 +1294,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           </div>,
           document.body
         )}
-      )}
     </div>
   );
 };
