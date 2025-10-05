@@ -454,7 +454,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   }
 
   return (
-    <>
+    <div className="contents">
       {/* ============ موبايل (واجهة مبسّطة + كل البطاقة تفتح التفاصيل) ============ */}
       <div
         className="relative border rounded-lg p-2 text-right hover:shadow flex flex-col h-full md:hidden cursor-pointer"
@@ -896,8 +896,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         </div>
       </div>
 
-      <div className="md:hidden">
-        {isMobileSheetOpen && (
+      {isMobileSheetOpen && (
+        <div className="md:hidden">
           <div
             className={clsx(
               "mt-2 overflow-hidden rounded-b-lg border border-gray-200 bg-white shadow-xl",
@@ -1171,9 +1171,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               </Button>
             </div>
           </div>
-        )}
-      </div>
-    </>
+        </div>
+      )}
+    </div>
   );
 };
 
