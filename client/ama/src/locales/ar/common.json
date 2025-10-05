@@ -224,6 +224,8 @@
     "addingToCart": "جاري الإضافة…",
     "addedToCart": "أُضيفت للسلة",
     "viewDetails": "عرض التفاصيل",
+    "expandDetails": "إظهار التفاصيل",
+    "collapseDetails": "إخفاء التفاصيل",
     "sizeLabel": "المقاس",
     "sizesLabel": "المقاسات",
     "colorLabel": "اللون",
