@@ -229,6 +229,8 @@
     "addingToCart": "מוסיף לעגלה…",
     "addedToCart": "נוסף לעגלה",
     "viewDetails": "צפה בפרטים",
+    "expandDetails": "הצג פרטים",
+    "collapseDetails": "הסתר פרטים",
     "sizeLabel": "מידה",
     "sizesLabel": "מידות",
     "colorLabel": "צבע",

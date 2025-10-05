@@ -100,7 +100,15 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  const [isDesktopDetailsOpen, setIsDesktopDetailsOpen] = useState(false);
   const resetJustAddedTimeout = useRef<number | null>(null);
+  const desktopDetailsId = useMemo(
+    () => `desktop-details-${product._id}`,
+    [product._id]
+  );
+  const toggleDesktopDetails = useCallback(() => {
+    setIsDesktopDetailsOpen((prev) => !prev);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -549,7 +557,25 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       </div>
 
       {/* ============ ديسكتوب (كما هو لديك) ============ */}
-      <div className="hidden md:flex group border rounded-lg p-3 text-right hover:shadow relative flex-col justify-between h-full">
+      <div className="hidden md:flex group border rounded-lg p-3 text-right hover:shadow relative flex-col h-full">
+        <button
+          type="button"
+          onClick={toggleDesktopDetails}
+          className="absolute left-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+          aria-expanded={isDesktopDetailsOpen}
+          aria-controls={desktopDetailsId}
+          aria-label={
+            isDesktopDetailsOpen
+              ? t("productCard.collapseDetails")
+              : t("productCard.expandDetails")
+          }
+        >
+          {isDesktopDetailsOpen ? (
+            <X className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          )}
+        </button>
         <div
           className="relative w-full aspect-[4/5] mb-2 overflow-hidden rounded bg-white cursor-pointer"
           onClick={() => navigate(`/products/${product._id}`)}
@@ -641,166 +667,187 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           )}
         </div>
 
-        <h3 className="text-base font-medium mb-1">{productName}</h3>
+        <div className="flex flex-col flex-1">
+          <h3 className="text-base font-medium mb-1">{productName}</h3>
 
-        {product.subCategory && (
-          <p className="text-xs text-gray-500 mb-1.5">{product.subCategory}</p>
-        )}
-
-        {/* المقاسات */}
-        {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
-          <div className="mb-1.5">
-            <span className="text-sm font-medium">
-              {t("productCard.sizesLabel")}:
-            </span>
-            <div className="flex gap-1.5 mt-1 flex-wrap">
-              {measuresFromVariants
-                .filter((m) => !isUnified(m.label))
-                .map((m) => {
-                  const labelWithUnit = m.unit
-                    ? `${m.label} ${m.unit}`
-                    : m.label;
-                  return (
-                    <button
-                      key={m.slug}
-                      title={labelWithUnit}
-                      onClick={() => setSelectedMeasure(m.slug)}
-                      className={clsx(
-                        "px-3 py-1 text-sm rounded border transition",
-                        selectedMeasure === m.slug
-                          ? "border-black font-bold"
-                          : "border-gray-300"
-                      )}
-                    >
-                      {labelWithUnit}
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-
-        {/* الألوان */}
-        {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
-          <div className="mb-1.5">
-            <span className="text-sm font-medium">
-              {t("productCard.colorsLabel")}:
-            </span>
-            <div className="flex gap-1.5 mt-1 flex-wrap">
-              {allColorsFromVariants
-                .filter((c) => !isUnified(c.name))
-                .map((c) => {
-                  const isAvailable =
-                    selectedMeasure &&
-                    availableColorSlugsForSelectedMeasure.has(c.slug);
-
-                  return (
-                    <button
-                      key={c.slug}
-                      title={c.name}
-                      onClick={() => {
-                        if (!isAvailable) return;
-                        setSelectedColor(c.slug);
-                        setCurrentImage(0);
-                      }}
-                      disabled={!isAvailable}
-                      className={clsx(
-                        "px-3 py-1 text-sm rounded border transition",
-                        selectedColor === c.slug && isAvailable
-                          ? "border-black font-bold"
-                          : "border-gray-300",
-                        !isAvailable && "opacity-40 cursor-not-allowed"
-                      )}
-                    >
-                      {c.name}
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-
-        {/* السعر */}
-        <div className="mb-1.5">
-          {typeof variantCompare === "number" &&
-          variantCompare > displayPrice ? (
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-gray-500 line-through">
-                ₪{variantCompare}
-              </span>
-              <span className="font-semibold text-base">₪{displayPrice}</span>
-            </div>
-          ) : (
-            <p className="font-semibold text-base mb-0">₪{displayPrice}</p>
+          {product.subCategory && (
+            <p className="text-xs text-gray-500 mb-1.5">{product.subCategory}</p>
           )}
-        </div>
 
-        {/* تايمر خصم */}
-        {showDiscountTimer && progressPct !== null && timeLeftMs !== null && (
-          <div className="mb-2.5">
+          <div className="mb-1.5">
+            {typeof variantCompare === "number" &&
+            variantCompare > displayPrice ? (
+              <div className="flex items-baseline gap-1.5 justify-end">
+                <span className="text-gray-500 line-through">₪{variantCompare}</span>
+                <span className="font-semibold text-base">₪{displayPrice}</span>
+              </div>
+            ) : (
+              <p className="font-semibold text-base mb-0">₪{displayPrice}</p>
+            )}
+          </div>
+
+          {isDesktopDetailsOpen && (
             <div
-              className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(progressPct)}
-              title={t("productCard.discountTimerTitle")}
+              id={desktopDetailsId}
+              className="flex flex-col gap-1.5 flex-1"
             >
-              <div
-                className="h-full bg-red-600 transition-all duration-500"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-            <div className="mt-1 text-xs text-red-700 font-semibold text-right">
-              {t("productCard.discountTimer")}
-            </div>
-          </div>
-        )}
+              {productDescription && (
+                <p className="text-sm leading-6 text-gray-600">
+                  {productDescription}
+                </p>
+              )}
 
-        {/* أزرار الديسكتوب — كما هي */}
-        <div className="mt-auto flex flex-col gap-1.5">
-          <div className="flex items-center gap-1.5">
-            <QuantityInput
-              quantity={quantity}
-              onChange={handleQuantityChange}
-              placeholder="الكمية"
-              placeholderQuantity={1}
-            />
-            <Button
-              onClick={() => {
-                void addItemToCart();
-              }}
-              className={clsx(
-                "flex-1 transition-transform duration-200",
-                justAdded &&
-                  "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
-                isAdding && "opacity-80 cursor-not-allowed",
-                !isAdding && !justAdded && "hover:scale-[1.01]"
+              {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
+                <div>
+                  <div className="mb-1 text-sm font-medium">
+                    {t("productCard.sizeLabel")}
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {measuresFromVariants
+                      .filter((m) => !isUnified(m.label))
+                      .map((m) => {
+                        const labelWithUnit = m.unit
+                          ? `${m.label} ${m.unit}`
+                          : m.label;
+                        return (
+                          <button
+                            key={m.slug}
+                            title={labelWithUnit}
+                            onClick={() => {
+                              setSelectedMeasure(m.slug);
+                              setCurrentImage(0);
+                            }}
+                            className={clsx(
+                              "px-3 py-1 text-sm rounded border transition",
+                              selectedMeasure === m.slug
+                                ? "border-black font-bold"
+                                : "border-gray-300"
+                            )}
+                          >
+                            {labelWithUnit}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
               )}
-              disabled={isAdding || isVariantUnavailable}
-            >
-              {justAdded ? (
-                <span className="flex items-center justify-center gap-1.5">
-                  <Check className="h-4 w-4" />
-                  {t("productCard.addedToCart")}
-                </span>
-              ) : isVariantUnavailable ? (
-                t("productCard.outOfStock")
-              ) : isAdding ? (
-                <span className="flex items-center justify-center gap-1.5">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t("productCard.addingToCart")}
-                </span>
-              ) : (
-                t("productCard.addToCart")
+
+              {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
+                <div>
+                  <div className="mb-1 text-sm font-medium">
+                    {t("productCard.colorLabel")}
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {allColorsFromVariants
+                      .filter((c) => !isUnified(c.name))
+                      .map((c) => {
+                        const isAvailable =
+                          selectedMeasure &&
+                          availableColorSlugsForSelectedMeasure.has(c.slug);
+
+                        return (
+                          <button
+                            key={c.slug}
+                            title={c.name}
+                            onClick={() => {
+                              if (!isAvailable) return;
+                              setSelectedColor(c.slug);
+                              setCurrentImage(0);
+                            }}
+                            disabled={!isAvailable}
+                            className={clsx(
+                              "px-3 py-1 text-sm rounded border transition",
+                              selectedColor === c.slug && isAvailable
+                                ? "border-black font-bold"
+                                : "border-gray-300",
+                              !isAvailable && "opacity-40 cursor-not-allowed"
+                            )}
+                          >
+                            {c.name}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
               )}
-            </Button>
-          </div>
-          <Link to={`/products/${product._id}`}>
-            <Button variant="secondary" className="w-full">
-              {t("productCard.viewDetails")}
-            </Button>
-          </Link>
+
+              {currentVariant && (
+                <div className="text-sm text-gray-600">
+                  {currentVariant.stock?.inStock > 0
+                    ? t("productCard.inStock", {
+                        count: currentVariant.stock?.inStock,
+                      })
+                    : t("productCard.outOfStock")}
+                </div>
+              )}
+
+              {showDiscountTimer && progressPct !== null && timeLeftMs !== null && (
+                <div>
+                  <div
+                    className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(progressPct)}
+                    title={t("productCard.discountTimerTitle")}
+                  >
+                    <div
+                      className="h-full bg-red-600 transition-all duration-500"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                  <div className="mt-1 text-xs text-red-700 font-semibold text-right">
+                    {t("productCard.discountTimer")}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-auto flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <QuantityInput
+                    quantity={quantity}
+                    onChange={handleQuantityChange}
+                    placeholder="الكمية"
+                    placeholderQuantity={1}
+                  />
+                  <Button
+                    onClick={() => {
+                      void addItemToCart();
+                    }}
+                    className={clsx(
+                      "flex-1 transition-transform duration-200",
+                      justAdded &&
+                        "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
+                      isAdding && "opacity-80 cursor-not-allowed",
+                      !isAdding && !justAdded && "hover:scale-[1.01]"
+                    )}
+                    disabled={isAdding || isVariantUnavailable}
+                  >
+                    {justAdded ? (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <Check className="h-4 w-4" />
+                        {t("productCard.addedToCart")}
+                      </span>
+                    ) : isVariantUnavailable ? (
+                      t("productCard.outOfStock")
+                    ) : isAdding ? (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {t("productCard.addingToCart")}
+                      </span>
+                    ) : (
+                      t("productCard.addToCart")
+                    )}
+                  </Button>
+                </div>
+                <Link to={`/products/${product._id}`}>
+                  <Button variant="secondary" className="w-full">
+                    {t("productCard.viewDetails")}
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
