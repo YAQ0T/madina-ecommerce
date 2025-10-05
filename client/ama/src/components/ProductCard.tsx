@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import clsx from "clsx";
@@ -102,6 +103,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const [justAdded, setJustAdded] = useState(false);
   const [isDesktopDetailsOpen, setIsDesktopDetailsOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const mobileSheetRef = useRef<HTMLDivElement | null>(null);
   const resetJustAddedTimeout = useRef<number | null>(null);
   const desktopDetailsId = useMemo(
     () => `desktop-details-${product._id}`,
@@ -273,6 +275,74 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       setQuantity(1);
     }
   }, [isMobileSheetOpen]);
+
+  useEffect(() => {
+    if (!isMobileSheetOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, [isMobileSheetOpen]);
+
+  useEffect(() => {
+    if (!isMobileSheetOpen) return;
+
+    const dialog = mobileSheetRef.current;
+    if (!dialog) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    const focusableSelectors =
+      'a[href], button:not([disabled]), textarea, input, select, details, [tabindex]:not([tabindex="-1"])';
+    const focusableElements = Array.from(
+      dialog.querySelectorAll<HTMLElement>(focusableSelectors)
+    ).filter((el) => !el.hasAttribute("data-focus-guard"));
+
+    const first = focusableElements[0];
+    const last = focusableElements[focusableElements.length - 1];
+    if (first) {
+      first.focus({ preventScroll: true });
+    } else {
+      dialog.focus({ preventScroll: true });
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        closeMobileSheet();
+        return;
+      }
+
+      if (event.key !== "Tab" || focusableElements.length === 0) return;
+
+      if (event.shiftKey) {
+        if (document.activeElement === first) {
+          event.preventDefault();
+          (last || first).focus();
+        }
+      } else if (document.activeElement === last) {
+        event.preventDefault();
+        (first || last).focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, [isMobileSheetOpen, closeMobileSheet]);
 
   // الأسعار/الخصم
   const variantFinal = currentVariant?.finalAmount;
@@ -896,282 +966,309 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         </div>
       </div>
 
-      {isMobileSheetOpen && (
-        <div className="md:hidden">
-          <div
-            className={clsx(
-              "mt-2 overflow-hidden rounded-b-lg border border-gray-200 bg-white shadow-xl",
-              "animate-in fade-in slide-in-from-bottom duration-300 ease-out"
-            )}
-          >
-            <div className="border-b px-4 pb-3 pt-4 text-right">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1">
-                  <h3 className="text-base font-semibold">{productName}</h3>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {t("productCard.dialogDescription")}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeMobileSheet();
-                  }}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition hover:bg-gray-100"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">{t("productCard.cancel")}</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="max-h-[85svh] overflow-y-auto">
-              <div className="flex flex-col gap-4 p-4">
-                <div className="relative w-full aspect-[4/5] overflow-hidden rounded-lg bg-white">
-                  {displayedImages.map((src, index) => (
-                    <img
-                      key={`${src}-${index}`}
-                      src={src}
-                      alt={productName}
-                      className={clsx(
-                        "absolute inset-0 h-full w-full object-contain transition-all duration-500",
-                        {
-                          "opacity-100 translate-x-0 z-10": index === currentImage,
-                          "opacity-0 translate-x-full z-0": index > currentImage,
-                          "opacity-0 -translate-x-full z-0": index < currentImage,
-                        }
-                      )}
-                      loading="lazy"
-                      decoding="async"
-                      draggable={false}
-                    />
-                  ))}
-
-                  {displayedImages.length > 1 && (
-                    <>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          prevImage();
-                        }}
-                        aria-label={t("productCard.previousImage")}
-                        className={clsx(
-                          arrowBase,
-                          arrowSize,
-                          "left-2 text-white"
-                        )}
-                      >
-                        <svg
-                          className={arrowIcon}
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                          width="18"
-                          height="18"
-                          fill="currentColor"
-                        >
-                          <path d="M12.707 15.707a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414l5-5a1 1 0 1 1 1.414 1.414L8.414 10l4.293 4.293a1 1 0 0 1 0 1.414z" />
-                        </svg>
-                      </button>
-
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          nextImage();
-                        }}
-                        aria-label={t("productCard.nextImage")}
-                        className={clsx(
-                          arrowBase,
-                          arrowSize,
-                          "right-2 text-white"
-                        )}
-                      >
-                        <svg
-                          className={arrowIcon}
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                          width="18"
-                          height="18"
-                          fill="currentColor"
-                        >
-                          <path d="M7.293 4.293a1 1 0 0 1 1.414 0l5 5a1 1 0 0 1 0 1.414l-5 5A1 1 0 1 1 7.293 14.293L11.586 10 7.293 5.707a1 1 0 0 1 0-1.414z" />
-                        </svg>
-                      </button>
-                    </>
-                  )}
-
-                  {discountPercent !== null && (
-                    <span className="absolute right-2 top-2 rounded-full bg-red-600 px-2 py-1 text-xs font-bold text-white">
-                      -{discountPercent}%
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-3 text-right">
-                  <div className="flex items-baseline justify-end gap-2">
-                    {typeof variantCompare === "number" &&
-                    variantCompare > displayPrice ? (
-                      <>
-                        <span className="text-gray-500 line-through">
-                          ₪{variantCompare}
-                        </span>
-                        <span className="text-lg font-bold">₪{displayPrice}</span>
-                      </>
-                    ) : (
-                      <span className="text-lg font-bold">₪{displayPrice}</span>
-                    )}
-                  </div>
-
-                  {productDescription && (
-                    <p className="text-sm leading-6 text-gray-600">
-                      {productDescription}
-                    </p>
-                  )}
-
-                  {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
-                    <div>
-                      <div className="mb-1 text-sm font-medium">
-                        {t("productCard.sizeLabel")}
-                      </div>
-                      <div className="flex flex-wrap justify-end gap-2">
-                        {measuresFromVariants
-                          .filter((m) => !isUnified(m.label))
-                          .map((m) => {
-                            const labelWithUnit = m.unit
-                              ? `${m.label} (${m.unit})`
-                              : m.label;
-                            return (
-                              <button
-                                key={m.slug}
-                                onClick={() => {
-                                  setSelectedMeasure(m.slug);
-                                  setCurrentImage(0);
-                                }}
-                                className={clsx(
-                                  "rounded border px-3 py-1 text-sm transition",
-                                  selectedMeasure === m.slug
-                                    ? "border-black font-bold"
-                                    : "border-gray-300 hover:border-gray-400"
-                                )}
-                              >
-                                {labelWithUnit}
-                              </button>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-
-                  {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
-                    <div>
-                      <div className="mb-1 text-sm font-medium">
-                        {t("productCard.colorLabel")}
-                      </div>
-                      <div className="flex flex-wrap justify-end gap-2">
-                        {allColorsFromVariants
-                          .filter((c) => !isUnified(c.name))
-                          .map((c) => {
-                            const isAvailable =
-                              selectedMeasure &&
-                              availableColorSlugsForSelectedMeasure.has(c.slug);
-                            return (
-                              <button
-                                key={c.slug}
-                                title={c.name}
-                                onClick={() => {
-                                  if (!isAvailable) return;
-                                  setSelectedColor(c.slug);
-                                  setCurrentImage(0);
-                                }}
-                                disabled={!isAvailable}
-                                className={clsx(
-                                  "rounded border px-3 py-1 text-sm transition",
-                                  selectedColor === c.slug && isAvailable
-                                    ? "border-black font-bold"
-                                    : "border-gray-300 hover:border-gray-400",
-                                  !isAvailable && "cursor-not-allowed opacity-40"
-                                )}
-                              >
-                                {c.name}
-                              </button>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-
-                  {currentVariant && (
-                    <div className="text-sm text-gray-600">
-                      {currentVariant.stock?.inStock > 0
-                        ? t("productCard.inStock", {
-                            count: currentVariant.stock?.inStock,
-                          })
-                        : t("productCard.outOfStock")}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-end gap-3">
-                    <span className="text-sm text-gray-700">
-                      {t("productCard.quantityLabel")}
-                    </span>
-                    <QuantityInput
-                      quantity={quantity}
-                      onChange={handleQuantityChange}
-                      placeholder="الكمية"
-                      placeholderQuantity={1}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 border-t bg-white p-4 sm:flex-row-reverse sm:items-center sm:justify-between">
-              <Button
-                onClick={async () => {
-                  const added = await addItemToCart();
-                  if (added) {
-                    closeMobileSheet();
-                  }
-                }}
-                disabled={isAdding || isVariantUnavailable}
+      {isMobileSheetOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
+            <button
+              type="button"
+              aria-label={t("productCard.cancel")}
+              className="absolute inset-0 bg-black/50"
+              data-focus-guard
+              onClick={(event) => {
+                event.stopPropagation();
+                closeMobileSheet();
+              }}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`mobile-sheet-title-${product._id}`}
+              ref={mobileSheetRef}
+              tabIndex={-1}
+              className="relative z-10 mt-auto w-full"
+            >
+              <div
                 className={clsx(
-                  "w-full transition-transform duration-200 sm:w-auto",
-                  justAdded &&
-                    "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
-                  isAdding && "cursor-not-allowed opacity-80",
-                  !isAdding && !justAdded && "hover:scale-[1.01]"
+                  "overflow-hidden rounded-t-2xl border border-gray-200 bg-white shadow-xl",
+                  "animate-in fade-in slide-in-from-bottom duration-300 ease-out"
                 )}
               >
-                {justAdded ? (
-                  <span className="flex items-center justify-center gap-1.5">
-                    <Check className="h-4 w-4" />
-                    {t("productCard.addedToCart")}
-                  </span>
-                ) : isVariantUnavailable ? (
-                  t("productCard.outOfStock")
-                ) : isAdding ? (
-                  <span className="flex items-center justify-center gap-1.5">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {t("productCard.addingToCart")}
-                  </span>
-                ) : (
-                  t("productCard.addToCart")
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full sm:w-auto"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeMobileSheet();
-                }}
-              >
-                {t("productCard.cancel")}
-              </Button>
+                <div className="border-b px-4 pb-3 pt-4 text-right">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <h3
+                        id={`mobile-sheet-title-${product._id}`}
+                        className="text-base font-semibold"
+                      >
+                        {productName}
+                      </h3>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {t("productCard.dialogDescription")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeMobileSheet();
+                      }}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition hover:bg-gray-100"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                      <span className="sr-only">{t("productCard.cancel")}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-[85svh] overflow-y-auto">
+                  <div className="flex flex-col gap-4 p-4">
+                    <div className="relative w-full aspect-[4/5] overflow-hidden rounded-lg bg-white">
+                      {displayedImages.map((src, index) => (
+                        <img
+                          key={`${src}-${index}`}
+                          src={src}
+                          alt={productName}
+                          className={clsx(
+                            "absolute inset-0 h-full w-full object-contain transition-all duration-500",
+                            {
+                              "opacity-100 translate-x-0 z-10": index === currentImage,
+                              "opacity-0 translate-x-full z-0": index > currentImage,
+                              "opacity-0 -translate-x-full z-0": index < currentImage,
+                            }
+                          )}
+                          loading="lazy"
+                          decoding="async"
+                          draggable={false}
+                        />
+                      ))}
+
+                      {displayedImages.length > 1 && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              prevImage();
+                            }}
+                            aria-label={t("productCard.previousImage")}
+                            className={clsx(
+                              arrowBase,
+                              arrowSize,
+                              "left-2 text-white"
+                            )}
+                          >
+                            <svg
+                              className={arrowIcon}
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 20 20"
+                              width="18"
+                              height="18"
+                              fill="currentColor"
+                            >
+                              <path d="M12.707 15.707a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414l5-5a1 1 0 1 1 1.414 1.414L8.414 10l4.293 4.293a1 1 0 0 1 0 1.414z" />
+                            </svg>
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              nextImage();
+                            }}
+                            aria-label={t("productCard.nextImage")}
+                            className={clsx(
+                              arrowBase,
+                              arrowSize,
+                              "right-2 text-white"
+                            )}
+                          >
+                            <svg
+                              className={arrowIcon}
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 20 20"
+                              width="18"
+                              height="18"
+                              fill="currentColor"
+                            >
+                              <path d="M7.293 4.293a1 1 0 0 1 1.414 0l5 5a1 1 0 0 1 0 1.414l-5 5A1 1 0 1 1 7.293 14.293L11.586 10 7.293 5.707a1 1 0 0 1 0-1.414z" />
+                            </svg>
+                          </button>
+                        </>
+                      )}
+
+                      {discountPercent !== null && (
+                        <span className="absolute right-2 top-2 rounded-full bg-red-600 px-2 py-1 text-xs font-bold text-white">
+                          -{discountPercent}%
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-3 text-right">
+                      <div className="flex items-baseline justify-end gap-2">
+                        {typeof variantCompare === "number" &&
+                        variantCompare > displayPrice ? (
+                          <>
+                            <span className="text-gray-500 line-through">
+                              ₪{variantCompare}
+                            </span>
+                            <span className="text-lg font-bold">₪{displayPrice}</span>
+                          </>
+                        ) : (
+                          <span className="text-lg font-bold">₪{displayPrice}</span>
+                        )}
+                      </div>
+
+                      {productDescription && (
+                        <p className="text-sm leading-6 text-gray-600">
+                          {productDescription}
+                        </p>
+                      )}
+
+                      {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
+                        <div>
+                          <div className="mb-1 text-sm font-medium">
+                            {t("productCard.sizeLabel")}
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {measuresFromVariants
+                              .filter((m) => !isUnified(m.label))
+                              .map((m) => {
+                                const labelWithUnit = m.unit
+                                  ? `${m.label} (${m.unit})`
+                                  : m.label;
+                                return (
+                                  <button
+                                    key={m.slug}
+                                    onClick={() => {
+                                      setSelectedMeasure(m.slug);
+                                      setCurrentImage(0);
+                                    }}
+                                    className={clsx(
+                                      "rounded border px-3 py-1 text-sm transition",
+                                      selectedMeasure === m.slug
+                                        ? "border-black font-bold"
+                                        : "border-gray-300 hover:border-gray-400"
+                                    )}
+                                  >
+                                    {labelWithUnit}
+                                  </button>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+
+                      {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
+                        <div>
+                          <div className="mb-1 text-sm font-medium">
+                            {t("productCard.colorLabel")}
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {allColorsFromVariants
+                              .filter((c) => !isUnified(c.name))
+                              .map((c) => {
+                                const isAvailable =
+                                  selectedMeasure &&
+                                  availableColorSlugsForSelectedMeasure.has(c.slug);
+                                return (
+                                  <button
+                                    key={c.slug}
+                                    title={c.name}
+                                    onClick={() => {
+                                      if (!isAvailable) return;
+                                      setSelectedColor(c.slug);
+                                      setCurrentImage(0);
+                                    }}
+                                    disabled={!isAvailable}
+                                    className={clsx(
+                                      "rounded border px-3 py-1 text-sm transition",
+                                      selectedColor === c.slug && isAvailable
+                                        ? "border-black font-bold"
+                                        : "border-gray-300 hover:border-gray-400",
+                                      !isAvailable && "cursor-not-allowed opacity-40"
+                                    )}
+                                  >
+                                    {c.name}
+                                  </button>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+
+                      {currentVariant && (
+                        <div className="text-sm text-gray-600">
+                          {currentVariant.stock?.inStock > 0
+                            ? t("productCard.inStock", {
+                                count: currentVariant.stock?.inStock,
+                              })
+                            : t("productCard.outOfStock")}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end gap-3">
+                        <span className="text-sm text-gray-700">
+                          {t("productCard.quantityLabel")}
+                        </span>
+                        <QuantityInput
+                          quantity={quantity}
+                          onChange={handleQuantityChange}
+                          placeholder="الكمية"
+                          placeholderQuantity={1}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 border-t bg-white p-4 sm:flex-row-reverse sm:items-center sm:justify-between">
+                  <Button
+                    onClick={async () => {
+                      const added = await addItemToCart();
+                      if (added) {
+                        closeMobileSheet();
+                      }
+                    }}
+                    disabled={isAdding || isVariantUnavailable}
+                    className={clsx(
+                      "w-full transition-transform duration-200 sm:w-auto",
+                      justAdded &&
+                        "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
+                      isAdding && "cursor-not-allowed opacity-80",
+                      !isAdding && !justAdded && "hover:scale-[1.01]"
+                    )}
+                  >
+                    {justAdded ? (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <Check className="h-4 w-4" />
+                        {t("productCard.addedToCart")}
+                      </span>
+                    ) : isVariantUnavailable ? (
+                      t("productCard.outOfStock")
+                    ) : isAdding ? (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {t("productCard.addingToCart")}
+                      </span>
+                    ) : (
+                      t("productCard.addToCart")
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeMobileSheet();
+                    }}
+                  >
+                    {t("productCard.cancel")}
+                  </Button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </div>,
+          document.body
+        )}
       )}
     </div>
   );
