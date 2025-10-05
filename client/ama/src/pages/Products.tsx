@@ -967,7 +967,7 @@ const Products: React.FC = () => {
         ) : (
           <>
             {/* ✅ عمودين على الموبايل، 3 أعمدة من md وفوق */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 items-start">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 items-start">
               {products.map((product) => (
                 <ProductCard key={product._id} product={product} />
               ))}
