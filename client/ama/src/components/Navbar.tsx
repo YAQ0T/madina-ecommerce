@@ -42,7 +42,7 @@ const Navbar: React.FC = () => {
   }, [baseLinks, t, user]);
 
   return (
-    <header className="border-b mb-6">
+    <header className="sticky top-0 inset-x-0 z-50 border-b bg-white/90 dark:bg-slate-950/90 backdrop-blur shadow-sm mb-6">
       {/* {showBanner && (
         <OfferBanner
           message={bannerinfo.current}
@@ -50,19 +50,19 @@ const Navbar: React.FC = () => {
         />
       )} */}
 
-      <nav className="container mx-auto p-4 flex items-center justify-between">
+      <nav className="container mx-auto flex items-center justify-between px-4 py-2 sm:px-6">
         {/* الشعار */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <LanguageToggle className="w-24" />
           {showThemeToggle && <ThemeToggle />}
         </div>
-        <Link to="/" className="text-2xl font-bold min-w-45">
+        <Link to="/" className="text-xl font-semibold tracking-tight md:text-2xl min-w-45">
           {t("navbar.brand")}
         </Link>
         {/* <div className="bg-testRed">لو ظهر أحمر، كل شيء تمام</div> */}
 
         {/* زر القائمة للجوال */}
-        <div className="flex items-center gap-3 lg:hidden">
+        <div className="flex items-center gap-2 lg:hidden">
           <CartButton />
           <Button
             variant="ghost"
@@ -74,7 +74,7 @@ const Navbar: React.FC = () => {
         </div>
 
         {/* روابط الصفحة على الشاشات الكبيرة */}
-        <div className="hidden lg:flex gap-2 items-center">
+        <div className="hidden lg:flex items-center gap-1.5">
           {links.map((link) => (
             <Button key={link.path} asChild variant="ghost">
               <Link to={link.path}>{link.name}</Link>
@@ -115,7 +115,7 @@ const Navbar: React.FC = () => {
       </nav>
       {/* القائمة الجوالية */}
       {menuOpen && (
-        <div className="lg:hidden bg-white shadow-lg border-t py-4 px-6 space-y-3 text-right z-50">
+        <div className="lg:hidden relative z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur shadow-lg border-t py-4 px-6 space-y-3 text-right">
           {links.map((link) => (
             <div key={link.path}>
               <Link
