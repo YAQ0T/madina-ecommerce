@@ -1268,7 +1268,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </div>
           </div>,
           document.body
-        )}
+        )
       )}
     </div>
   );
