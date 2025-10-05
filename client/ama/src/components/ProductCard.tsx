@@ -664,28 +664,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         ref={cardRef}
         className="hidden md:flex group border rounded-lg p-3 text-right hover:shadow relative flex-col h-full"
       >
-        <button
-          type="button"
-          onClick={toggleDesktopDetails}
-          className={clsx(
-            "absolute top-3 [inset-inline-end:0.75rem] inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-900 shadow-sm transition hover:bg-gray-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 z-40",
-            isDesktopDetailsOpen &&
-              "bg-black text-white hover:bg-black border-black shadow-md"
-          )}
-          aria-expanded={isDesktopDetailsOpen}
-          aria-controls={desktopDetailsId}
-          aria-label={
-            isDesktopDetailsOpen
-              ? t("productCard.collapseDetails")
-              : t("productCard.expandDetails")
-          }
-        >
-          {isDesktopDetailsOpen ? (
-            <X className="h-4 w-4" aria-hidden="true" />
-          ) : (
-            <Plus className="h-4 w-4" aria-hidden="true" />
-          )}
-        </button>
         <div
           className="relative w-full aspect-[4/5] mb-2 overflow-hidden rounded bg-white cursor-pointer"
           onClick={() => navigate(`/products/${product._id}`)}
@@ -786,18 +764,44 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </p>
           )}
 
-          <div className="mb-1.5">
-            {typeof variantCompare === "number" &&
-            variantCompare > displayPrice ? (
-              <div className="flex items-baseline gap-1.5 justify-end">
-                <span className="text-gray-500 line-through">
-                  ₪{variantCompare}
-                </span>
-                <span className="font-semibold text-base">₪{displayPrice}</span>
-              </div>
-            ) : (
-              <p className="font-semibold text-base mb-0">₪{displayPrice}</p>
-            )}
+          <div className="mt-auto flex items-center justify-between gap-2 pt-3">
+            <div className="flex flex-col items-end text-right">
+              {typeof variantCompare === "number" &&
+              variantCompare > displayPrice ? (
+                <div className="flex items-baseline gap-1.5 justify-end">
+                  <span className="text-gray-500 line-through">
+                    ₪{variantCompare}
+                  </span>
+                  <span className="font-semibold text-base">
+                    ₪{displayPrice}
+                  </span>
+                </div>
+              ) : (
+                <p className="font-semibold text-base mb-0">₪{displayPrice}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={toggleDesktopDetails}
+              className={clsx(
+                "shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-900 shadow-sm transition hover:bg-gray-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2",
+                isDesktopDetailsOpen &&
+                  "bg-black text-white hover:bg-black border-black shadow-md"
+              )}
+              aria-expanded={isDesktopDetailsOpen}
+              aria-controls={desktopDetailsId}
+              aria-label={
+                isDesktopDetailsOpen
+                  ? t("productCard.collapseDetails")
+                  : t("productCard.expandDetails")
+              }
+            >
+              {isDesktopDetailsOpen ? (
+                <X className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              )}
+            </button>
           </div>
 
           {isDesktopDetailsOpen && (
@@ -807,7 +811,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                 onClick={closeDesktopDetails}
                 aria-hidden="true"
               />
-              <div className="relative z-10 flex h-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-black/10 pointer-events-auto animate-in fade-in zoom-in-95 duration-200">
+              <div className="relative z-10 flex h-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-black/10 pointer-events-auto animate-in fade-in slide-in-from-bottom duration-300 ease-out">
                 <div
                   id={desktopDetailsId}
                   className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-4"
