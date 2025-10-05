@@ -107,9 +107,11 @@ const Products: React.FC = () => {
 
   const location = useLocation();
 
-  const [selectedMainCategory, setSelectedMainCategory] = useState<string>(() => {
-    return new URLSearchParams(location.search).get("category") ?? "";
-  });
+  const [selectedMainCategory, setSelectedMainCategory] = useState<string>(
+    () => {
+      return new URLSearchParams(location.search).get("category") ?? "";
+    }
+  );
   const [selectedSubCategory, setSelectedSubCategory] = useState(() => {
     return new URLSearchParams(location.search).get("sub") ?? "";
   });
@@ -545,7 +547,9 @@ const Products: React.FC = () => {
           new Set(
             (res.data?.items || [])
               .map((p: any) => getLocalizedText(p?.name, locale))
-              .filter((n: string | undefined) => typeof n === "string" && n.trim())
+              .filter(
+                (n: string | undefined) => typeof n === "string" && n.trim()
+              )
           )
         ) as string[];
 
@@ -963,7 +967,7 @@ const Products: React.FC = () => {
         ) : (
           <>
             {/* ✅ عمودين على الموبايل، 3 أعمدة من md وفوق */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 items-start">
               {products.map((product) => (
                 <ProductCard key={product._id} product={product} />
               ))}
@@ -1024,21 +1028,21 @@ const Products: React.FC = () => {
                   </Pagination>
                 </div>
 
-              <div className="mt-3 flex items-center justify-center gap-2">
-                <span className="text-sm text-gray-700">
-                  {t("productsPage.pagination.goTo")}
-                </span>
-                <Select
-                  value={String(currentPage)}
-                  onValueChange={(v) => setCurrentPage(Number(v))}
-                >
-                  <SelectTrigger className="w-28">
-                    <SelectValue
-                      placeholder={t(
-                        "productsPage.pagination.selectPlaceholder"
-                      )}
-                    />
-                  </SelectTrigger>
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  <span className="text-sm text-gray-700">
+                    {t("productsPage.pagination.goTo")}
+                  </span>
+                  <Select
+                    value={String(currentPage)}
+                    onValueChange={(v) => setCurrentPage(Number(v))}
+                  >
+                    <SelectTrigger className="w-28">
+                      <SelectValue
+                        placeholder={t(
+                          "productsPage.pagination.selectPlaceholder"
+                        )}
+                      />
+                    </SelectTrigger>
                     <SelectContent>
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                         (p) => (
@@ -1115,21 +1119,21 @@ const Products: React.FC = () => {
                     </PaginationContent>
                   </Pagination>
                 </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700">
-                  {t("productsPage.pagination.goToPage")}
-                </span>
-                <Select
-                  value={String(currentPage)}
-                  onValueChange={(v) => setCurrentPage(Number(v))}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue
-                      placeholder={t(
-                        "productsPage.pagination.selectPlaceholder"
-                      )}
-                    />
-                  </SelectTrigger>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700">
+                    {t("productsPage.pagination.goToPage")}
+                  </span>
+                  <Select
+                    value={String(currentPage)}
+                    onValueChange={(v) => setCurrentPage(Number(v))}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue
+                        placeholder={t(
+                          "productsPage.pagination.selectPlaceholder"
+                        )}
+                      />
+                    </SelectTrigger>
                     <SelectContent className="max-h-40 overflow-y-auto">
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                         (p) => (
@@ -1140,10 +1144,10 @@ const Products: React.FC = () => {
                       )}
                     </SelectContent>
                   </Select>
-                <span className="text-sm text-gray-500">
-                  {t("productsPage.pagination.total", { count: totalPages })}
-                </span>
-              </div>
+                  <span className="text-sm text-gray-500">
+                    {t("productsPage.pagination.total", { count: totalPages })}
+                  </span>
+                </div>
               </div>
             </div>
           </>
