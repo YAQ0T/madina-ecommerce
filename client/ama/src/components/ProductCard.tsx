@@ -4,15 +4,6 @@ import axios from "axios";
 import clsx from "clsx";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-  SheetClose,
-} from "@/components/ui/sheet";
 import { getLocalizedText, type LocalizedText } from "@/lib/localized";
 import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
@@ -814,38 +805,36 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       </div>
 
       <div className="md:hidden">
-        <Sheet open={isMobileSheetOpen} onOpenChange={setIsMobileSheetOpen}>
-          <SheetContent
-            side="bottom"
+        {isMobileSheetOpen && (
+          <div
             className={clsx(
-              "max-h-[85svh] overflow-hidden rounded-t-3xl bg-white p-0",
-              "shadow-2xl",
-              "[&_[data-slot=sheet-close]]:hidden"
+              "mt-2 overflow-hidden rounded-b-lg border border-gray-200 bg-white shadow-xl",
+              "animate-in fade-in slide-in-from-bottom duration-300 ease-out"
             )}
           >
-            <SheetHeader className="border-b px-4 pb-3 pt-4 text-right">
+            <div className="border-b px-4 pb-3 pt-4 text-right">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1">
-                  <SheetTitle className="text-base font-semibold">
-                    {productName}
-                  </SheetTitle>
-                  <SheetDescription className="mt-1 text-xs text-gray-500">
+                  <h3 className="text-base font-semibold">{productName}</h3>
+                  <p className="mt-1 text-xs text-gray-500">
                     {t("productCard.dialogDescription")}
-                  </SheetDescription>
+                  </p>
                 </div>
-                <SheetClose asChild>
-                  <button
-                    type="button"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition hover:bg-gray-100"
-                  >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                    <span className="sr-only">{t("productCard.cancel")}</span>
-                  </button>
-                </SheetClose>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeMobileSheet();
+                  }}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition hover:bg-gray-100"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  <span className="sr-only">{t("productCard.cancel")}</span>
+                </button>
               </div>
-            </SheetHeader>
+            </div>
 
-            <div className="overflow-y-auto">
+            <div className="max-h-[85svh] overflow-y-auto">
               <div className="flex flex-col gap-4 p-4">
                 <div className="relative w-full aspect-[4/5] overflow-hidden rounded-lg bg-white">
                   {displayedImages.map((src, index) => (
@@ -870,7 +859,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                   {displayedImages.length > 1 && (
                     <>
                       <button
-                        onClick={prevImage}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          prevImage();
+                        }}
                         aria-label={t("productCard.previousImage")}
                         className={clsx(
                           arrowBase,
@@ -891,7 +883,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                       </button>
 
                       <button
-                        onClick={nextImage}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          nextImage();
+                        }}
                         aria-label={t("productCard.nextImage")}
                         className={clsx(
                           arrowBase,
@@ -1038,7 +1033,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               </div>
             </div>
 
-            <SheetFooter className="flex flex-col gap-2 border-t bg-white p-4 sm:flex-row-reverse sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-2 border-t bg-white p-4 sm:flex-row-reverse sm:items-center sm:justify-between">
               <Button
                 onClick={async () => {
                   const added = await addItemToCart();
@@ -1071,14 +1066,20 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                   t("productCard.addToCart")
                 )}
               </Button>
-              <SheetClose asChild>
-                <Button variant="secondary" className="w-full sm:w-auto">
-                  {t("productCard.cancel")}
-                </Button>
-              </SheetClose>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeMobileSheet();
+                }}
+              >
+                {t("productCard.cancel")}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
