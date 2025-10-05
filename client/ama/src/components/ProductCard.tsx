@@ -716,7 +716,12 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         {/* أزرار الديسكتوب — كما هي */}
         <div className="mt-auto flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <QuantityInput quantity={quantity} onChange={handleQuantityChange} />
+            <QuantityInput
+              quantity={quantity}
+              onChange={handleQuantityChange}
+              placeholder="الكمية"
+              placeholderQuantity={1}
+            />
             <Button onClick={addItemToCart} className="flex-1">
               {t("productCard.addToCart")}
             </Button>
@@ -928,6 +933,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                   <QuantityInput
                     quantity={quantity}
                     onChange={handleQuantityChange}
+                    placeholder="الكمية"
+                    placeholderQuantity={1}
                   />
                 </div>
 
