@@ -438,10 +438,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const ExpandedPanel = ({ className }: { className?: string }) => (
     <div
       className={clsx(
-        "absolute inset-x-0 bottom-0 z-30 flex flex-col gap-4 rounded-t-2xl bg-white p-4 shadow-xl transition-all duration-300",
+        "absolute inset-x-0 bottom-0 z-30 flex flex-col gap-4 rounded-lg bg-white p-4 shadow-xl transition-[transform,opacity] duration-300 will-change-transform",
         isDetailsOpen
-          ? "translate-y-0 opacity-100 pointer-events-auto"
-          : "translate-y-full opacity-0 pointer-events-none",
+          ? "translate-y-0 opacity-100 pointer-events-auto ease-out"
+          : "translate-y-full opacity-0 pointer-events-none ease-in",
         className
       )}
       onClick={(event) => event.stopPropagation()}
