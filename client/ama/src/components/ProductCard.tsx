@@ -8,8 +8,7 @@ import { getLocalizedText, type LocalizedText } from "@/lib/localized";
 import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
-import QuantityInput from "@/components/common/QuantityInput";
-import { Loader2, Check, Plus, X } from "lucide-react";
+import { Loader2, Check, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { dispatchCartHighlight } from "@/lib/cartHighlight";
 
 interface Props {
@@ -94,6 +93,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   // تفاصيل البطاقة
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [overlayQuantityInput, setOverlayQuantityInput] = useState<string>("1");
   const [isAdding, setIsAdding] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const mobileCardRef = useRef<HTMLDivElement | null>(null);
@@ -120,7 +120,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         )}
       >
         <div className="absolute inset-0 rounded-lg bg-black/10 backdrop-blur-sm pointer-events-auto" aria-hidden="true" />
-        <div className="relative z-10 flex h-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-black/10 pointer-events-auto animate-in fade-in slide-in-from-bottom duration-300 ease-out">
+        <div className="relative z-10 flex h-full w-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-black/10 pointer-events-auto animate-in fade-in slide-in-from-bottom duration-300 ease-out">
           <div
             id={detailsPanelId}
             className="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
@@ -307,44 +307,72 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               </div>
             )}
 
-          <div className="mt-auto flex flex-col gap-1.5">
-            <div className="flex items-center gap-1.5">
-              <QuantityInput
-                quantity={quantity}
-                onChange={handleQuantityChange}
-                placeholder="الكمية"
-                placeholderQuantity={1}
-              />
-              <Button
-                onClick={() => {
-                  void addItemToCart();
+          <div className="mt-auto flex flex-col gap-3">
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  decrementOverlayQuantity();
                 }}
-                className={clsx(
-                  "flex-1 transition-transform duration-200",
-                  justAdded &&
-                    "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
-                  isAdding && "opacity-80 cursor-not-allowed",
-                  !isAdding && !justAdded && "hover:scale-[1.01]"
-                )}
-                disabled={isAdding || isVariantUnavailable}
+                aria-label={t("productCard.decreaseQuantity")}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-800 shadow-sm transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
               >
-                {justAdded ? (
-                  <span className="flex items-center justify-center gap-1.5">
-                    <Check className="h-4 w-4" />
-                    {t("productCard.addedToCart")}
-                  </span>
-                ) : isVariantUnavailable ? (
-                  t("productCard.outOfStock")
-                ) : isAdding ? (
-                  <span className="flex items-center justify-center gap-1.5">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {t("productCard.addingToCart")}
-                  </span>
-                ) : (
-                  t("productCard.addToCart")
-                )}
-              </Button>
+                <ChevronRight className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={overlayQuantityInput}
+                onChange={(event) => {
+                  event.stopPropagation();
+                  handleOverlayQuantityInputChange(event.target.value);
+                }}
+                placeholder="الكمية"
+                className="h-10 w-24 rounded-full border border-gray-300 px-4 text-center text-base font-medium shadow-sm focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
+              />
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  incrementOverlayQuantity();
+                }}
+                aria-label={t("productCard.increaseQuantity")}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-800 shadow-sm transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
+              >
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
             </div>
+            <Button
+              onClick={() => {
+                void addItemToCart();
+              }}
+              className={clsx(
+                "w-full transition-transform duration-200",
+                justAdded &&
+                  "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
+                isAdding && "opacity-80 cursor-not-allowed",
+                !isAdding && !justAdded && "hover:scale-[1.01]"
+              )}
+              disabled={isAdding || isVariantUnavailable}
+            >
+              {justAdded ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <Check className="h-4 w-4" />
+                  {t("productCard.addedToCart")}
+                </span>
+              ) : isVariantUnavailable ? (
+                t("productCard.outOfStock")
+              ) : isAdding ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t("productCard.addingToCart")}
+                </span>
+              ) : (
+                t("productCard.addToCart")
+              )}
+            </Button>
             <Link to={`/products/${product._id}`}>
               <Button variant="secondary" className="w-full">
                 {t("productCard.viewDetails")}
@@ -485,11 +513,13 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   useEffect(() => {
     setQuantity(1);
+    setOverlayQuantityInput("1");
   }, [currentVariantId]);
 
   useEffect(() => {
     if (!isDetailsOpen) {
       setQuantity(1);
+      setOverlayQuantityInput("1");
     }
   }, [isDetailsOpen]);
 
@@ -571,18 +601,54 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const arrowIcon = "pointer-events-none select-none";
 
   // إضافة للسلة
-  const handleQuantityChange = useCallback(
-    (newQty: number) => {
+  const handleOverlayQuantityInputChange = useCallback(
+    (value: string) => {
+      if (!/^\d*$/.test(value)) return;
+
+      if (value === "") {
+        setOverlayQuantityInput("");
+        setQuantity(1);
+        return;
+      }
+
+      const parsed = parseInt(value, 10);
+      if (Number.isNaN(parsed)) return;
+
       const maxQty = currentVariant?.stock?.inStock;
       const safeQty = clamp(
-        newQty,
+        parsed,
         1,
-        typeof maxQty === "number" && maxQty > 0 ? maxQty : newQty
+        typeof maxQty === "number" && maxQty > 0 ? maxQty : parsed
       );
       setQuantity(safeQty);
+      setOverlayQuantityInput(safeQty.toString());
     },
     [currentVariant?.stock?.inStock]
   );
+
+  const incrementOverlayQuantity = useCallback(() => {
+    const maxQty = currentVariant?.stock?.inStock;
+    const nextBase = overlayQuantityInput === "" ? 1 : quantity;
+    const nextValue = clamp(
+      nextBase + 1,
+      1,
+      typeof maxQty === "number" && maxQty > 0 ? maxQty : nextBase + 1
+    );
+    setQuantity(nextValue);
+    setOverlayQuantityInput(nextValue.toString());
+  }, [currentVariant?.stock?.inStock, overlayQuantityInput, quantity]);
+
+  const decrementOverlayQuantity = useCallback(() => {
+    const maxQty = currentVariant?.stock?.inStock;
+    const nextBase = overlayQuantityInput === "" ? 1 : quantity;
+    const nextValue = clamp(
+      nextBase - 1,
+      1,
+      typeof maxQty === "number" && maxQty > 0 ? maxQty : nextBase - 1
+    );
+    setQuantity(nextValue);
+    setOverlayQuantityInput(nextValue.toString());
+  }, [currentVariant?.stock?.inStock, overlayQuantityInput, quantity]);
 
   const addItemToCart = useCallback(async () => {
     if (isAdding) return false;
