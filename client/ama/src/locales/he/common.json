@@ -240,6 +240,8 @@
     "dialogDescription": "בחרו צבע ומידה לפני הוספת המוצר לעגלה.",
     "cancel": "ביטול",
     "quantityLabel": "כמות",
+    "increaseQuantity": "הגדלת הכמות",
+    "decreaseQuantity": "הפחתת הכמות",
     "inStock": "זמין במלאי: {{count}}",
     "outOfStock": "אזל מהמלאי"
   },
