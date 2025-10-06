@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+  type ChangeEvent,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import clsx from "clsx";
@@ -8,8 +15,7 @@ import { getLocalizedText, type LocalizedText } from "@/lib/localized";
 import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
-import QuantityInput from "@/components/common/QuantityInput";
-import { Loader2, Check, Plus, X } from "lucide-react";
+import { Loader2, Check, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { dispatchCartHighlight } from "@/lib/cartHighlight";
 
 interface Props {
@@ -58,8 +64,15 @@ const clamp = (n: number, min = 0, max = 100) =>
 const fallbackImg = "https://i.imgur.com/PU1aG4t.jpeg";
 
 /** ✅ يُرجع دائمًا مصفوفة المتغيّرات سواء كانت الاستجابة {items:[]} أو [] مباشرة */
-function normalizeVariantsResponse(data: any): Variant[] {
-  if (data && Array.isArray(data.items)) return data.items as Variant[];
+function normalizeVariantsResponse(data: unknown): Variant[] {
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "items" in data &&
+    Array.isArray((data as { items?: unknown }).items)
+  ) {
+    return (data as { items: Variant[] }).items ?? [];
+  }
   if (Array.isArray(data)) return data as Variant[];
   return [];
 }
@@ -94,6 +107,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   // تفاصيل البطاقة
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [quantityInputValue, setQuantityInputValue] = useState("1");
   const [isAdding, setIsAdding] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const mobileCardRef = useRef<HTMLDivElement | null>(null);
@@ -234,117 +248,77 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </div>
           )}
 
-          {allColorsFromVariants.filter((c) => !isUnified(c.name)).length >
-            0 && (
-            <div>
-              <div className="mb-1 text-sm font-medium">
-                {t("productCard.colorLabel")}
-              </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                {allColorsFromVariants
-                  .filter((c) => !isUnified(c.name))
-                  .map((c) => {
-                    const isAvailable =
-                      selectedMeasure &&
-                      availableColorSlugsForSelectedMeasure.has(c.slug);
-
-                    return (
-                      <button
-                        key={c.slug}
-                        title={c.name}
-                        onClick={() => {
-                          if (!isAvailable) return;
-                          setSelectedColor(c.slug);
-                          setCurrentImage(0);
-                        }}
-                        disabled={!isAvailable}
-                        className={clsx(
-                          "px-3 py-1 text-sm rounded border transition",
-                          selectedColor === c.slug && isAvailable
-                            ? "border-black font-bold"
-                            : "border-gray-300",
-                          !isAvailable && "opacity-40 cursor-not-allowed"
-                        )}
-                      >
-                        {c.name}
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
-
-          {currentVariant && (
-            <div className="text-sm text-gray-600">
-              {currentVariant.stock?.inStock > 0
-                ? t("productCard.inStock", {
-                    count: currentVariant.stock?.inStock,
-                  })
-                : t("productCard.outOfStock")}
-            </div>
-          )}
-
-          {showDiscountTimer &&
-            progressPct !== null &&
-            timeLeftMs !== null && (
-              <div>
-                <div
-                  className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(progressPct)}
-                  title={t("productCard.discountTimerTitle")}
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-gray-900">
+                {t("productCard.quantityLabel")}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={decrementQuantity}
+                  disabled={decreaseDisabled}
+                  aria-label={t("productCard.decreaseQuantity")}
+                  className={clsx(
+                    "inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-900 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black",
+                    decreaseDisabled && "opacity-50 cursor-not-allowed"
+                  )}
                 >
-                  <div
-                    className="h-full bg-red-600 transition-all duration-500"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-                <div className="mt-1 text-xs text-red-700 font-semibold text-right">
-                  {t("productCard.discountTimer")}
-                </div>
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={quantityInputValue}
+                  onChange={handleQuantityInputChange}
+                  placeholder="1"
+                  className="h-10 w-full flex-1 rounded-full border border-gray-300 bg-white px-4 text-center text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
+                />
+                <button
+                  type="button"
+                  onClick={incrementQuantity}
+                  disabled={increaseDisabled}
+                  aria-label={t("productCard.increaseQuantity")}
+                  className={clsx(
+                    "inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-900 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black",
+                    increaseDisabled && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                </button>
               </div>
-            )}
-
-          <div className="mt-auto flex flex-col gap-1.5">
-            <div className="flex items-center gap-1.5">
-              <QuantityInput
-                quantity={quantity}
-                onChange={handleQuantityChange}
-                placeholder="الكمية"
-                placeholderQuantity={1}
-              />
-              <Button
-                onClick={() => {
-                  void addItemToCart();
-                }}
-                className={clsx(
-                  "flex-1 transition-transform duration-200",
-                  justAdded &&
-                    "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
-                  isAdding && "opacity-80 cursor-not-allowed",
-                  !isAdding && !justAdded && "hover:scale-[1.01]"
-                )}
-                disabled={isAdding || isVariantUnavailable}
-              >
-                {justAdded ? (
-                  <span className="flex items-center justify-center gap-1.5">
-                    <Check className="h-4 w-4" />
-                    {t("productCard.addedToCart")}
-                  </span>
-                ) : isVariantUnavailable ? (
-                  t("productCard.outOfStock")
-                ) : isAdding ? (
-                  <span className="flex items-center justify-center gap-1.5">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {t("productCard.addingToCart")}
-                  </span>
-                ) : (
-                  t("productCard.addToCart")
-                )}
-              </Button>
             </div>
+
+            <Button
+              onClick={() => {
+                void addItemToCart();
+              }}
+              className={clsx(
+                "w-full transition-transform duration-200",
+                justAdded &&
+                  "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
+                isAdding && "opacity-80 cursor-not-allowed",
+                !isAdding && !justAdded && "hover:scale-[1.01]"
+              )}
+              disabled={isAdding || isVariantUnavailable}
+            >
+              {justAdded ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <Check className="h-4 w-4" />
+                  {t("productCard.addedToCart")}
+                </span>
+              ) : isVariantUnavailable ? (
+                t("productCard.outOfStock")
+              ) : isAdding ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t("productCard.addingToCart")}
+                </span>
+              ) : (
+                t("productCard.addToCart")
+              )}
+            </Button>
+
             <Link to={`/products/${product._id}`}>
               <Button variant="secondary" className="w-full">
                 {t("productCard.viewDetails")}
@@ -453,6 +427,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   const currentVariantId = currentVariant?._id ?? "no-variant";
 
+  const maxSelectableQuantity = useMemo(() => {
+    const maxQty = currentVariant?.stock?.inStock;
+    return typeof maxQty === "number" && maxQty > 0 ? maxQty : null;
+  }, [currentVariant?.stock?.inStock]);
+
   const displayedImages = useMemo(() => {
     const variantColorImages =
       currentVariant?.color?.images?.filter(Boolean) ?? [];
@@ -483,15 +462,24 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     setCurrentImage(0);
   }, [displayedImages]);
 
-  useEffect(() => {
+  const resetQuantityState = useCallback(() => {
     setQuantity(1);
-  }, [currentVariantId]);
+    setQuantityInputValue("1");
+  }, []);
+
+  useEffect(() => {
+    resetQuantityState();
+  }, [currentVariantId, resetQuantityState]);
+
+  useEffect(() => {
+    resetQuantityState();
+  }, [displayedImages, resetQuantityState]);
 
   useEffect(() => {
     if (!isDetailsOpen) {
-      setQuantity(1);
+      resetQuantityState();
     }
-  }, [isDetailsOpen]);
+  }, [isDetailsOpen, resetQuantityState]);
 
   // الأسعار/الخصم
   const variantFinal = currentVariant?.finalAmount;
@@ -571,18 +559,58 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const arrowIcon = "pointer-events-none select-none";
 
   // إضافة للسلة
-  const handleQuantityChange = useCallback(
-    (newQty: number) => {
-      const maxQty = currentVariant?.stock?.inStock;
+  const setQuantityWithBounds = useCallback(
+    (value: number) => {
       const safeQty = clamp(
-        newQty,
+        value,
         1,
-        typeof maxQty === "number" && maxQty > 0 ? maxQty : newQty
+        typeof maxSelectableQuantity === "number"
+          ? maxSelectableQuantity
+          : value
       );
       setQuantity(safeQty);
+      setQuantityInputValue(safeQty.toString());
     },
-    [currentVariant?.stock?.inStock]
+    [maxSelectableQuantity]
   );
+
+  const handleQuantityInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const { value } = event.target;
+      if (!/^\d*$/.test(value)) return;
+
+      setQuantityInputValue(value);
+
+      if (value === "") {
+        setQuantity(1);
+        return;
+      }
+
+      const parsed = parseInt(value, 10);
+      if (Number.isNaN(parsed)) return;
+
+      const safeQty = clamp(
+        parsed,
+        1,
+        typeof maxSelectableQuantity === "number"
+          ? maxSelectableQuantity
+          : parsed
+      );
+      setQuantity(safeQty);
+      if (safeQty !== parsed) {
+        setQuantityInputValue(safeQty.toString());
+      }
+    },
+    [maxSelectableQuantity]
+  );
+
+  const incrementQuantity = useCallback(() => {
+    setQuantityWithBounds(quantity + 1);
+  }, [quantity, setQuantityWithBounds]);
+
+  const decrementQuantity = useCallback(() => {
+    setQuantityWithBounds(quantity - 1);
+  }, [quantity, setQuantityWithBounds]);
 
   const addItemToCart = useCallback(async () => {
     if (isAdding) return false;
@@ -810,6 +838,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               )}
             </div>
           </div>
+
+          <VariantControls className="mt-3" />
         </div>
 
         {isDetailsOpen && <DetailsOverlay className="flex md:hidden" />}
@@ -919,6 +949,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               {product.subCategory}
             </p>
           )}
+
+          <VariantControls className="mt-2" />
 
           <div className="mt-auto flex items-center justify-between gap-2 pt-3">
             <div className="flex flex-col items-end text-right">
