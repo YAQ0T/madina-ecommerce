@@ -8,7 +8,14 @@ import { getLocalizedText, type LocalizedText } from "@/lib/localized";
 import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
-import { Loader2, Check, Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Loader2,
+  Check,
+  Plus,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { dispatchCartHighlight } from "@/lib/cartHighlight";
 
 interface Props {
@@ -104,20 +111,38 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     setIsDetailsOpen((prev) => !prev);
   }, []);
 
+  /** 🎯 تم تعديل هذا المكوّن ليصبح Bottom Sheet يخرج من أسفل الشاشة */
   const DetailsOverlay = ({ className }: { className?: string }) => {
     return (
       <div
-        className={clsx(
-          "absolute inset-0 z-30 pointer-events-none",
-          className
-        )}
+        className={clsx("absolute inset-0 z-30 pointer-events-none", className)}
       >
-        <div className="absolute inset-0 rounded-lg bg-black/10 backdrop-blur-sm pointer-events-auto" aria-hidden="true" />
-        <div className="relative z-10 flex h-full w-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-black/10 pointer-events-auto animate-in fade-in slide-in-from-bottom duration-300 ease-out">
-          <div
-            id={detailsPanelId}
-            className="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
-          >
+        {/* الخلفية المعتمة */}
+        <div
+          className="absolute inset-0 rounded-lg bg-black/10 backdrop-blur-sm pointer-events-auto"
+          aria-hidden="true"
+          onClick={(e) => {
+            // إغلاق عند الضغط على الخلفية
+            e.stopPropagation();
+            setIsDetailsOpen(false);
+          }}
+        />
+        {/* الشيت السفلي المثبّت في الأسفل */}
+        <div
+          id={detailsPanelId}
+          className={clsx(
+            "absolute bottom-0 left-0 right-0 z-10",
+            "flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-2xl",
+            "bg-white shadow-2xl ring-1 ring-black/10 pointer-events-auto",
+            "animate-in fade-in slide-in-from-bottom duration-300 ease-out"
+          )}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("productCard.viewDetails")}
+          // دعم حواف الأجهزة ذات النوتش
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
             {productDescription && (
               <p className="text-sm leading-6 text-gray-600">
                 {productDescription}
@@ -131,70 +156,70 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                   onClick={(event) => {
                     event.stopPropagation();
                     decrementOverlayQuantity();
-                }}
-                aria-label={t("productCard.decreaseQuantity")}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-800 shadow-sm transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
-              >
-                <ChevronRight className="h-5 w-5" aria-hidden="true" />
-              </button>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={overlayQuantityInput}
-                onChange={(event) => {
-                  event.stopPropagation();
-                  handleOverlayQuantityInputChange(event.target.value);
-                }}
-                placeholder="الكمية"
-                className="h-10 w-24 rounded-full border border-gray-300 px-4 text-center text-base font-medium shadow-sm focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
-              />
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  incrementOverlayQuantity();
-                }}
-                aria-label={t("productCard.increaseQuantity")}
+                  }}
+                  aria-label={t("productCard.decreaseQuantity")}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-800 shadow-sm transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
+                >
+                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                </button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={overlayQuantityInput}
+                  onChange={(event) => {
+                    event.stopPropagation();
+                    handleOverlayQuantityInputChange(event.target.value);
+                  }}
+                  placeholder="الكمية"
+                  className="h-10 w-24 rounded-full border border-gray-300 px-4 text-center text-base font-medium shadow-sm focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
+                />
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    incrementOverlayQuantity();
+                  }}
+                  aria-label={t("productCard.increaseQuantity")}
                   className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-800 shadow-sm transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
                 >
                   <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
-            <Button
-              onClick={() => {
-                void addItemToCart();
-              }}
-              className={clsx(
-                "w-full transition-transform duration-200",
-                justAdded &&
-                  "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
-                isAdding && "opacity-80 cursor-not-allowed",
-                !isAdding && !justAdded && "hover:scale-[1.01]"
-              )}
-              disabled={isAdding || isVariantUnavailable}
-            >
-              {justAdded ? (
-                <span className="flex items-center justify-center gap-1.5">
-                  <Check className="h-4 w-4" />
-                  {t("productCard.addedToCart")}
-                </span>
-              ) : isVariantUnavailable ? (
-                t("productCard.outOfStock")
-              ) : isAdding ? (
-                <span className="flex items-center justify-center gap-1.5">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t("productCard.addingToCart")}
-                </span>
-              ) : (
-                t("productCard.addToCart")
-              )}
-            </Button>
-            <Link to={`/products/${product._id}`}>
-              <Button variant="secondary" className="w-full">
-                {t("productCard.viewDetails")}
+              <Button
+                onClick={() => {
+                  void addItemToCart();
+                }}
+                className={clsx(
+                  "w-full transition-transform duration-200",
+                  justAdded &&
+                    "scale-[1.02] ring-2 ring-green-400 ring-offset-2 ring-offset-white bg-green-600 text-white",
+                  isAdding && "opacity-80 cursor-not-allowed",
+                  !isAdding && !justAdded && "hover:scale-[1.01]"
+                )}
+                disabled={isAdding || isVariantUnavailable}
+              >
+                {justAdded ? (
+                  <span className="flex items-center justify-center gap-1.5">
+                    <Check className="h-4 w-4" />
+                    {t("productCard.addedToCart")}
+                  </span>
+                ) : isVariantUnavailable ? (
+                  t("productCard.outOfStock")
+                ) : isAdding ? (
+                  <span className="flex items-center justify-center gap-1.5">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t("productCard.addingToCart")}
+                  </span>
+                ) : (
+                  t("productCard.addToCart")
+                )}
               </Button>
-            </Link>
+              <Link to={`/products/${product._id}`}>
+                <Button variant="secondary" className="w-full">
+                  {t("productCard.viewDetails")}
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -644,7 +669,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </div>
           </div>
 
-          {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
+          {measuresFromVariants.filter((m) => !isUnified(m.label)).length >
+            0 && (
             <div className="mt-2">
               <div className="mb-1 text-xs font-medium text-gray-700">
                 {t("productCard.sizeLabel")}
@@ -681,7 +707,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </div>
           )}
 
-          {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
+          {allColorsFromVariants.filter((c) => !isUnified(c.name)).length >
+            0 && (
             <div className="mt-2">
               <div className="mb-1 text-xs font-medium text-gray-700">
                 {t("productCard.colorLabel")}
@@ -831,7 +858,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </p>
           )}
 
-          {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
+          {measuresFromVariants.filter((m) => !isUnified(m.label)).length >
+            0 && (
             <div className="mt-2">
               <div className="mb-1 text-xs font-medium text-gray-700">
                 {t("productCard.sizeLabel")}
@@ -868,7 +896,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </div>
           )}
 
-          {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
+          {allColorsFromVariants.filter((c) => !isUnified(c.name)).length >
+            0 && (
             <div className="mt-2">
               <div className="mb-1 text-xs font-medium text-gray-700">
                 {t("productCard.colorLabel")}
