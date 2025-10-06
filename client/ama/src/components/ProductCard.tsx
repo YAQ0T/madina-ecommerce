@@ -86,9 +86,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const [selectedColor, setSelectedColor] = useState("");
 
   // خصم/مؤقت
-  const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
-  const [progressPct, setProgressPct] = useState<number | null>(null);
-  const [showDiscountTimer, setShowDiscountTimer] = useState(false);
 
   // تفاصيل البطاقة
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -108,10 +105,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   }, []);
 
   const DetailsOverlay = ({ className }: { className?: string }) => {
-    const overlayArrowBase =
-      "absolute top-1/2 -translate-y-1/2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/60 focus:outline-none focus:ring-2 focus:ring-white/60";
-    const overlayArrowIcon = "pointer-events-none select-none";
-
     return (
       <div
         className={clsx(
@@ -125,195 +118,19 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             id={detailsPanelId}
             className="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
           >
-            <div className="relative w-full overflow-hidden rounded-lg border bg-white aspect-[4/5]">
-              {displayedImages.map((src, index) => (
-                <img
-                  key={`${src}-${index}`}
-                  src={src}
-                  alt={productName}
-                  className={clsx(
-                    "absolute inset-0 h-full w-full object-contain transition-all duration-500",
-                    {
-                      "opacity-100 translate-x-0 z-10": index === currentImage,
-                      "opacity-0 translate-x-full z-0": index > currentImage,
-                      "opacity-0 -translate-x-full z-0": index < currentImage,
-                    }
-                  )}
-                  loading="lazy"
-                  decoding="async"
-                  draggable={false}
-                />
-              ))}
-
-              {displayedImages.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      prevImage();
-                    }}
-                    aria-label={t("productCard.previousImage")}
-                    className={clsx(overlayArrowBase, "left-3")}
-                  >
-                    <svg
-                      className={overlayArrowIcon}
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      width="18"
-                      height="18"
-                      fill="currentColor"
-                    >
-                      <path d="M12.707 15.707a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414l5-5a1 1 0 1 1 1.414 1.414L8.414 10l4.293 4.293a1 1 0 0 1 0 1.414z" />
-                    </svg>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      nextImage();
-                    }}
-                    aria-label={t("productCard.nextImage")}
-                    className={clsx(overlayArrowBase, "right-3")}
-                  >
-                    <svg
-                      className={overlayArrowIcon}
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      width="18"
-                      height="18"
-                      fill="currentColor"
-                    >
-                      <path d="M7.293 4.293a1 1 0 0 1 1.414 0l5 5a1 1 0 0 1 0 1.414l-5 5A1 1 0 1 1 7.293 14.293L11.586 10 7.293 5.707a1 1 0 0 1 0-1.414z" />
-                    </svg>
-                  </button>
-                </>
-              )}
-            </div>
-
             {productDescription && (
               <p className="text-sm leading-6 text-gray-600">
                 {productDescription}
               </p>
             )}
 
-          {measuresFromVariants.filter((m) => !isUnified(m.label)).length >
-            0 && (
-            <div>
-              <div className="mb-1 text-sm font-medium">
-                {t("productCard.sizeLabel")}
-              </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                {measuresFromVariants
-                  .filter((m) => !isUnified(m.label))
-                  .map((m) => {
-                    const labelWithUnit = m.unit
-                      ? `${m.label} ${m.unit}`
-                      : m.label;
-                    return (
-                      <button
-                        key={m.slug}
-                        title={labelWithUnit}
-                        onClick={() => {
-                          setSelectedMeasure(m.slug);
-                          setCurrentImage(0);
-                        }}
-                        className={clsx(
-                          "px-3 py-1 text-sm rounded border transition",
-                          selectedMeasure === m.slug
-                            ? "border-black font-bold"
-                            : "border-gray-300"
-                        )}
-                      >
-                        {labelWithUnit}
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
-
-          {allColorsFromVariants.filter((c) => !isUnified(c.name)).length >
-            0 && (
-            <div>
-              <div className="mb-1 text-sm font-medium">
-                {t("productCard.colorLabel")}
-              </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                {allColorsFromVariants
-                  .filter((c) => !isUnified(c.name))
-                  .map((c) => {
-                    const isAvailable =
-                      selectedMeasure &&
-                      availableColorSlugsForSelectedMeasure.has(c.slug);
-
-                    return (
-                      <button
-                        key={c.slug}
-                        title={c.name}
-                        onClick={() => {
-                          if (!isAvailable) return;
-                          setSelectedColor(c.slug);
-                          setCurrentImage(0);
-                        }}
-                        disabled={!isAvailable}
-                        className={clsx(
-                          "px-3 py-1 text-sm rounded border transition",
-                          selectedColor === c.slug && isAvailable
-                            ? "border-black font-bold"
-                            : "border-gray-300",
-                          !isAvailable && "opacity-40 cursor-not-allowed"
-                        )}
-                      >
-                        {c.name}
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
-
-          {currentVariant && (
-            <div className="text-sm text-gray-600">
-              {currentVariant.stock?.inStock > 0
-                ? t("productCard.inStock", {
-                    count: currentVariant.stock?.inStock,
-                  })
-                : t("productCard.outOfStock")}
-            </div>
-          )}
-
-          {showDiscountTimer &&
-            progressPct !== null &&
-            timeLeftMs !== null && (
-              <div>
-                <div
-                  className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(progressPct)}
-                  title={t("productCard.discountTimerTitle")}
-                >
-                  <div
-                    className="h-full bg-red-600 transition-all duration-500"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-                <div className="mt-1 text-xs text-red-700 font-semibold text-right">
-                  {t("productCard.discountTimer")}
-                </div>
-              </div>
-            )}
-
-          <div className="mt-auto flex flex-col gap-3">
-            <div className="flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  decrementOverlayQuantity();
+            <div className="mt-auto flex flex-col gap-3">
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    decrementOverlayQuantity();
                 }}
                 aria-label={t("productCard.decreaseQuantity")}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-800 shadow-sm transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
@@ -339,11 +156,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                   incrementOverlayQuantity();
                 }}
                 aria-label={t("productCard.increaseQuantity")}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-800 shadow-sm transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
-              >
-                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-              </button>
-            </div>
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-800 shadow-sm transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
+                >
+                  <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
             <Button
               onClick={() => {
                 void addItemToCart();
@@ -378,11 +195,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                 {t("productCard.viewDetails")}
               </Button>
             </Link>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
   };
 
   useEffect(() => {
@@ -536,56 +353,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     variantFinal < variantCompare
       ? Math.round(((variantCompare - variantFinal) / variantCompare) * 100)
       : null;
-
-  // مؤقّت الخصم
-  useEffect(() => {
-    const d = currentVariant?.price?.discount;
-    if (!d?.endAt) {
-      setShowDiscountTimer(false);
-      setTimeLeftMs(null);
-      setProgressPct(null);
-      return;
-    }
-
-    const now = Date.now();
-    const end = new Date(d.endAt).getTime();
-    const start = d.startAt ? new Date(d.startAt).getTime() : now;
-
-    const hasRealDiscount =
-      typeof variantFinal === "number" &&
-      typeof variantCompare === "number" &&
-      variantCompare > 0 &&
-      variantFinal < variantCompare;
-
-    const isActive = hasRealDiscount && now >= start && now < end;
-
-    if (!isActive) {
-      setShowDiscountTimer(false);
-      setTimeLeftMs(null);
-      setProgressPct(null);
-      return;
-    }
-
-    setShowDiscountTimer(true);
-
-    const update = () => {
-      const t = Date.now();
-      const left = end - t;
-      setTimeLeftMs(left > 0 ? left : 0);
-      const duration = Math.max(1, end - start);
-      const progress = ((t - start) / duration) * 100;
-      setProgressPct(clamp(progress));
-    };
-
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [
-    currentVariant?.price?.discount?.startAt,
-    currentVariant?.price?.discount?.endAt,
-    variantFinal,
-    variantCompare,
-  ]);
 
   // تنقّل الصور
   const nextImage = () =>
@@ -876,6 +643,84 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               )}
             </div>
           </div>
+
+          {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
+            <div className="mt-2">
+              <div className="mb-1 text-xs font-medium text-gray-700">
+                {t("productCard.sizeLabel")}
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                {measuresFromVariants
+                  .filter((m) => !isUnified(m.label))
+                  .map((m) => {
+                    const labelWithUnit = m.unit
+                      ? `${m.label} ${m.unit}`
+                      : m.label;
+                    return (
+                      <button
+                        key={m.slug}
+                        type="button"
+                        title={labelWithUnit}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedMeasure(m.slug);
+                          setCurrentImage(0);
+                        }}
+                        className={clsx(
+                          "px-2 py-1 text-xs rounded border transition",
+                          selectedMeasure === m.slug
+                            ? "border-black font-semibold"
+                            : "border-gray-300 text-gray-700"
+                        )}
+                      >
+                        {labelWithUnit}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
+            <div className="mt-2">
+              <div className="mb-1 text-xs font-medium text-gray-700">
+                {t("productCard.colorLabel")}
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                {allColorsFromVariants
+                  .filter((c) => !isUnified(c.name))
+                  .map((c) => {
+                    const isAvailable =
+                      selectedMeasure &&
+                      availableColorSlugsForSelectedMeasure.has(c.slug);
+
+                    return (
+                      <button
+                        key={c.slug}
+                        type="button"
+                        title={c.name}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (!isAvailable) return;
+                          setSelectedColor(c.slug);
+                          setCurrentImage(0);
+                        }}
+                        disabled={!isAvailable}
+                        className={clsx(
+                          "px-2 py-1 text-xs rounded border transition",
+                          selectedColor === c.slug && isAvailable
+                            ? "border-black font-semibold"
+                            : "border-gray-300 text-gray-700",
+                          !isAvailable && "opacity-40 cursor-not-allowed"
+                        )}
+                      >
+                        {c.name}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </div>
 
         {isDetailsOpen && <DetailsOverlay className="flex md:hidden" />}
@@ -984,6 +829,84 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             <p className="text-xs text-gray-500 mb-1.5">
               {product.subCategory}
             </p>
+          )}
+
+          {measuresFromVariants.filter((m) => !isUnified(m.label)).length > 0 && (
+            <div className="mt-2">
+              <div className="mb-1 text-xs font-medium text-gray-700">
+                {t("productCard.sizeLabel")}
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                {measuresFromVariants
+                  .filter((m) => !isUnified(m.label))
+                  .map((m) => {
+                    const labelWithUnit = m.unit
+                      ? `${m.label} ${m.unit}`
+                      : m.label;
+                    return (
+                      <button
+                        key={m.slug}
+                        type="button"
+                        title={labelWithUnit}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedMeasure(m.slug);
+                          setCurrentImage(0);
+                        }}
+                        className={clsx(
+                          "px-2 py-1 text-xs rounded border transition",
+                          selectedMeasure === m.slug
+                            ? "border-black font-semibold"
+                            : "border-gray-300 text-gray-700"
+                        )}
+                      >
+                        {labelWithUnit}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {allColorsFromVariants.filter((c) => !isUnified(c.name)).length > 0 && (
+            <div className="mt-2">
+              <div className="mb-1 text-xs font-medium text-gray-700">
+                {t("productCard.colorLabel")}
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                {allColorsFromVariants
+                  .filter((c) => !isUnified(c.name))
+                  .map((c) => {
+                    const isAvailable =
+                      selectedMeasure &&
+                      availableColorSlugsForSelectedMeasure.has(c.slug);
+
+                    return (
+                      <button
+                        key={c.slug}
+                        type="button"
+                        title={c.name}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (!isAvailable) return;
+                          setSelectedColor(c.slug);
+                          setCurrentImage(0);
+                        }}
+                        disabled={!isAvailable}
+                        className={clsx(
+                          "px-2 py-1 text-xs rounded border transition",
+                          selectedColor === c.slug && isAvailable
+                            ? "border-black font-semibold"
+                            : "border-gray-300 text-gray-700",
+                          !isAvailable && "opacity-40 cursor-not-allowed"
+                        )}
+                      >
+                        {c.name}
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
           )}
 
           <div className="mt-auto flex items-center justify-between gap-2 pt-3">
