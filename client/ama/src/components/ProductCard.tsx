@@ -103,35 +103,100 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     () => `product-details-${product._id}`,
     [product._id]
   );
-  const closeDetails = useCallback(() => {
-    setIsDetailsOpen(false);
-  }, []);
   const toggleDetails = useCallback(() => {
     setIsDetailsOpen((prev) => !prev);
   }, []);
 
-  const DetailsOverlay = ({ className }: { className?: string }) => (
-    <div
-      className={clsx(
-        "absolute inset-0 z-30 pointer-events-none",
-        className
-      )}
-    >
+  const DetailsOverlay = ({ className }: { className?: string }) => {
+    const overlayArrowBase =
+      "absolute top-1/2 -translate-y-1/2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white transition hover:bg-black/60 focus:outline-none focus:ring-2 focus:ring-white/60";
+    const overlayArrowIcon = "pointer-events-none select-none";
+
+    return (
       <div
-        className="absolute inset-0 rounded-lg bg-black/10 backdrop-blur-sm pointer-events-auto"
-        onClick={closeDetails}
-        aria-hidden="true"
-      />
-      <div className="relative z-10 flex h-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-black/10 pointer-events-auto animate-in fade-in slide-in-from-bottom duration-300 ease-out">
-        <div
-          id={detailsPanelId}
-          className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-4"
-        >
-          {productDescription && (
-            <p className="text-sm leading-6 text-gray-600">
-              {productDescription}
-            </p>
-          )}
+        className={clsx(
+          "absolute inset-0 z-30 pointer-events-none",
+          className
+        )}
+      >
+        <div className="absolute inset-0 rounded-lg bg-black/10 backdrop-blur-sm pointer-events-auto" aria-hidden="true" />
+        <div className="relative z-10 flex h-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl ring-1 ring-black/10 pointer-events-auto animate-in fade-in slide-in-from-bottom duration-300 ease-out">
+          <div
+            id={detailsPanelId}
+            className="flex flex-1 flex-col gap-4 overflow-y-auto p-4"
+          >
+            <div className="relative w-full overflow-hidden rounded-lg border bg-white aspect-[4/5]">
+              {displayedImages.map((src, index) => (
+                <img
+                  key={`${src}-${index}`}
+                  src={src}
+                  alt={productName}
+                  className={clsx(
+                    "absolute inset-0 h-full w-full object-contain transition-all duration-500",
+                    {
+                      "opacity-100 translate-x-0 z-10": index === currentImage,
+                      "opacity-0 translate-x-full z-0": index > currentImage,
+                      "opacity-0 -translate-x-full z-0": index < currentImage,
+                    }
+                  )}
+                  loading="lazy"
+                  decoding="async"
+                  draggable={false}
+                />
+              ))}
+
+              {displayedImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      prevImage();
+                    }}
+                    aria-label={t("productCard.previousImage")}
+                    className={clsx(overlayArrowBase, "left-3")}
+                  >
+                    <svg
+                      className={overlayArrowIcon}
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      width="18"
+                      height="18"
+                      fill="currentColor"
+                    >
+                      <path d="M12.707 15.707a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414l5-5a1 1 0 1 1 1.414 1.414L8.414 10l4.293 4.293a1 1 0 0 1 0 1.414z" />
+                    </svg>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      nextImage();
+                    }}
+                    aria-label={t("productCard.nextImage")}
+                    className={clsx(overlayArrowBase, "right-3")}
+                  >
+                    <svg
+                      className={overlayArrowIcon}
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      width="18"
+                      height="18"
+                      fill="currentColor"
+                    >
+                      <path d="M7.293 4.293a1 1 0 0 1 1.414 0l5 5a1 1 0 0 1 0 1.414l-5 5A1 1 0 1 1 7.293 14.293L11.586 10 7.293 5.707a1 1 0 0 1 0-1.414z" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {productDescription && (
+              <p className="text-sm leading-6 text-gray-600">
+                {productDescription}
+              </p>
+            )}
 
           {measuresFromVariants.filter((m) => !isUnified(m.label)).length >
             0 && (
@@ -290,6 +355,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       </div>
     </div>
   );
+  };
 
   useEffect(() => {
     return () => {
@@ -298,39 +364,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (!isDetailsOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      const desktopEl = desktopCardRef.current;
-      const mobileEl = mobileCardRef.current;
-
-      if (
-        (desktopEl && desktopEl.contains(target)) ||
-        (mobileEl && mobileEl.contains(target))
-      ) {
-        return;
-      }
-
-      closeDetails();
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        closeDetails();
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isDetailsOpen, closeDetails]);
 
   // جلب المتغيّرات
   useEffect(() => {
