@@ -235,6 +235,8 @@
     "dialogDescription": "اختر اللون والمقاس قبل إضافة المنتج إلى السلة.",
     "cancel": "إلغاء",
     "quantityLabel": "الكمية",
+    "increaseQuantity": "زيادة الكمية",
+    "decreaseQuantity": "تقليل الكمية",
     "inStock": "المتوفر: {{count}}",
     "outOfStock": "غير متوفر حالياً"
   },
