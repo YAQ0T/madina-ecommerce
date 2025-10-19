@@ -47,7 +47,7 @@ type Variant = {
       endAt?: string;
     };
   };
-  stock: { inStock: number; sku: string };
+  stock: { inStock?: number | null; sku: string };
   tags?: string[];
   finalAmount?: number;
   isDiscountActive?: boolean;
@@ -318,28 +318,35 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const arrowIcon = "pointer-events-none select-none";
 
   // إضافة للسلة
+  const rawInStock = currentVariant?.stock?.inStock;
+  const hasStockLimit =
+    typeof rawInStock === "number" && Number.isFinite(rawInStock) && rawInStock >= 0;
+  const normalizedStock = hasStockLimit ? rawInStock : null;
+  const isOutOfStock = hasStockLimit && (normalizedStock ?? 0) <= 0;
+
   const handleQuantityChange = useCallback(
     (newQty: number) => {
-      const maxQty = currentVariant?.stock?.inStock;
-      const safeQty = clamp(
-        newQty,
-        1,
-        typeof maxQty === "number" && maxQty > 0 ? maxQty : newQty
-      );
+      const desired = Math.max(1, Math.floor(newQty));
+      let safeQty = desired;
+      if (hasStockLimit && normalizedStock !== null) {
+        if (normalizedStock <= 0) {
+          safeQty = 1;
+        } else {
+          safeQty = clamp(desired, 1, normalizedStock);
+        }
+      }
       setQuantity(safeQty);
-            setQuantityInput(String(safeQty));
-
+      setQuantityInput(String(safeQty));
     },
-    [currentVariant?.stock?.inStock]
+    [hasStockLimit, normalizedStock]
   );
 
   const maxAvailableQuantity = useMemo(() => {
-    const maxQty = currentVariant?.stock?.inStock;
-    if (typeof maxQty === "number" && maxQty > 0) {
-      return maxQty;
+    if (hasStockLimit && normalizedStock !== null && normalizedStock > 0) {
+      return normalizedStock;
     }
     return undefined;
-  }, [currentVariant?.stock?.inStock]);
+  }, [hasStockLimit, normalizedStock]);
 
   const canIncreaseQuantity = useMemo(() => {
     if (typeof maxAvailableQuantity === "number") {
@@ -409,7 +416,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
       if (variants.length > 0) {
         if (!currentVariant) return false;
-        if ((currentVariant.stock?.inStock ?? 0) <= 0) return false;
+        if (isOutOfStock) return false;
 
         const itemForCart = {
           ...product,
@@ -424,10 +431,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               ? currentVariant.finalAmount
               : currentVariant.price?.amount ?? product.price ?? 0,
         };
-        const maxQty = currentVariant.stock?.inStock;
         const finalQuantity =
-          typeof maxQty === "number" && maxQty > 0
-            ? clamp(effectiveQuantity, 1, maxQty)
+          hasStockLimit && normalizedStock !== null && normalizedStock > 0
+            ? clamp(effectiveQuantity, 1, normalizedStock)
             : effectiveQuantity;
         addToCart(itemForCart, finalQuantity);
         added = true;
@@ -468,11 +474,13 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     displayedImages,
     selectedMeasure,
     selectedColor,
+    hasStockLimit,
+    isOutOfStock,
+    normalizedStock,
   ]);
 
   const isVariantUnavailable =
-    variants.length > 0 &&
-    (!currentVariant || (currentVariant.stock?.inStock ?? 0) <= 0);
+    variants.length > 0 && (!currentVariant || isOutOfStock);
 
   // سكيليتون
   if (vLoading) {

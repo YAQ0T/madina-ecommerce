@@ -4,6 +4,10 @@ const mongoose = require("mongoose");
 
 const Variant = require("../models/Variant");
 const {
+  isStockTrackingEnabled,
+  sanitizeVariantListForRole,
+} = require("../utils/stock");
+const {
   verifyToken,
   isAdmin,
   isDealerOrAdmin,
@@ -131,7 +135,7 @@ router.get("/", verifyTokenOptional, async (req, res) => {
       page: pg,
       limit: lm,
       total,
-      items: mapped,
+      items: sanitizeVariantListForRole(mapped, req.user?.role),
     });
   } catch (err) {
     console.error("GET /api/variants error:", err);
@@ -235,6 +239,10 @@ router.post("/:id/reserve", verifyToken, isDealerOrAdmin, async (req, res) => {
       return res.status(400).json({ error: "معرّف غير صالح" });
 
     const qty = Math.max(1, parseInt(req.body?.qty, 10) || 1);
+    if (!isStockTrackingEnabled()) {
+      return res.json({ ok: true, stockTracking: false });
+    }
+
     const upd = await Variant.updateOne(
       { _id: id, "stock.inStock": { $gte: qty } },
       { $inc: { "stock.inStock": -qty } }

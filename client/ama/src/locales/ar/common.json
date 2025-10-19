@@ -208,7 +208,8 @@
       }
     },
     "availability": {
-      "label": "المتوفر: {{count}}",
+      "available": "متوفر حالياً",
+      "out": "غير متوفر حالياً",
       "sku": " • SKU: {{sku}}"
     },
     "quantityLabel": "الكمية",
@@ -233,7 +234,7 @@
     "dialogDescription": "اختر اللون والمقاس قبل إضافة المنتج إلى السلة.",
     "cancel": "إلغاء",
     "quantityLabel": "الكمية",
-    "inStock": "المتوفر: {{count}}",
+    "inStock": "متوفر",
     "outOfStock": "غير متوفر حالياً"
   },
   "common": {

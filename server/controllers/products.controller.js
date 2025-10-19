@@ -12,6 +12,11 @@ const {
   ensureLocalizedObject,
   mapLocalizedForResponse,
 } = require("../utils/localized");
+const {
+  canRoleViewStock,
+  sanitizeProductListForRole,
+  sanitizeVariantListForRole,
+} = require("../utils/stock");
 
 /** تحويل ترتيب الأولويات إلى رقم للفرز */
 const priorityRankExpr = {
@@ -120,8 +125,9 @@ function formatProduct(product) {
   if (!product) return product;
   const source =
     typeof product.toObject === "function" ? product.toObject() : product;
+  const { _finalPrices, _finalPricesClean, _stocks, ...clean } = source;
   return {
-    ...source,
+    ...clean,
     name: mapLocalizedForResponse(source.name),
     description: mapLocalizedForResponse(source.description),
   };
@@ -167,6 +173,7 @@ const ProductsController = {
       // صلاحية رؤية المِلكية
       const role = req.user?.role;
       const canUseOwnership = role === "admin" || role === "dealer";
+      const canViewStock = canRoleViewStock(role);
       const ownershipFilter = readOwnershipFilterFromQuery(
         req.query,
         canUseOwnership
@@ -309,13 +316,17 @@ const ProductsController = {
                 },
               },
             },
-            _stocks: {
-              $map: {
-                input: "$vars",
-                as: "v",
-                in: { $ifNull: ["$$v.stock.inStock", 0] },
-              },
-            },
+            ...(canViewStock
+              ? {
+                  _stocks: {
+                    $map: {
+                      input: "$vars",
+                      as: "v",
+                      in: { $ifNull: ["$$v.stock.inStock", 0] },
+                    },
+                  },
+                }
+              : {}),
           },
         },
 
@@ -342,7 +353,7 @@ const ProductsController = {
                 0,
               ],
             },
-            totalStock: { $sum: "$_stocks" },
+            ...(canViewStock ? { totalStock: { $sum: "$_stocks" } } : {}),
           },
         },
 
@@ -368,7 +379,7 @@ const ProductsController = {
                   subCategory: 1,
                   createdAt: 1,
                   minPrice: 1,
-                  totalStock: 1,
+                  ...(canViewStock ? { totalStock: 1 } : {}),
                   ownershipType: 1,
                   priority: 1,
                 },
@@ -388,7 +399,10 @@ const ProductsController = {
 
       const [result] = await Product.aggregate(pipeline);
       const total = result?.total || 0;
-      const items = formatProducts(result?.items || []);
+      const formattedItems = formatProducts(result?.items || []);
+      const items = canViewStock
+        ? formattedItems
+        : sanitizeProductListForRole(formattedItems, role);
       const totalPages = Math.ceil(total / limitNum);
 
       return res.json({
@@ -549,7 +563,12 @@ const ProductsController = {
       if (!withVariants) return res.json(normalizedProduct);
 
       const variants = await Variant.find({ product: product._id }).lean();
-      return res.json({ ...normalizedProduct, variants });
+      return res.json({
+        ...normalizedProduct,
+        variants: canRoleViewStock(req.user?.role)
+          ? variants
+          : sanitizeVariantListForRole(variants, req.user?.role),
+      });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }

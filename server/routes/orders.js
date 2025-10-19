@@ -21,6 +21,7 @@ const {
   hasAnyTranslation,
   mapLocalizedForResponse,
 } = require("../utils/localized");
+const { isStockTrackingEnabled } = require("../utils/stock");
 const DEFAULT_RECAPTCHA_ACTION = "checkout";
 const ENV_MIN_SCORE = Number(process.env.RECAPTCHA_MIN_SCORE);
 const DEFAULT_RECAPTCHA_MIN_SCORE = Number.isFinite(ENV_MIN_SCORE)
@@ -745,14 +746,16 @@ router.patch(
         return res.json({ message: "الطلب مدفوع مسبقًا", order: existing });
       }
 
-      await Promise.all(
-        (updated.items || []).map((ci) =>
-          Variant.updateOne(
-            { _id: ci.variantId, "stock.inStock": { $gte: ci.quantity } },
-            { $inc: { "stock.inStock": -ci.quantity } }
+      if (isStockTrackingEnabled()) {
+        await Promise.all(
+          (updated.items || []).map((ci) =>
+            Variant.updateOne(
+              { _id: ci.variantId, "stock.inStock": { $gte: ci.quantity } },
+              { $inc: { "stock.inStock": -ci.quantity } }
+            )
           )
-        )
-      );
+        );
+      }
 
       return res.json(updated);
     } catch (err) {

@@ -213,7 +213,8 @@
       }
     },
     "availability": {
-      "label": "זמין במלאי: {{count}}",
+      "available": "זמין במלאי",
+      "out": "אזל מהמלאי",
       "sku": " • SKU: {{sku}}"
     },
     "quantityLabel": "כמות",
@@ -238,7 +239,7 @@
     "dialogDescription": "בחרו צבע ומידה לפני הוספת המוצר לעגלה.",
     "cancel": "ביטול",
     "quantityLabel": "כמות",
-    "inStock": "זמין במלאי: {{count}}",
+    "inStock": "זמין במלאי",
     "outOfStock": "אזל מהמלאי"
   },
   "common": {

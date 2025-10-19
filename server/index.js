@@ -117,6 +117,7 @@ const Order = require("./models/Order");
 const Variant = require("./models/Variant");
 const Product = require("./models/Product");
 const { prepareLahzaPaymentUpdate, verifyLahzaTransaction } = require("./utils/lahza");
+const { isStockTrackingEnabled } = require("./utils/stock");
 
 function getClientIp(req) {
   const xff = req.headers["x-forwarded-for"];
@@ -134,6 +135,9 @@ function getClientIp(req) {
 }
 
 async function decrementStockByOrderItems(items = []) {
+  if (!isStockTrackingEnabled()) {
+    return;
+  }
   await Promise.all(
     (items || []).map((ci) =>
       Variant.updateOne(

@@ -30,7 +30,7 @@ type Variant = {
       endAt?: string;
     };
   };
-  stock: { inStock: number; sku: string };
+  stock: { inStock?: number | null; sku: string };
   tags: string[];
   finalAmount?: number;
   isDiscountActive?: boolean;
@@ -279,22 +279,31 @@ const ProductDetails: React.FC = () => {
 
   const finalAmount = currentVariant?.finalAmount;
   const compareAt = currentVariant?.displayCompareAt ?? null;
-  const inStock = currentVariant?.stock?.inStock ?? 0;
+  const rawInStock = currentVariant?.stock?.inStock;
+  const hasStockLimit =
+    typeof rawInStock === "number" && Number.isFinite(rawInStock) && rawInStock >= 0;
+  const normalizedStock = hasStockLimit ? rawInStock : null;
+  const isOutOfStock = hasStockLimit && (normalizedStock ?? 0) <= 0;
 
   const handleQuantityChange = (newQty: number) => {
     setQuantity((prev) => {
       const desired = Number.isFinite(newQty) ? newQty : prev;
       if (!currentVariant) return Math.max(1, desired);
-      const max = currentVariant.stock?.inStock ?? 0;
-      if (max <= 0) return 1;
-      return clamp(desired, 1, max);
+      if (!hasStockLimit || normalizedStock === null) {
+        return Math.max(1, desired);
+      }
+      if (normalizedStock <= 0) return 1;
+      return clamp(desired, 1, normalizedStock);
     });
   };
 
   const isQuantityValid =
-    !!currentVariant && inStock > 0 && quantity >= 1 && quantity <= inStock;
+    !!currentVariant &&
+    !isOutOfStock &&
+    quantity >= 1 &&
+    (!hasStockLimit || (normalizedStock !== null && quantity <= normalizedStock));
 
-  const isCtaDisabled = !currentVariant || inStock <= 0 || !isQuantityValid;
+  const isCtaDisabled = !currentVariant || isOutOfStock || !isQuantityValid;
 
   const discountPercent =
     typeof finalAmount === "number" &&
@@ -517,7 +526,9 @@ const ProductDetails: React.FC = () => {
 
             {currentVariant && (
               <p className="text-sm text-gray-600 mb-6">
-                {t("productDetails.availability.label", { count: inStock })}
+                {isOutOfStock
+                  ? t("productDetails.availability.out")
+                  : t("productDetails.availability.available")}
                 {currentVariant.stock?.sku
                   ? t("productDetails.availability.sku", {
                       sku: currentVariant.stock.sku,
@@ -558,9 +569,9 @@ const ProductDetails: React.FC = () => {
                   );
                 }}
               >
-              {inStock > 0
-                ? t("productDetails.cta.addToCart")
-                : t("productDetails.cta.outOfStock")}
+              {isOutOfStock
+                ? t("productDetails.cta.outOfStock")
+                : t("productDetails.cta.addToCart")}
               </Button>
             </div>
           </div>
