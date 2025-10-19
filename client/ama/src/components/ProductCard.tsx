@@ -318,35 +318,15 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const arrowIcon = "pointer-events-none select-none";
 
   // إضافة للسلة
-  const handleQuantityChange = useCallback(
-    (newQty: number) => {
-      const maxQty = currentVariant?.stock?.inStock;
-      const safeQty = clamp(
-        newQty,
-        1,
-        typeof maxQty === "number" && maxQty > 0 ? maxQty : newQty
-      );
-      setQuantity(safeQty);
-            setQuantityInput(String(safeQty));
-
-    },
-    [currentVariant?.stock?.inStock]
-  );
-
-  const maxAvailableQuantity = useMemo(() => {
-    const maxQty = currentVariant?.stock?.inStock;
-    if (typeof maxQty === "number" && maxQty > 0) {
-      return maxQty;
-    }
-    return undefined;
-  }, [currentVariant?.stock?.inStock]);
+  const handleQuantityChange = useCallback((newQty: number) => {
+    const safeQty = Math.max(1, Math.min(Number.isFinite(newQty) ? newQty : 1, 999));
+    setQuantity(safeQty);
+    setQuantityInput(String(safeQty));
+  }, []);
 
   const canIncreaseQuantity = useMemo(() => {
-    if (typeof maxAvailableQuantity === "number") {
-      return quantity < maxAvailableQuantity;
-    }
-    return true;
-  }, [quantity, maxAvailableQuantity]);
+    return quantity < 999;
+  }, [quantity]);
 
   const canDecreaseQuantity = quantity > 1;
 
@@ -409,7 +389,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
       if (variants.length > 0) {
         if (!currentVariant) return false;
-        if ((currentVariant.stock?.inStock ?? 0) <= 0) return false;
 
         const itemForCart = {
           ...product,
@@ -424,12 +403,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               ? currentVariant.finalAmount
               : currentVariant.price?.amount ?? product.price ?? 0,
         };
-        const maxQty = currentVariant.stock?.inStock;
-        const finalQuantity =
-          typeof maxQty === "number" && maxQty > 0
-            ? clamp(effectiveQuantity, 1, maxQty)
-            : effectiveQuantity;
-        addToCart(itemForCart, finalQuantity);
+        addToCart(itemForCart, effectiveQuantity);
         added = true;
       } else {
         const productForCart = {
@@ -470,9 +444,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     selectedColor,
   ]);
 
-  const isVariantUnavailable =
-    variants.length > 0 &&
-    (!currentVariant || (currentVariant.stock?.inStock ?? 0) <= 0);
+  const isVariantUnavailable = variants.length > 0 && !currentVariant;
 
   // سكيليتون
   if (vLoading) {
