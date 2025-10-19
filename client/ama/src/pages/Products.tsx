@@ -687,45 +687,6 @@ const Products: React.FC = () => {
     setCurrentPage(1);
   };
 
-  const categoryGroups = useMemo(() => {
-    return products.reduce((acc, product) => {
-      const { mainCategory, subCategory, images } = product;
-      if (!mainCategory) return acc;
-
-      const existing = acc.find(
-        (cat: { mainCategory: string; subCategories: string[] }) =>
-          cat.mainCategory === mainCategory
-      );
-      if (existing) {
-        if (subCategory && !existing.subCategories.includes(subCategory)) {
-          existing.subCategories.push(subCategory);
-        }
-      } else {
-        acc.push({
-          mainCategory,
-          subCategories: subCategory ? [subCategory] : [],
-        });
-      }
-
-      // 👇 تعزيز صور الفروع أيضًا من المنتجات الحالية
-      if (mainCategory && subCategory) {
-        const key = `${mainCategory}:::${subCategory}`;
-        if (!subCategoryImagesFromData[key]) {
-          const img = Array.isArray(images) && images[0] ? images[0] : "";
-          if (img) {
-            setSubCategoryImagesFromData((prev) => ({
-              ...prev,
-              [key]: img,
-            }));
-          }
-        }
-      }
-
-      return acc;
-    }, [] as { mainCategory: string; subCategories: string[] }[]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [products]);
-
   const triggerSearch = () => {
     setSearchTerm(rawSearch.trim());
     setShowSuggestions(false);
