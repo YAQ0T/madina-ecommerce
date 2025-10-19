@@ -897,6 +897,28 @@ router.get("/user/:userId/order/:orderId", verifyToken, async (req, res) => {
   }
 });
 
+/* ======================= حذف طلب (أدمن) ======================= */
+router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: "معرّف الطلب غير صالح" });
+    }
+
+    const deleted = await Order.findByIdAndDelete(id).lean();
+
+    if (!deleted) {
+      return res.status(404).json({ message: "الطلب غير موجود" });
+    }
+
+    return res.json({ message: "تم حذف الطلب", order: deleted });
+  } catch (err) {
+    console.error("DELETE /api/orders/:id error:", err);
+    return res.status(500).json({ message: "فشل حذف الطلب" });
+  }
+});
+
 /* ======================= كل الطلبات (أدمن) ======================= */
 router.get("/", verifyToken, isAdmin, async (_req, res) => {
   try {
