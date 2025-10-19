@@ -98,6 +98,17 @@ function slugifyLabel(value: string): string {
     .replace(/[^\p{L}\p{N}-]+/gu, "");
 }
 
+function normalizeArabic(input: string): string {
+  if (!input) return "";
+  let s = input.trim();
+
+  s = s.replace(/[\u064B-\u0652\u0670\u0640]/g, "");
+  s = s.replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه");
+  s = s.replace(/\s+/g, " ").toLowerCase();
+
+  return s;
+}
+
 const Products: React.FC = () => {
   const { user, token } = useAuth();
   const canUseOwnership = user?.role === "admin" || user?.role === "dealer";
@@ -154,6 +165,108 @@ const Products: React.FC = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(-1);
 
+  const categoryGroups = useMemo(() => {
+    return products.reduce((acc, product) => {
+      const { mainCategory, subCategory } = product;
+      if (!mainCategory) return acc;
+
+      const existing = acc.find(
+        (cat: { mainCategory: string; subCategories: string[] }) =>
+          cat.mainCategory === mainCategory
+      );
+      if (existing) {
+        if (subCategory && !existing.subCategories.includes(subCategory)) {
+          existing.subCategories.push(subCategory);
+        }
+      } else {
+        acc.push({
+          mainCategory,
+          subCategories: subCategory ? [subCategory] : [],
+        });
+      }
+
+      return acc;
+    }, [] as { mainCategory: string; subCategories: string[] }[]);
+  }, [products]);
+
+  useEffect(() => {
+    setSubCategoryImagesFromData((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      for (const product of products) {
+        const { mainCategory, subCategory, images } = product;
+        if (!mainCategory || !subCategory) continue;
+
+        const key = `${mainCategory}:::${subCategory}`;
+        if (next[key]) continue;
+
+        const img = Array.isArray(images) && images[0] ? images[0] : "";
+        if (!img) continue;
+
+        next[key] = img;
+        changed = true;
+      }
+
+      return changed ? next : prev;
+    });
+  }, [products]);
+
+  const normalizedMainCategories = useMemo(() => {
+    const source = categoryMenu.length ? categoryMenu : categoryGroups;
+    const map = new Map<string, string>();
+
+    const register = (key: string, value: string) => {
+      const normalizedKey = key.trim();
+      if (!normalizedKey) return;
+      if (!map.has(normalizedKey)) {
+        map.set(normalizedKey, value);
+      }
+    };
+
+    for (const group of source) {
+      const { mainCategory } = group;
+      register(mainCategory, mainCategory);
+      register(normalizeArabic(mainCategory), mainCategory);
+      register(slugifyLabel(mainCategory), mainCategory);
+    }
+
+    return map;
+  }, [categoryMenu, categoryGroups]);
+
+  const normalizedSubCategories = useMemo(() => {
+    const source = categoryMenu.length ? categoryMenu : categoryGroups;
+    const outer = new Map<string, Map<string, string>>();
+
+    const register = (
+      container: Map<string, string>,
+      key: string,
+      value: string
+    ) => {
+      const normalizedKey = key.trim();
+      if (!normalizedKey) return;
+      if (!container.has(normalizedKey)) {
+        container.set(normalizedKey, value);
+      }
+    };
+
+    for (const group of source) {
+      const mainKey = normalizeArabic(group.mainCategory);
+      if (!outer.has(mainKey)) {
+        outer.set(mainKey, new Map());
+      }
+      const inner = outer.get(mainKey)!;
+
+      for (const sub of group.subCategories) {
+        register(inner, sub, sub);
+        register(inner, normalizeArabic(sub), sub);
+        register(inner, slugifyLabel(sub), sub);
+      }
+    }
+
+    return outer;
+  }, [categoryMenu, categoryGroups]);
+
   const translateCategoryLabel = useCallback(
     (value: string, type: "main" | "sub") => {
       if (!value) return value;
@@ -189,6 +302,42 @@ const Products: React.FC = () => {
     setSelectedMainCategory((prev) => (prev === category ? prev : category));
     setSelectedSubCategory((prev) => (prev === sub ? prev : sub));
   }, [location.search]);
+
+  useEffect(() => {
+    if (!selectedMainCategory) return;
+
+    const normalizedKey = normalizeArabic(selectedMainCategory);
+    const canonical =
+      normalizedMainCategories.get(normalizedKey) ??
+      normalizedMainCategories.get(slugifyLabel(selectedMainCategory)) ??
+      normalizedMainCategories.get(selectedMainCategory.trim());
+
+    if (canonical && canonical !== selectedMainCategory) {
+      setSelectedMainCategory(canonical);
+    }
+  }, [selectedMainCategory, normalizedMainCategories]);
+
+  useEffect(() => {
+    if (!selectedMainCategory || !selectedSubCategory) return;
+
+    const mainKey = normalizeArabic(selectedMainCategory);
+    const subMap = normalizedSubCategories.get(mainKey);
+    if (!subMap) return;
+
+    const normalizedSub = normalizeArabic(selectedSubCategory);
+    const canonical =
+      subMap.get(normalizedSub) ??
+      subMap.get(slugifyLabel(selectedSubCategory)) ??
+      subMap.get(selectedSubCategory.trim());
+
+    if (canonical && canonical !== selectedSubCategory) {
+      setSelectedSubCategory(canonical);
+    }
+  }, [
+    selectedMainCategory,
+    selectedSubCategory,
+    normalizedSubCategories,
+  ]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -584,45 +733,6 @@ const Products: React.FC = () => {
     setSelectedSubCategory(sub);
     setCurrentPage(1);
   };
-
-  const categoryGroups = useMemo(() => {
-    return products.reduce((acc, product) => {
-      const { mainCategory, subCategory, images } = product;
-      if (!mainCategory) return acc;
-
-      const existing = acc.find(
-        (cat: { mainCategory: string; subCategories: string[] }) =>
-          cat.mainCategory === mainCategory
-      );
-      if (existing) {
-        if (subCategory && !existing.subCategories.includes(subCategory)) {
-          existing.subCategories.push(subCategory);
-        }
-      } else {
-        acc.push({
-          mainCategory,
-          subCategories: subCategory ? [subCategory] : [],
-        });
-      }
-
-      // 👇 تعزيز صور الفروع أيضًا من المنتجات الحالية
-      if (mainCategory && subCategory) {
-        const key = `${mainCategory}:::${subCategory}`;
-        if (!subCategoryImagesFromData[key]) {
-          const img = Array.isArray(images) && images[0] ? images[0] : "";
-          if (img) {
-            setSubCategoryImagesFromData((prev) => ({
-              ...prev,
-              [key]: img,
-            }));
-          }
-        }
-      }
-
-      return acc;
-    }, [] as { mainCategory: string; subCategories: string[] }[]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [products]);
 
   const triggerSearch = () => {
     setSearchTerm(rawSearch.trim());
