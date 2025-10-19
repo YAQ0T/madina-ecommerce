@@ -165,53 +165,6 @@ const Products: React.FC = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(-1);
 
-  const categoryGroups = useMemo(() => {
-    return products.reduce((acc, product) => {
-      const { mainCategory, subCategory } = product;
-      if (!mainCategory) return acc;
-
-      const existing = acc.find(
-        (cat: { mainCategory: string; subCategories: string[] }) =>
-          cat.mainCategory === mainCategory
-      );
-      if (existing) {
-        if (subCategory && !existing.subCategories.includes(subCategory)) {
-          existing.subCategories.push(subCategory);
-        }
-      } else {
-        acc.push({
-          mainCategory,
-          subCategories: subCategory ? [subCategory] : [],
-        });
-      }
-
-      return acc;
-    }, [] as { mainCategory: string; subCategories: string[] }[]);
-  }, [products]);
-
-  useEffect(() => {
-    setSubCategoryImagesFromData((prev) => {
-      let changed = false;
-      const next = { ...prev };
-
-      for (const product of products) {
-        const { mainCategory, subCategory, images } = product;
-        if (!mainCategory || !subCategory) continue;
-
-        const key = `${mainCategory}:::${subCategory}`;
-        if (next[key]) continue;
-
-        const img = Array.isArray(images) && images[0] ? images[0] : "";
-        if (!img) continue;
-
-        next[key] = img;
-        changed = true;
-      }
-
-      return changed ? next : prev;
-    });
-  }, [products]);
-
   const normalizedMainCategories = useMemo(() => {
     const source = categoryMenu.length ? categoryMenu : categoryGroups;
     const map = new Map<string, string>();
