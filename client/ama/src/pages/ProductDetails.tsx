@@ -279,22 +279,16 @@ const ProductDetails: React.FC = () => {
 
   const finalAmount = currentVariant?.finalAmount;
   const compareAt = currentVariant?.displayCompareAt ?? null;
-  const inStock = currentVariant?.stock?.inStock ?? 0;
-
   const handleQuantityChange = (newQty: number) => {
     setQuantity((prev) => {
       const desired = Number.isFinite(newQty) ? newQty : prev;
-      if (!currentVariant) return Math.max(1, desired);
-      const max = currentVariant.stock?.inStock ?? 0;
-      if (max <= 0) return 1;
-      return clamp(desired, 1, max);
+      return Math.max(1, desired);
     });
   };
 
-  const isQuantityValid =
-    !!currentVariant && inStock > 0 && quantity >= 1 && quantity <= inStock;
+  const isQuantityValid = !!currentVariant && quantity >= 1;
 
-  const isCtaDisabled = !currentVariant || inStock <= 0 || !isQuantityValid;
+  const isCtaDisabled = !currentVariant || !isQuantityValid;
 
   const discountPercent =
     typeof finalAmount === "number" &&
@@ -515,17 +509,6 @@ const ProductDetails: React.FC = () => {
                 </div>
               )}
 
-            {currentVariant && (
-              <p className="text-sm text-gray-600 mb-6">
-                {t("productDetails.availability.label", { count: inStock })}
-                {currentVariant.stock?.sku
-                  ? t("productDetails.availability.sku", {
-                      sku: currentVariant.stock.sku,
-                    })
-                  : ""}
-              </p>
-            )}
-
             <div className="flex items-end gap-4 mt-6">
               <div className="flex flex-col gap-2 text-right">
                 <label className="text-sm font-medium">
@@ -558,9 +541,7 @@ const ProductDetails: React.FC = () => {
                   );
                 }}
               >
-              {inStock > 0
-                ? t("productDetails.cta.addToCart")
-                : t("productDetails.cta.outOfStock")}
+              {t("productDetails.cta.addToCart")}
               </Button>
             </div>
           </div>
