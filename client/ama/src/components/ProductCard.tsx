@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+  type ChangeEvent,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import clsx from "clsx";
@@ -92,6 +99,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
+  const [quantityInput, setQuantityInput] = useState("1");
   const [isAdding, setIsAdding] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const resetJustAddedTimeout = useRef<number | null>(null);
@@ -227,6 +235,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   useEffect(() => {
     setQuantity(1);
+    setQuantityInput("1");
   }, [currentVariantId]);
 
   // الأسعار/الخصم
@@ -316,6 +325,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         typeof maxQty === "number" && maxQty > 0 ? maxQty : newQty
       );
       setQuantity(safeQty);
+      setQuantityInput(String(safeQty));
     },
     [currentVariant?.stock?.inStock]
   );
@@ -346,6 +356,42 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     if (!canDecreaseQuantity) return;
     handleQuantityChange(quantity - 1);
   }, [canDecreaseQuantity, handleQuantityChange, quantity]);
+
+  const handleQuantityInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const { value } = event.target;
+      const sanitized = value.replace(/[^0-9]/g, "");
+
+      setQuantityInput(sanitized);
+
+      if (sanitized === "") {
+        return;
+      }
+
+      const parsed = Number.parseInt(sanitized, 10);
+      if (Number.isNaN(parsed)) {
+        return;
+      }
+
+      handleQuantityChange(parsed);
+    },
+    [handleQuantityChange]
+  );
+
+  const handleQuantityBlur = useCallback(() => {
+    if (quantityInput.trim() === "") {
+      handleQuantityChange(1);
+      return;
+    }
+
+    const parsed = Number.parseInt(quantityInput, 10);
+    if (Number.isNaN(parsed)) {
+      handleQuantityChange(1);
+      return;
+    }
+
+    handleQuantityChange(parsed);
+  }, [handleQuantityChange, quantityInput]);
 
   const addItemToCart = useCallback(async () => {
     if (isAdding) return false;
@@ -486,9 +532,19 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           >
             <ChevronDown className="h-4 w-4" aria-hidden="true" />
           </button>
-          <span className="min-w-[2.5rem] text-center text-base font-semibold text-gray-900">
-            {quantity}
-          </span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={maxAvailableQuantity}
+            value={quantityInput}
+            onChange={handleQuantityInputChange}
+            onBlur={handleQuantityBlur}
+            className="h-9 w-20 rounded-md border border-gray-200 bg-white text-center text-base font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-300"
+            aria-label={t("productCard.quantityInput", {
+              defaultValue: "Quantity",
+            })}
+          />
           <button
             type="button"
             onClick={incrementQuantity}
