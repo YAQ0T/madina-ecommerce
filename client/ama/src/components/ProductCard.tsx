@@ -486,7 +486,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     );
   }
 
-  const ExpandedPanel = ({ className }: { className?: string }) => (
+  const renderExpandedPanel = (className?: string) => (
     <div
       className={clsx(
         "absolute inset-x-0 bottom-0 z-30 flex flex-col gap-4 rounded-lg bg-white p-4 shadow-xl transition-[transform,opacity] duration-300 will-change-transform",
@@ -538,10 +538,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             <ChevronDown className="h-4 w-4" aria-hidden="true" />
           </button>
           <input
-            type="number"
+            type="text"
             inputMode="numeric"
-            min={1}
-            max={maxAvailableQuantity}
+            pattern="[0-9]*"
             value={quantityInput}
             onChange={handleQuantityInputChange}
             onBlur={handleQuantityBlur}
@@ -744,7 +743,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </div>
           </div>
         </div>
-        <ExpandedPanel className="md:hidden" />
+        {renderExpandedPanel("md:hidden")}
       </div>
 
       {/* ============ ديسكتوب (كما هو لديك) ============ */}
@@ -996,7 +995,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           </div>
         </div>
 
-        <ExpandedPanel className="hidden md:flex" />
+        {renderExpandedPanel("hidden md:flex")}
       </div>
 
     </>
