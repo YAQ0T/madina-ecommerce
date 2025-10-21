@@ -4,6 +4,7 @@
     "links": {
       "home": "الرئيسية",
       "products": "المنتجات",
+      "favorites": "المفضلة",
       "about": "من نحن",
       "contact": "تواصل معنا",
       "account": "حسابي",
@@ -14,6 +15,14 @@
       "register": "إنشاء حساب",
       "greeting": "أهلاً، {{name}}",
       "logout": "تسجيل الخروج"
+    },
+    "notifications": {
+      "title": "الإشعارات",
+      "loading": "جاري تحميل الإشعارات…",
+      "empty": "لا توجد إشعارات جديدة.",
+      "error": "تعذّر تحميل الإشعارات.",
+      "viewAll": "عرض كل الإشعارات",
+      "unread": "غير المقروءة: {{count}}"
     }
   },
   "footer": {
@@ -189,6 +198,8 @@
   },
   "productDetails": {
     "loading": "جاري تحميل تفاصيل المنتج...",
+    "addToFavorites": "أضف إلى المفضلة",
+    "removeFavorite": "إزالة من المفضلة",
     "measureLabel": "المقاس",
     "colorLabel": "اللون",
     "colorUnavailable": "— غير متاح لهذا المقاس",
@@ -217,6 +228,12 @@
       "outOfStock": "غير متوفر"
     }
   },
+  "favoritesPage": {
+    "title": "مفضلتي",
+    "empty": "لم تقم بإضافة أي منتجات إلى المفضلة بعد.",
+    "browse": "تصفّح المنتجات",
+    "count": "{{count}} منتج في المفضلة"
+  },
   "productCard": {
     "previousImage": "الصورة السابقة",
     "nextImage": "الصورة التالية",
@@ -234,7 +251,9 @@
     "cancel": "إلغاء",
     "quantityLabel": "الكمية",
     "inStock": "المتوفر: {{count}}",
-    "outOfStock": "غير متوفر حالياً"
+    "outOfStock": "غير متوفر حالياً",
+    "addFavorite": "إضافة إلى المفضلة",
+    "removeFavorite": "إزالة من المفضلة"
   },
   "common": {
     "all": "الكل",
