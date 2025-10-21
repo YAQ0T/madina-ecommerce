@@ -338,6 +338,7 @@ app.use("/api/variants", require("./routes/variants"));
 app.use("/api/products", require("./routes/products"));
 app.use("/api/orders", require("./routes/orders"));
 app.use("/api/users", require("./routes/user"));
+app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api/discount-rules", require("./routes/discountRules"));
 app.use("/api/discounts", require("./routes/discounts"));
 app.use("/api/home-collections", require("./routes/homeCollections"));
