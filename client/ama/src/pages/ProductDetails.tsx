@@ -1,16 +1,18 @@
 import { useParams } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import QuantityInput from "@/components/common/QuantityInput";
 import { useCart } from "@/context/CartContext";
+import { useFavorites, type FavoriteProduct } from "@/context/FavoritesContext";
 import { getLocalizedText, type LocalizedObject } from "@/lib/localized";
 import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
 import clsx from "clsx";
+import { Heart } from "lucide-react";
 
 type Variant = {
   _id: string;
@@ -103,6 +105,27 @@ const ProductDetails: React.FC = () => {
 
   const [product, setProduct] = useState<any>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
+
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const favoritePayload = useMemo<FavoriteProduct | null>(
+    () =>
+      product
+        ? {
+            _id: product._id,
+            name: product.name,
+            description: product.description,
+            price: product.price ?? 0,
+            images: product.images,
+            subCategory: product.subCategory,
+          }
+        : null,
+    [product]
+  );
+  const isFavoriteProduct = product?._id ? isFavorite(product._id) : false;
+  const handleToggleFavorite = useCallback(() => {
+    if (!favoritePayload) return;
+    toggleFavorite(favoritePayload);
+  }, [favoritePayload, toggleFavorite]);
 
   const [currentImage, setCurrentImage] = useState(0);
 
@@ -410,7 +433,33 @@ const ProductDetails: React.FC = () => {
 
           {/* ✅ التفاصيل */}
           <div>
-            <h1 className="text-3xl font-bold mb-4">{productName}</h1>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h1 className="text-3xl font-bold">{productName}</h1>
+              <button
+                type="button"
+                disabled={!favoritePayload}
+                onClick={handleToggleFavorite}
+                className={clsx(
+                  "inline-flex h-10 w-10 items-center justify-center rounded-full border shadow-sm transition",
+                  !favoritePayload && "cursor-not-allowed opacity-60",
+                  favoritePayload &&
+                    (isFavoriteProduct
+                      ? "bg-red-600 text-white border-red-500 hover:bg-red-500"
+                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100")
+                )}
+                aria-label={
+                  isFavoriteProduct
+                    ? t("productDetails.removeFavorite")
+                    : t("productDetails.addToFavorites")
+                }
+              >
+                <Heart
+                  className="h-5 w-5"
+                  fill={isFavoriteProduct ? "currentColor" : "none"}
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
             <p className="text-gray-700 mb-4">{productDescription}</p>
 
             {/* المقاس + الوحدة */}

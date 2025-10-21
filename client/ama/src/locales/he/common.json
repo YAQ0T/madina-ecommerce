@@ -9,6 +9,7 @@
     "links": {
       "home": "דף הבית",
       "products": "מוצרים",
+      "favorites": "מועדפים",
       "about": "אודות",
       "contact": "צור קשר",
       "account": "החשבון שלי",
@@ -19,6 +20,14 @@
       "register": "יצירת חשבון",
       "greeting": "שלום, {{name}}",
       "logout": "התנתקות"
+    },
+    "notifications": {
+      "title": "התראות",
+      "loading": "טוען התראות…",
+      "empty": "אין התראות חדשות.",
+      "error": "אירעה שגיאה בטעינת ההתראות.",
+      "viewAll": "צפה בכל ההתראות",
+      "unread": "לא נקראו: {{count}}"
     }
   },
   "footer": {
@@ -194,6 +203,8 @@
   },
   "productDetails": {
     "loading": "טוען פרטי מוצר...",
+    "addToFavorites": "הוסף למועדפים",
+    "removeFavorite": "הסר מהמועדפים",
     "measureLabel": "מידה",
     "colorLabel": "צבע",
     "colorUnavailable": "— לא זמין במידה זו",
@@ -222,6 +233,12 @@
       "outOfStock": "אזל מהמלאי"
     }
   },
+  "favoritesPage": {
+    "title": "המועדפים שלי",
+    "empty": "לא הוספת עדיין מוצרים לרשימת המועדפים.",
+    "browse": "לעיין במוצרים",
+    "count": "{{count}} מוצרים במועדפים"
+  },
   "productCard": {
     "previousImage": "התמונה הקודמת",
     "nextImage": "התמונה הבאה",
@@ -239,7 +256,9 @@
     "cancel": "ביטול",
     "quantityLabel": "כמות",
     "inStock": "זמין במלאי: {{count}}",
-    "outOfStock": "אזל מהמלאי"
+    "outOfStock": "אזל מהמלאי",
+    "addFavorite": "הוסף למועדפים",
+    "removeFavorite": "הסר מהמועדפים"
   },
   "common": {
     "all": "הכול",

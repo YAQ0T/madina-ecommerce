@@ -10,12 +10,21 @@ import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import clsx from "clsx";
 import { useCart } from "@/context/CartContext";
+import { useFavorites, type FavoriteProduct } from "@/context/FavoritesContext";
 import { Button } from "@/components/ui/button";
 import { getLocalizedText, type LocalizedText } from "@/lib/localized";
 import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
-import { Loader2, Check, Plus, X, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  Loader2,
+  Check,
+  Plus,
+  X,
+  ChevronUp,
+  ChevronDown,
+  Heart,
+} from "lucide-react";
 import { dispatchCartHighlight } from "@/lib/cartHighlight";
 
 interface Props {
@@ -83,6 +92,19 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     () => getLocalizedText(product.description, locale) || "",
     [product.description, locale]
   );
+
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const favoritePayload = useMemo<FavoriteProduct>(
+    () => ({
+      ...product,
+      price: product.price ?? 0,
+    }),
+    [product]
+  );
+  const isFavoriteProduct = isFavorite(product._id);
+  const handleToggleFavorite = useCallback(() => {
+    toggleFavorite(favoritePayload);
+  }, [favoritePayload, toggleFavorite]);
 
   // حالات مشتركة
   const [currentImage, setCurrentImage] = useState(0);
@@ -478,14 +500,40 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </p>
           )}
         </div>
-        <button
-          type="button"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-gray-700 transition hover:bg-gray-200"
-          onClick={() => setIsDetailsOpen(false)}
-          aria-label={t("productCard.cancel")}
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className={clsx(
+              "inline-flex h-9 w-9 items-center justify-center rounded-full border transition",
+              isFavoriteProduct
+                ? "bg-red-600 text-white border-red-500 hover:bg-red-500"
+                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+            )}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleToggleFavorite();
+            }}
+            aria-label={
+              isFavoriteProduct
+                ? t("productCard.removeFavorite")
+                : t("productCard.addFavorite")
+            }
+          >
+            <Heart
+              className="h-4 w-4"
+              fill={isFavoriteProduct ? "currentColor" : "none"}
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-gray-700 transition hover:bg-gray-200"
+            onClick={() => setIsDetailsOpen(false)}
+            aria-label={t("productCard.cancel")}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-3">
@@ -659,6 +707,31 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </>
           )}
 
+          <button
+            type="button"
+            className={clsx(
+              "absolute top-2 left-2 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition",
+              isFavoriteProduct
+                ? "bg-red-600 text-white border-red-500 hover:bg-red-500"
+                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+            )}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleToggleFavorite();
+            }}
+            aria-label={
+              isFavoriteProduct
+                ? t("productCard.removeFavorite")
+                : t("productCard.addFavorite")
+            }
+          >
+            <Heart
+              className="h-4 w-4"
+              fill={isFavoriteProduct ? "currentColor" : "none"}
+              aria-hidden="true"
+            />
+          </button>
+
           {discountPercent !== null && (
             <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-20">
               -{discountPercent}%
@@ -735,9 +808,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         >
           <div
             className="relative w-full aspect-[4/5] mb-2 overflow-hidden rounded bg-white cursor-pointer"
-          onClick={() => navigate(`/products/${product._id}`)}
-          role="button"
-          tabIndex={0}
+            onClick={() => navigate(`/products/${product._id}`)}
+            role="button"
+            tabIndex={0}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
@@ -816,6 +889,31 @@ const ProductCard: React.FC<Props> = ({ product }) => {
               </button>
             </>
           )}
+
+          <button
+            type="button"
+            className={clsx(
+              "absolute top-2 left-2 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition",
+              isFavoriteProduct
+                ? "bg-red-600 text-white border-red-500 hover:bg-red-500"
+                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+            )}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleToggleFavorite();
+            }}
+            aria-label={
+              isFavoriteProduct
+                ? t("productCard.removeFavorite")
+                : t("productCard.addFavorite")
+            }
+          >
+            <Heart
+              className="h-4 w-4"
+              fill={isFavoriteProduct ? "currentColor" : "none"}
+              aria-hidden="true"
+            />
+          </button>
 
           {discountPercent !== null && (
             <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-20">
