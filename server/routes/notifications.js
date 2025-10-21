@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 
 const Notification = require("../models/Notification");
 const User = require("../models/User");
@@ -88,6 +89,7 @@ router.get("/my", verifyToken, async (req, res) => {
       ],
     })
       .sort({ createdAt: -1 })
+      .limit(5)
       .lean();
 
     const mapped = notifications.map((n) => ({
@@ -155,6 +157,33 @@ router.patch("/:id/read", verifyToken, async (req, res) => {
     return res
       .status(500)
       .json({ message: "تعذّر تحديث الإشعار، حاول مرة أخرى لاحقًا" });
+  }
+});
+
+// ✅ حذف إشعار (أدمن فقط)
+router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.isValidObjectId(id)) {
+    return res.status(400).json({ message: "معرّف الإشعار غير صالح" });
+  }
+
+  try {
+    const deletedNotification = await Notification.findByIdAndDelete(id).lean();
+
+    if (!deletedNotification) {
+      return res.status(404).json({ message: "الإشعار غير موجود" });
+    }
+
+    return res.json({
+      message: "تم حذف الإشعار",
+      notification: deletedNotification,
+    });
+  } catch (err) {
+    console.error("Failed to delete notification", err);
+    return res
+      .status(500)
+      .json({ message: "تعذّر حذف الإشعار، حاول مرة أخرى لاحقًا" });
   }
 });
 

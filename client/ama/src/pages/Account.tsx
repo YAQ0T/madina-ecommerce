@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
 
+const MAX_NOTIFICATIONS = 5;
+const ORDERS_PER_PAGE = 5;
+
 type NotificationItem = {
   _id: string;
   title: string;
@@ -44,6 +47,7 @@ const Account: React.FC = () => {
   const [notificationsError, setNotificationsError] = useState<string | null>(
     null
   );
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -64,7 +68,12 @@ const Account: React.FC = () => {
         .then((res) => {
           if (cancelled) return;
           const list = Array.isArray(res.data) ? res.data : [];
-          setNotifications(list);
+          const sorted = [...list].sort((a, b) => {
+            const aTime = new Date(a.createdAt ?? 0).getTime();
+            const bTime = new Date(b.createdAt ?? 0).getTime();
+            return bTime - aTime;
+          });
+          setNotifications(sorted.slice(0, MAX_NOTIFICATIONS));
         })
         .catch((err) => {
           if (cancelled) return;
@@ -82,7 +91,15 @@ const Account: React.FC = () => {
             Authorization: `Bearer ${token}`,
           },
         })
-        .then((res) => setOrders(res.data))
+        .then((res) => {
+          const list = Array.isArray(res.data) ? res.data : [];
+          const sorted = [...list].sort((a, b) => {
+            const aTime = new Date(a.createdAt ?? 0).getTime();
+            const bTime = new Date(b.createdAt ?? 0).getTime();
+            return bTime - aTime;
+          });
+          setOrders(sorted);
+        })
         .catch((err) => console.error("فشل في جلب الطلبات", err));
 
       return () => {
@@ -90,6 +107,20 @@ const Account: React.FC = () => {
       };
     }
   }, [user, loading, navigate, token]);
+
+  useEffect(() => {
+    if (orders.length === 0) {
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      }
+      return;
+    }
+
+    const totalPages = Math.ceil(orders.length / ORDERS_PER_PAGE);
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [orders.length, currentPage]);
 
   const handleMarkAsRead = async (notificationId: string) => {
     if (!token) return;
@@ -122,6 +153,12 @@ const Account: React.FC = () => {
     );
   }
 
+  const totalPages = Math.ceil(orders.length / ORDERS_PER_PAGE);
+  const paginatedOrders = orders.slice(
+    (currentPage - 1) * ORDERS_PER_PAGE,
+    (currentPage - 1) * ORDERS_PER_PAGE + ORDERS_PER_PAGE
+  );
+
   return (
     <>
       <Navbar />
@@ -152,6 +189,9 @@ const Account: React.FC = () => {
 
         <section className="mb-10">
           <h2 className="text-2xl font-bold mb-4">إشعاراتي</h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            يتم عرض أحدث {MAX_NOTIFICATIONS} إشعارات فقط.
+          </p>
           {notificationsLoading ? (
             <p className="text-gray-500">جاري تحميل الإشعارات…</p>
           ) : notificationsError ? (
@@ -226,7 +266,7 @@ const Account: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order, i) => {
+                {paginatedOrders.map((order, i) => {
                   const discountAmount =
                     Number(order?.discount?.amount || 0) > 0 &&
                     order?.discount?.applied
@@ -235,7 +275,9 @@ const Account: React.FC = () => {
 
                   return (
                     <tr key={order._id}>
-                      <td className="p-2 border">{i + 1}</td>
+                      <td className="p-2 border">
+                        {(currentPage - 1) * ORDERS_PER_PAGE + i + 1}
+                      </td>
                       <td className="p-2 border">
                         {order?.items?.length || 0}
                       </td>
@@ -265,6 +307,33 @@ const Account: React.FC = () => {
                 })}
               </tbody>
             </table>
+            {totalPages > 1 && (
+              <div className="flex flex-col items-center gap-2 py-4 md:flex-row md:justify-between">
+                <span className="text-sm text-muted-foreground">
+                  صفحة {currentPage} من {totalPages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    السابق
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      setCurrentPage((prev) => {
+                        return Math.min(totalPages, prev + 1);
+                      })
+                    }
+                    disabled={currentPage === totalPages}
+                  >
+                    التالي
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
