@@ -13,6 +13,10 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
 import clsx from "clsx";
 import { Heart } from "lucide-react";
+import {
+  compareVariantsByDiscount,
+  resolveVariantPricing,
+} from "@/lib/variantPricing";
 
 type Variant = {
   _id: string;
@@ -131,6 +135,9 @@ const ProductDetails: React.FC = () => {
 
   const [measure, setMeasure] = useState<string>("");
   const [color, setColor] = useState<string>("");
+  const [initialSelectionProduct, setInitialSelectionProduct] = useState<string | null>(
+    null
+  );
 
   const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
   const [progressPct, setProgressPct] = useState<number | null>(null);
@@ -184,10 +191,7 @@ const ProductDetails: React.FC = () => {
         const vs: Variant[] = normalizeVariantsResponse(varsRes.data);
         setVariants(vs);
 
-        if (vs.length > 0) {
-          setMeasure(vs[0].measureSlug || "");
-          setColor(vs[0].colorSlug || "");
-        } else {
+        if (vs.length === 0) {
           setMeasure("");
           setColor("");
         }
@@ -201,6 +205,29 @@ const ProductDetails: React.FC = () => {
       ignore = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    setMeasure("");
+    setColor("");
+    setInitialSelectionProduct(null);
+  }, [id]);
+
+  useEffect(() => {
+    if (!product?._id) return;
+    if (initialSelectionProduct === product._id) return;
+    if (!variants.length) return;
+
+    const bestVariant = compareVariantsByDiscount(variants);
+    if (!bestVariant) return;
+
+    setMeasure(bestVariant.measureSlug || "");
+    setColor(bestVariant.colorSlug || "");
+    setInitialSelectionProduct(product._id);
+  }, [
+    variants,
+    product?._id,
+    initialSelectionProduct,
+  ]);
 
   // خرائط عرضية للأسماء + الوحدة
   const measureInfoBySlug = useMemo(() => {
@@ -270,6 +297,23 @@ const ProductDetails: React.FC = () => {
     );
   }, [variants, measure, color]);
 
+  const pricing = useMemo(
+    () => resolveVariantPricing(currentVariant),
+    [currentVariant]
+  );
+
+  const baseVariantAmount =
+    typeof currentVariant?.price?.amount === "number"
+      ? currentVariant.price.amount
+      : null;
+  const finalAmount =
+    pricing.finalPrice ?? baseVariantAmount ?? null;
+  const compareAt =
+    pricing.hasActiveDiscount && typeof pricing.comparePrice === "number"
+      ? pricing.comparePrice
+      : null;
+  const discountPercent = pricing.discountPercent;
+
   useEffect(() => {
     setQuantity(1);
   }, [currentVariant?._id]);
@@ -300,8 +344,6 @@ const ProductDetails: React.FC = () => {
   const prevImage = () =>
     setCurrentImage((p) => (p - 1 + images.length) % images.length);
 
-  const finalAmount = currentVariant?.finalAmount;
-  const compareAt = currentVariant?.displayCompareAt ?? null;
   const handleQuantityChange = (newQty: number) => {
     setQuantity((prev) => {
       const desired = Number.isFinite(newQty) ? newQty : prev;
@@ -313,17 +355,9 @@ const ProductDetails: React.FC = () => {
 
   const isCtaDisabled = !currentVariant || !isQuantityValid;
 
-  const discountPercent =
-    typeof finalAmount === "number" &&
-    typeof compareAt === "number" &&
-    compareAt > 0 &&
-    finalAmount < compareAt
-      ? Math.round(((compareAt - finalAmount) / compareAt) * 100)
-      : null;
-
   useEffect(() => {
-    const d = currentVariant?.price?.discount;
-    if (!d?.endAt) {
+    const discount = currentVariant?.price?.discount;
+    if (!pricing.hasActiveDiscount || !discount?.endAt) {
       setShowDiscountTimer(false);
       setTimeLeftMs(null);
       setProgressPct(null);
@@ -331,19 +365,23 @@ const ProductDetails: React.FC = () => {
     }
 
     const now = Date.now();
-    const end = new Date(d.endAt).toISOString();
-    const endMs = new Date(end).getTime();
-    const start = d.startAt ? new Date(d.startAt).getTime() : now;
+    const parseTime = (value?: string | Date | null) => {
+      if (!value) return null;
+      const date = value instanceof Date ? value : new Date(value);
+      const ms = date.getTime();
+      return Number.isFinite(ms) ? ms : null;
+    };
 
-    const hasRealDiscount =
-      typeof finalAmount === "number" &&
-      typeof compareAt === "number" &&
-      compareAt > 0 &&
-      finalAmount < compareAt;
+    const endMs = parseTime(discount.endAt);
+    if (endMs === null || now >= endMs) {
+      setShowDiscountTimer(false);
+      setTimeLeftMs(null);
+      setProgressPct(null);
+      return;
+    }
 
-    const isActive = hasRealDiscount && now >= start && now < endMs;
-
-    if (!isActive) {
+    const startMs = parseTime(discount.startAt) ?? now;
+    if (now < startMs) {
       setShowDiscountTimer(false);
       setTimeLeftMs(null);
       setProgressPct(null);
@@ -357,21 +395,20 @@ const ProductDetails: React.FC = () => {
       const left = endMs - t;
       setTimeLeftMs(left > 0 ? left : 0);
 
-      const duration = Math.max(1, endMs - start);
-      const progress = ((t - start) / duration) * 100;
+      const duration = Math.max(1, endMs - startMs);
+      const progress = ((t - startMs) / duration) * 100;
       setProgressPct(clamp(progress));
 
       if (t >= endMs) setShowDiscountTimer(false);
     };
 
     update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
+    const id = window.setInterval(update, 1000);
+    return () => window.clearInterval(id);
   }, [
     currentVariant?.price?.discount?.startAt,
     currentVariant?.price?.discount?.endAt,
-    finalAmount,
-    compareAt,
+    pricing.hasActiveDiscount,
   ]);
 
   if (!product) {
@@ -421,13 +458,13 @@ const ProductDetails: React.FC = () => {
                 >
                   ▶
                 </button>
-
-                {discountPercent !== null && (
-                  <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
-                    -{discountPercent}%
-                  </span>
-                )}
               </>
+            )}
+
+            {discountPercent !== null && (
+              <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
+                -{discountPercent}%
+              </span>
             )}
           </div>
 
@@ -582,9 +619,12 @@ const ProductDetails: React.FC = () => {
                         currentVariant.measureUnit || undefined, // ✅
                       selectedColor: currentVariant.color?.name,
                       price:
-                        typeof currentVariant.finalAmount === "number"
-                          ? currentVariant.finalAmount
-                          : currentVariant.price?.amount,
+                        typeof pricing.finalPrice === "number"
+                          ? pricing.finalPrice
+                          : baseVariantAmount ??
+                            currentVariant.price?.amount ??
+                            product?.price ??
+                            0,
                     },
                     quantity
                   );

@@ -17,6 +17,10 @@ import { getColorLabel } from "@/lib/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTranslation } from "@/i18n";
 import {
+  compareVariantsByDiscount,
+  resolveVariantPricing,
+} from "@/lib/variantPricing";
+import {
   Loader2,
   Check,
   Plus,
@@ -113,6 +117,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   const [selectedMeasure, setSelectedMeasure] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
+  const [initialSelectionProduct, setInitialSelectionProduct] = useState<string | null>(
+    null
+  );
 
   // خصم/مؤقت
   const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
@@ -139,6 +146,12 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     setIsDetailsOpen(false);
   }, [product._id]);
 
+  useEffect(() => {
+    setSelectedMeasure("");
+    setSelectedColor("");
+    setInitialSelectionProduct(null);
+  }, [product._id]);
+
   // جلب المتغيّرات
   useEffect(() => {
     let ignore = false;
@@ -154,9 +167,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         const vs: Variant[] = normalizeVariantsResponse(data);
         setVariants(vs);
 
-        if (vs.length > 0) {
-          setSelectedMeasure(vs[0].measureSlug || "");
-          setSelectedColor(vs[0].colorSlug || "");
+        if (vs.length === 0) {
+          setSelectedMeasure("");
+          setSelectedColor("");
         }
       } catch {
         setVariants([]);
@@ -168,6 +181,22 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       ignore = true;
     };
   }, [product._id]);
+
+  useEffect(() => {
+    if (initialSelectionProduct === product._id) return;
+    if (!variants.length) return;
+
+    const bestVariant = compareVariantsByDiscount(variants);
+    if (!bestVariant) return;
+
+    setSelectedMeasure(bestVariant.measureSlug || "");
+    setSelectedColor(bestVariant.colorSlug || "");
+    setInitialSelectionProduct(product._id);
+  }, [
+    variants,
+    product._id,
+    initialSelectionProduct,
+  ]);
 
   // اشتقاقات
   const measuresFromVariants = useMemo(() => {
@@ -235,6 +264,23 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     return [fallbackImg];
   }, [currentVariant?.color?.images, product.images]);
 
+  const pricing = useMemo(
+    () => resolveVariantPricing(currentVariant),
+    [currentVariant]
+  );
+
+  const baseVariantAmount =
+    typeof currentVariant?.price?.amount === "number"
+      ? currentVariant.price.amount
+      : null;
+  const displayPrice =
+    pricing.finalPrice ?? baseVariantAmount ?? product.price ?? 0;
+  const comparePrice =
+    pricing.hasActiveDiscount && typeof pricing.comparePrice === "number"
+      ? pricing.comparePrice
+      : null;
+  const discountPercent = pricing.discountPercent;
+
   // مزامنة اللون مع المقاس
   useEffect(() => {
     if (variants.length === 0) return;
@@ -262,24 +308,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   }, [currentVariantId]);
 
-  // الأسعار/الخصم
-  const variantFinal = currentVariant?.finalAmount;
-  const variantCompare = currentVariant?.displayCompareAt ?? null;
-  const displayPrice =
-    typeof variantFinal === "number" ? variantFinal : product.price ?? 0;
-
-  const discountPercent =
-    typeof variantFinal === "number" &&
-    typeof variantCompare === "number" &&
-    variantCompare > 0 &&
-    variantFinal < variantCompare
-      ? Math.round(((variantCompare - variantFinal) / variantCompare) * 100)
-      : null;
-
   // مؤقّت الخصم
   useEffect(() => {
-    const d = currentVariant?.price?.discount;
-    if (!d?.endAt) {
+    const discount = currentVariant?.price?.discount;
+    if (!pricing.hasActiveDiscount || !discount?.endAt) {
       setShowDiscountTimer(false);
       setTimeLeftMs(null);
       setProgressPct(null);
@@ -287,18 +319,23 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     }
 
     const now = Date.now();
-    const end = new Date(d.endAt).getTime();
-    const start = d.startAt ? new Date(d.startAt).getTime() : now;
+    const parseTime = (value?: string | Date | null) => {
+      if (!value) return null;
+      const date = value instanceof Date ? value : new Date(value);
+      const ms = date.getTime();
+      return Number.isFinite(ms) ? ms : null;
+    };
 
-    const hasRealDiscount =
-      typeof variantFinal === "number" &&
-      typeof variantCompare === "number" &&
-      variantCompare > 0 &&
-      variantFinal < variantCompare;
+    const end = parseTime(discount.endAt);
+    if (end === null || now >= end) {
+      setShowDiscountTimer(false);
+      setTimeLeftMs(null);
+      setProgressPct(null);
+      return;
+    }
 
-    const isActive = hasRealDiscount && now >= start && now < end;
-
-    if (!isActive) {
+    const start = parseTime(discount.startAt) ?? now;
+    if (now < start) {
       setShowDiscountTimer(false);
       setTimeLeftMs(null);
       setProgressPct(null);
@@ -307,23 +344,26 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
     setShowDiscountTimer(true);
 
+    const duration = Math.max(1, end - start);
+
     const update = () => {
       const t = Date.now();
       const left = end - t;
       setTimeLeftMs(left > 0 ? left : 0);
-      const duration = Math.max(1, end - start);
       const progress = ((t - start) / duration) * 100;
       setProgressPct(clamp(progress));
+      if (t >= end) {
+        setShowDiscountTimer(false);
+      }
     };
 
     update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
+    const id = window.setInterval(update, 1000);
+    return () => window.clearInterval(id);
   }, [
     currentVariant?.price?.discount?.startAt,
     currentVariant?.price?.discount?.endAt,
-    variantFinal,
-    variantCompare,
+    pricing.hasActiveDiscount,
   ]);
 
   // تنقّل الصور
@@ -412,6 +452,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       if (variants.length > 0) {
         if (!currentVariant) return false;
 
+        const priceForCart =
+          typeof pricing.finalPrice === "number"
+            ? pricing.finalPrice
+            : baseVariantAmount ?? product.price ?? 0;
+
         const itemForCart = {
           ...product,
           image: displayedImages?.[0] || fallbackImg,
@@ -420,10 +465,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           selectedMeasure: currentVariant.measure,
           selectedMeasureUnit: currentVariant.measureUnit || undefined,
           selectedColor: currentVariant.color?.name,
-          price:
-            typeof currentVariant.finalAmount === "number"
-              ? currentVariant.finalAmount
-              : currentVariant.price?.amount ?? product.price ?? 0,
+          price: priceForCart,
         };
         addToCart(itemForCart, effectiveQuantity);
         added = true;
@@ -464,6 +506,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     displayedImages,
     selectedMeasure,
     selectedColor,
+    pricing.finalPrice,
+    baseVariantAmount,
   ]);
 
   const isVariantUnavailable = variants.length > 0 && !currentVariant;
@@ -773,11 +817,12 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
             <div className="mt-1">
               <div className="flex items-baseline gap-1.5">
-                {typeof variantCompare === "number" &&
-                variantCompare > displayPrice ? (
+                {pricing.hasActiveDiscount &&
+                comparePrice !== null &&
+                comparePrice > displayPrice ? (
                   <>
                     <span className="text-gray-500 line-through">
-                      ₪{variantCompare}
+                      ₪{comparePrice}
                     </span>
                     <span className="font-semibold text-base">₪{displayPrice}</span>
                   </>
@@ -1003,11 +1048,12 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
           {/* السعر */}
           <div className="mb-1.5">
-            {typeof variantCompare === "number" &&
-            variantCompare > displayPrice ? (
+            {pricing.hasActiveDiscount &&
+            comparePrice !== null &&
+            comparePrice > displayPrice ? (
               <div className="flex items-baseline gap-1.5">
                 <span className="text-gray-500 line-through">
-                  ₪{variantCompare}
+                  ₪{comparePrice}
                 </span>
                 <span className="font-semibold text-base">₪{displayPrice}</span>
               </div>
