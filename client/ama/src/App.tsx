@@ -10,6 +10,7 @@ import Register from "./pages/Register";
 import ProductDetails from "@/pages/ProductDetails";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
+import Favorites from "./pages/Favorites";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserOrderDetails from "./pages/UserOrderDetails";
 // import OfferDialog from "./components/common/OfferDialog";
@@ -36,6 +37,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/products" element={<Products />} />
+        <Route path="/favorites" element={<Favorites />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/cart" element={<Cart />} />
