@@ -250,8 +250,18 @@
     "sizesLabel": "מידות",
     "colorLabel": "צבע",
     "colorsLabel": "צבעים",
-    "discountTimerTitle": "משך ההנחה",
-    "discountTimer": "מסתיים בקרוב",
+    "discount": {
+      "progressTitle": "משך ההנחה",
+      "progressAria": "הזמן שנותר להנחה",
+      "endsIn": "נגמר בעוד:",
+      "ended": "ההנחה הסתיימה",
+      "parts": {
+        "days": "{{value}} ימים",
+        "hours": "{{value}} שעות",
+        "minutes": "{{value}} דקות",
+        "seconds": "{{value}} שניות"
+      }
+    },
     "dialogDescription": "בחרו צבע ומידה לפני הוספת המוצר לעגלה.",
     "cancel": "ביטול",
     "quantityLabel": "כמות",

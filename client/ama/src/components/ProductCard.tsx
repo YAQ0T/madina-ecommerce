@@ -20,6 +20,7 @@ import {
   compareVariantsByDiscount,
   resolveVariantPricing,
 } from "@/lib/variantPricing";
+import { clamp, formatTimeLeft } from "@/lib/time";
 import {
   Loader2,
   Check,
@@ -70,9 +71,6 @@ type Variant = {
 const normalize = (s?: string) =>
   (s || "").trim().replace(/\s+/g, "").toLowerCase();
 const isUnified = (s?: string) => normalize(s) === normalize("موحد");
-
-const clamp = (n: number, min = 0, max = 100) =>
-  Math.max(min, Math.min(max, n));
 
 const fallbackImg = "https://i.imgur.com/PU1aG4t.jpeg";
 
@@ -125,6 +123,23 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const [timeLeftMs, setTimeLeftMs] = useState<number | null>(null);
   const [progressPct, setProgressPct] = useState<number | null>(null);
   const [showDiscountTimer, setShowDiscountTimer] = useState(false);
+  const timeLeft = useMemo(() => {
+    if (timeLeftMs === null) return null;
+    return formatTimeLeft(timeLeftMs);
+  }, [timeLeftMs]);
+  const timeLeftText = useMemo(() => {
+    if (!timeLeft) return "";
+    if (timeLeft.expired) {
+      return t("productCard.discount.ended");
+    }
+    return timeLeft.parts
+      .map((part) =>
+        t(`productCard.discount.parts.${part.unit}`, {
+          value: part.value,
+        })
+      )
+      .join(" ");
+  }, [timeLeft, t]);
 
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -1063,7 +1078,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           </div>
 
           {/* تايمر خصم */}
-          {showDiscountTimer && progressPct !== null && timeLeftMs !== null && (
+          {showDiscountTimer &&
+            progressPct !== null &&
+            timeLeftMs !== null &&
+            timeLeft &&
+            !timeLeft.expired && (
             <div className="mb-2.5">
               <div
                 className="w-full h-2 rounded-full bg-gray-200 overflow-hidden"
@@ -1071,7 +1090,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(progressPct)}
-                title={t("productCard.discountTimerTitle")}
+                aria-label={t("productCard.discount.progressAria")}
+                title={t("productCard.discount.progressTitle")}
               >
                 <div
                   className="h-full bg-red-600 transition-all duration-500"
@@ -1079,7 +1099,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
                 />
               </div>
               <div className="mt-1 text-xs text-red-700 font-semibold text-right">
-                {t("productCard.discountTimer")}
+                {t("productCard.discount.endsIn")} {timeLeftText}
               </div>
             </div>
           )}
