@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash } from "lucide-react";
 import axios from "axios";
 import UserTable from "@/components/admin/UserTable";
 
@@ -127,6 +127,9 @@ const AdminDashboard: React.FC = () => {
   const [notificationSubmitting, setNotificationSubmitting] = useState(false);
   const [notificationsLoadError, setNotificationsLoadError] =
     useState<string | null>(null);
+  const [deletingNotificationId, setDeletingNotificationId] = useState<
+    string | null
+  >(null);
 
   // ======================= الطلبات =======================
   const [orders, setOrders] = useState<any[]>([]);
@@ -226,6 +229,41 @@ const AdminDashboard: React.FC = () => {
       active = false;
     };
   }, [token, apiHeaders, normalizeNotification]);
+
+  const handleDeleteNotification = useCallback(
+    async (notificationId: string) => {
+      if (!token) return;
+
+      const confirmed = window.confirm("هل أنت متأكد من حذف هذا الإشعار؟");
+      if (!confirmed) {
+        return;
+      }
+
+      setNotificationError(null);
+      setNotificationSuccess(null);
+      setDeletingNotificationId(notificationId);
+
+      try {
+        await axios.delete(
+          `${import.meta.env.VITE_API_URL}/api/notifications/${notificationId}`,
+          {
+            headers: apiHeaders,
+          }
+        );
+
+        setNotifications((prev) =>
+          prev.filter((notification) => notification._id !== notificationId)
+        );
+        setNotificationSuccess("تم حذف الإشعار بنجاح");
+      } catch (err) {
+        console.error("❌ Failed to delete notification", err);
+        setNotificationError("تعذّر حذف الإشعار، حاول مرة أخرى لاحقًا");
+      } finally {
+        setDeletingNotificationId(null);
+      }
+    },
+    [token, apiHeaders]
+  );
 
   // دالة جلب الطلبات
   const fetchOrders = async () => {
@@ -1116,6 +1154,9 @@ const AdminDashboard: React.FC = () => {
                             "-"
                           }`;
 
+                    const isDeleting =
+                      deletingNotificationId === notification._id;
+
                     return (
                       <div
                         key={notification._id}
@@ -1130,9 +1171,32 @@ const AdminDashboard: React.FC = () => {
                               {createdAt}
                             </p>
                           </div>
-                          <span className="text-xs text-muted-foreground">
-                            {targetLabel}
-                          </span>
+                          <div className="flex flex-col items-start gap-2 md:items-end md:text-right">
+                            <span className="text-xs text-muted-foreground">
+                              {targetLabel}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="flex items-center gap-2"
+                              onClick={() =>
+                                handleDeleteNotification(notification._id)
+                              }
+                              disabled={isDeleting}
+                            >
+                              {isDeleting ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  جارٍ الحذف...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash className="h-4 w-4" />
+                                  حذف
+                                </>
+                              )}
+                            </Button>
+                          </div>
                         </div>
                         <p className="mt-3 text-sm leading-relaxed">
                           {notification.message}
