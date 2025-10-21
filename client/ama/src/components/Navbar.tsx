@@ -44,6 +44,7 @@ const Navbar: React.FC = () => {
   );
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadIds, setUnreadIds] = useState<string[]>([]);
+  const unreadIdsRef = useRef<string[]>([]);
   const mobileNotificationsRef = useRef<HTMLDivElement | null>(null);
   const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
 
@@ -128,10 +129,14 @@ const Navbar: React.FC = () => {
     }
   }, [canShowNotifications, t, token]);
 
+  useEffect(() => {
+    unreadIdsRef.current = unreadIds;
+  }, [unreadIds]);
+
   const markAllAsRead = useCallback(
     async (ids?: string[]) => {
       if (!canShowNotifications) return;
-      const targetIds = (ids ?? unreadIds).filter(Boolean);
+      const targetIds = (ids ?? unreadIdsRef.current).filter(Boolean);
       if (targetIds.length === 0) return;
 
       setNotifications((prev) =>
@@ -166,7 +171,7 @@ const Navbar: React.FC = () => {
         console.error("❌ Failed to mark notifications as read", error);
       }
     },
-    [canShowNotifications, token, unreadIds]
+    [canShowNotifications, token]
   );
 
   useEffect(() => {
