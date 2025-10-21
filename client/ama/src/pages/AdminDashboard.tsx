@@ -1,13 +1,21 @@
 // src/pages/AdminDashboard.tsx
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash } from "lucide-react";
 import axios from "axios";
 import UserTable from "@/components/admin/UserTable";
 
@@ -56,6 +64,20 @@ const getLiteImage = (p: ProductLite) =>
   p.mainImage ||
   "https://placehold.co/300x200/png?text=No+Image";
 
+type AdminNotification = {
+  _id: string;
+  title: string;
+  message: string;
+  target: "all" | "user";
+  createdAt: string;
+  user?: {
+    _id: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+  } | null;
+};
+
 const AdminDashboard: React.FC = () => {
   const { user, loading, token } = useAuth();
   const navigate = useNavigate();
@@ -87,6 +109,28 @@ const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [userRoleFilter, setUserRoleFilter] = useState("all");
 
+  // ======================= الإشعارات =======================
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationForm, setNotificationForm] = useState({
+    title: "",
+    message: "",
+    target: "all" as "all" | "user",
+    userId: "",
+  });
+  const [notificationError, setNotificationError] = useState<string | null>(
+    null
+  );
+  const [notificationSuccess, setNotificationSuccess] = useState<string | null>(
+    null
+  );
+  const [notificationSubmitting, setNotificationSubmitting] = useState(false);
+  const [notificationsLoadError, setNotificationsLoadError] =
+    useState<string | null>(null);
+  const [deletingNotificationId, setDeletingNotificationId] = useState<
+    string | null
+  >(null);
+
   // ======================= الطلبات =======================
   const [orders, setOrders] = useState<any[]>([]);
   const [filter, setFilter] = useState("all");
@@ -108,6 +152,34 @@ const AdminDashboard: React.FC = () => {
     [token]
   );
 
+  const normalizeNotification = useCallback((raw: any): AdminNotification => {
+    const createdAtValue =
+      typeof raw?.createdAt === "string"
+        ? raw.createdAt
+        : raw?.createdAt
+        ? new Date(raw.createdAt).toISOString()
+        : new Date().toISOString();
+
+    let userInfo: AdminNotification["user"] = null;
+    if (raw?.user && typeof raw.user === "object") {
+      userInfo = {
+        _id: String(raw.user._id || ""),
+        name: raw.user.name || undefined,
+        email: raw.user.email || undefined,
+        phone: raw.user.phone || undefined,
+      };
+    }
+
+    return {
+      _id: String(raw?._id || ""),
+      title: String(raw?.title || ""),
+      message: String(raw?.message || ""),
+      target: raw?.target === "user" ? "user" : "all",
+      createdAt: createdAtValue,
+      user: userInfo,
+    };
+  }, []);
+
   // تحقق من صلاحيات الأدمن
   useEffect(() => {
     if (!loading && (!user || user.role !== "admin")) {
@@ -127,6 +199,71 @@ const AdminDashboard: React.FC = () => {
       .then((res) => setUsers(res.data))
       .catch((err) => console.error("❌ Failed to fetch users", err));
   }, [token, apiHeaders]);
+
+  // جلب الإشعارات
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    setNotificationsLoading(true);
+    setNotificationsLoadError(null);
+    axios
+      .get(`${import.meta.env.VITE_API_URL}/api/notifications`, {
+        headers: apiHeaders,
+      })
+      .then((res) => {
+        if (!active) return;
+        const list = Array.isArray(res.data) ? res.data : [];
+        setNotifications(list.map((item: any) => normalizeNotification(item)));
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.error("❌ Failed to fetch notifications", err);
+        setNotificationsLoadError("تعذّر جلب الإشعارات حاليًا");
+      })
+      .finally(() => {
+        if (!active) return;
+        setNotificationsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [token, apiHeaders, normalizeNotification]);
+
+  const handleDeleteNotification = useCallback(
+    async (notificationId: string) => {
+      if (!token) return;
+
+      const confirmed = window.confirm("هل أنت متأكد من حذف هذا الإشعار؟");
+      if (!confirmed) {
+        return;
+      }
+
+      setNotificationError(null);
+      setNotificationSuccess(null);
+      setDeletingNotificationId(notificationId);
+
+      try {
+        await axios.delete(
+          `${import.meta.env.VITE_API_URL}/api/notifications/${notificationId}`,
+          {
+            headers: apiHeaders,
+          }
+        );
+
+        setNotifications((prev) =>
+          prev.filter((notification) => notification._id !== notificationId)
+        );
+        setNotificationSuccess("تم حذف الإشعار بنجاح");
+      } catch (err) {
+        console.error("❌ Failed to delete notification", err);
+        setNotificationError("تعذّر حذف الإشعار، حاول مرة أخرى لاحقًا");
+      } finally {
+        setDeletingNotificationId(null);
+      }
+    },
+    [token, apiHeaders]
+  );
 
   // دالة جلب الطلبات
   const fetchOrders = async () => {
@@ -252,6 +389,75 @@ const AdminDashboard: React.FC = () => {
     } catch (err) {
       console.error("❌ Error deleting user", err);
       alert("فشل في حذف المستخدم");
+    }
+  };
+
+  const handleCreateNotification = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+    if (!token) return;
+
+    setNotificationError(null);
+    setNotificationSuccess(null);
+
+    const trimmedTitle = notificationForm.title.trim();
+    const trimmedMessage = notificationForm.message.trim();
+
+    if (!trimmedTitle) {
+      setNotificationError("يرجى إدخال عنوان الإشعار");
+      return;
+    }
+
+    if (!trimmedMessage) {
+      setNotificationError("يرجى كتابة نص الإشعار");
+      return;
+    }
+
+    if (notificationForm.target === "user" && !notificationForm.userId) {
+      setNotificationError("يرجى اختيار المستخدم المستهدف");
+      return;
+    }
+
+    setNotificationSubmitting(true);
+
+    try {
+      const payload: {
+        title: string;
+        message: string;
+        target: "all" | "user";
+        userId?: string;
+      } = {
+        title: trimmedTitle,
+        message: trimmedMessage,
+        target: notificationForm.target,
+      };
+
+      if (notificationForm.target === "user") {
+        payload.userId = notificationForm.userId;
+      }
+
+      const { data } = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/notifications`,
+        payload,
+        { headers: apiHeaders }
+      );
+
+      const created = normalizeNotification(data);
+      setNotifications((prev) =>
+        created._id ? [created, ...prev] : prev
+      );
+      setNotificationsLoadError(null);
+      setNotificationForm({ title: "", message: "", target: "all", userId: "" });
+      setNotificationSuccess("تم إرسال الإشعار بنجاح ✅");
+    } catch (err: any) {
+      console.error("❌ Failed to send notification", err);
+      const message =
+        err?.response?.data?.message ||
+        "تعذّر إرسال الإشعار، حاول مرة أخرى.";
+      setNotificationError(message);
+    } finally {
+      setNotificationSubmitting(false);
     }
   };
 
@@ -408,6 +614,7 @@ const AdminDashboard: React.FC = () => {
             <TabsTrigger value="products">المنتجات</TabsTrigger>
             <TabsTrigger value="orders">الطلبات</TabsTrigger>
             <TabsTrigger value="users">المستخدمين</TabsTrigger>
+            <TabsTrigger value="notifications">الإشعارات</TabsTrigger>
             <TabsTrigger value="discounts">خصومات الطلبات</TabsTrigger>
           </TabsList>
 
@@ -794,13 +1001,212 @@ const AdminDashboard: React.FC = () => {
                 مستخدم
               </Button>
             </div>
-            {user?._id && (
-              <UserTable
-                users={filteredUsers}
-                onDelete={handleDeleteUser}
-                currentAdminId={user?._id}
-              />
-            )}
+          {user?._id && (
+            <UserTable
+              users={filteredUsers}
+              onDelete={handleDeleteUser}
+              currentAdminId={user?._id}
+            />
+          )}
+        </TabsContent>
+
+          {/* ======================= تبويب الإشعارات ======================= */}
+          <TabsContent value="notifications">
+            <h2 className="text-xl font-semibold mb-4">إدارة الإشعارات</h2>
+
+            <form
+              onSubmit={handleCreateNotification}
+              className="space-y-4 max-w-2xl ml-auto"
+            >
+              <div>
+                <label className="mb-2 block text-sm font-medium">
+                  عنوان الإشعار
+                </label>
+                <Input
+                  value={notificationForm.title}
+                  onChange={(e) =>
+                    setNotificationForm((prev) => ({
+                      ...prev,
+                      title: e.target.value,
+                    }))
+                  }
+                  placeholder="مثال: عروض جديدة على المنتجات"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium">
+                  نص الإشعار
+                </label>
+                <Textarea
+                  value={notificationForm.message}
+                  onChange={(e) =>
+                    setNotificationForm((prev) => ({
+                      ...prev,
+                      message: e.target.value,
+                    }))
+                  }
+                  rows={4}
+                  placeholder="اكتب تفاصيل الإشعار هنا"
+                  required
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium">
+                    الفئة المستهدفة
+                  </label>
+                  <Select
+                    value={notificationForm.target}
+                    onValueChange={(value) =>
+                      setNotificationForm((prev) => ({
+                        ...prev,
+                        target: value as "all" | "user",
+                        userId: value === "user" ? prev.userId : "",
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر الفئة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">جميع المستخدمين</SelectItem>
+                      <SelectItem value="user">مستخدم محدد</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {notificationForm.target === "user" && (
+                  <div>
+                    <label className="mb-2 block text-sm font-medium">
+                      اختر المستخدم
+                    </label>
+                    <Select
+                      value={notificationForm.userId || undefined}
+                      onValueChange={(value) =>
+                        setNotificationForm((prev) => ({
+                          ...prev,
+                          userId: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="اختر المستخدم" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users.length === 0 ? (
+                          <SelectItem value="" disabled>
+                            لا يوجد مستخدمون
+                          </SelectItem>
+                        ) : (
+                          users.map((u: any) => (
+                            <SelectItem key={u._id} value={u._id}>
+                              {u.name || u.email || u.phone || u._id}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {notificationError && (
+                <p className="text-destructive text-sm">
+                  {notificationError}
+                </p>
+              )}
+              {notificationSuccess && (
+                <p className="text-green-600 text-sm">
+                  {notificationSuccess}
+                </p>
+              )}
+
+              <Button type="submit" disabled={notificationSubmitting}>
+                {notificationSubmitting ? "جاري الإرسال..." : "إرسال الإشعار"}
+              </Button>
+            </form>
+
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold mb-3">آخر الإشعارات</h3>
+              {notificationsLoading ? (
+                <p className="text-gray-500">جاري التحميل…</p>
+              ) : notificationsLoadError ? (
+                <p className="text-destructive">{notificationsLoadError}</p>
+              ) : notifications.length === 0 ? (
+                <p className="text-gray-500">لا يوجد إشعارات بعد.</p>
+              ) : (
+                <div className="space-y-3">
+                  {notifications.map((notification) => {
+                    const createdAt = new Date(
+                      notification.createdAt
+                    ).toLocaleString("ar-EG");
+                    const targetLabel =
+                      notification.target === "all"
+                        ? "مرسل إلى جميع المستخدمين"
+                        : `مستخدم محدد: ${
+                            notification.user?.name ||
+                            notification.user?.email ||
+                            notification.user?.phone ||
+                            notification.user?._id ||
+                            "-"
+                          }`;
+
+                    const isDeleting =
+                      deletingNotificationId === notification._id;
+
+                    return (
+                      <div
+                        key={notification._id}
+                        className="rounded-lg border p-4 bg-white dark:bg-gray-900 shadow-sm"
+                      >
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <h4 className="font-semibold text-base">
+                              {notification.title}
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              {createdAt}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-start gap-2 md:items-end md:text-right">
+                            <span className="text-xs text-muted-foreground">
+                              {targetLabel}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="flex items-center gap-2"
+                              onClick={() =>
+                                handleDeleteNotification(notification._id)
+                              }
+                              disabled={isDeleting}
+                            >
+                              {isDeleting ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  جارٍ الحذف...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash className="h-4 w-4" />
+                                  حذف
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-sm leading-relaxed">
+                          {notification.message}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           {/* ======================= تبويب خصومات الطلبات ======================= */}

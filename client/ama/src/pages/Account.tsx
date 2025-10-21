@@ -7,6 +7,18 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
 
+const MAX_NOTIFICATIONS = 5;
+const ORDERS_PER_PAGE = 5;
+
+type NotificationItem = {
+  _id: string;
+  title: string;
+  message: string;
+  target: "all" | "user";
+  createdAt: string;
+  isRead?: boolean;
+};
+
 const statusLabel = (s: string) => {
   switch (s) {
     case "waiting_confirmation":
@@ -30,6 +42,12 @@ const Account: React.FC = () => {
   const { user, logout, loading, token } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState<string | null>(
+    null
+  );
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -37,16 +55,95 @@ const Account: React.FC = () => {
     }
 
     if (user && token) {
+      setNotificationsLoading(true);
+      setNotificationsError(null);
+      let cancelled = false;
+
+      axios
+        .get(`${import.meta.env.VITE_API_URL}/api/notifications/my`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        .then((res) => {
+          if (cancelled) return;
+          const list = Array.isArray(res.data) ? res.data : [];
+          const sorted = [...list].sort((a, b) => {
+            const aTime = new Date(a.createdAt ?? 0).getTime();
+            const bTime = new Date(b.createdAt ?? 0).getTime();
+            return bTime - aTime;
+          });
+          setNotifications(sorted.slice(0, MAX_NOTIFICATIONS));
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          console.error("فشل في جلب الإشعارات", err);
+          setNotificationsError("تعذّر جلب الإشعارات حاليًا");
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setNotificationsLoading(false);
+        });
+
       axios
         .get(`${import.meta.env.VITE_API_URL}/api/orders/user/${user._id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         })
-        .then((res) => setOrders(res.data))
+        .then((res) => {
+          const list = Array.isArray(res.data) ? res.data : [];
+          const sorted = [...list].sort((a, b) => {
+            const aTime = new Date(a.createdAt ?? 0).getTime();
+            const bTime = new Date(b.createdAt ?? 0).getTime();
+            return bTime - aTime;
+          });
+          setOrders(sorted);
+        })
         .catch((err) => console.error("فشل في جلب الطلبات", err));
+
+      return () => {
+        cancelled = true;
+      };
     }
   }, [user, loading, navigate, token]);
+
+  useEffect(() => {
+    if (orders.length === 0) {
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      }
+      return;
+    }
+
+    const totalPages = Math.ceil(orders.length / ORDERS_PER_PAGE);
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [orders.length, currentPage]);
+
+  const handleMarkAsRead = async (notificationId: string) => {
+    if (!token) return;
+    try {
+      await axios.patch(
+        `${import.meta.env.VITE_API_URL}/api/notifications/${notificationId}/read`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n._id === notificationId ? { ...n, isRead: true } : n
+        )
+      );
+    } catch (err) {
+      console.error("تعذّر تحديث حالة الإشعار", err);
+    }
+  };
 
   if (loading || !user) {
     return (
@@ -55,6 +152,12 @@ const Account: React.FC = () => {
       </div>
     );
   }
+
+  const totalPages = Math.ceil(orders.length / ORDERS_PER_PAGE);
+  const paginatedOrders = orders.slice(
+    (currentPage - 1) * ORDERS_PER_PAGE,
+    (currentPage - 1) * ORDERS_PER_PAGE + ORDERS_PER_PAGE
+  );
 
   return (
     <>
@@ -84,6 +187,66 @@ const Account: React.FC = () => {
           </Button>
         </div>
 
+        <section className="mb-10">
+          <h2 className="text-2xl font-bold mb-4">إشعاراتي</h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            يتم عرض أحدث {MAX_NOTIFICATIONS} إشعارات فقط.
+          </p>
+          {notificationsLoading ? (
+            <p className="text-gray-500">جاري تحميل الإشعارات…</p>
+          ) : notificationsError ? (
+            <p className="text-destructive">{notificationsError}</p>
+          ) : notifications.length === 0 ? (
+            <p className="text-gray-500">لا يوجد إشعارات بعد.</p>
+          ) : (
+            <div className="space-y-4">
+              {notifications.map((notification) => {
+                const createdAt = new Date(notification.createdAt).toLocaleString(
+                  "ar-EG"
+                );
+                const isUnread = !notification.isRead;
+
+                return (
+                  <div
+                    key={notification._id}
+                    className={`rounded-lg border p-4 shadow-sm transition ${
+                      isUnread
+                        ? "bg-blue-50 dark:bg-blue-950/30"
+                        : "bg-white dark:bg-gray-900"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold">
+                          {notification.title}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">{createdAt}</p>
+                      </div>
+                      {isUnread && (
+                        <Button
+                          variant="outline"
+                          onClick={() => handleMarkAsRead(notification._id)}
+                          className="self-start md:self-auto"
+                        >
+                          تعليم كمقروء
+                        </Button>
+                      )}
+                    </div>
+                    <p className="mt-3 leading-relaxed">
+                      {notification.message}
+                    </p>
+                    {!isUnread && (
+                      <span className="mt-2 inline-block text-xs text-muted-foreground">
+                        تمت قراءته
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         <h2 className="text-2xl font-bold mb-4">طلباتي</h2>
         {orders.length === 0 ? (
           <p className="text-gray-500">لا يوجد طلبات بعد.</p>
@@ -103,7 +266,7 @@ const Account: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order, i) => {
+                {paginatedOrders.map((order, i) => {
                   const discountAmount =
                     Number(order?.discount?.amount || 0) > 0 &&
                     order?.discount?.applied
@@ -112,7 +275,9 @@ const Account: React.FC = () => {
 
                   return (
                     <tr key={order._id}>
-                      <td className="p-2 border">{i + 1}</td>
+                      <td className="p-2 border">
+                        {(currentPage - 1) * ORDERS_PER_PAGE + i + 1}
+                      </td>
                       <td className="p-2 border">
                         {order?.items?.length || 0}
                       </td>
@@ -142,6 +307,33 @@ const Account: React.FC = () => {
                 })}
               </tbody>
             </table>
+            {totalPages > 1 && (
+              <div className="flex flex-col items-center gap-2 py-4 md:flex-row md:justify-between">
+                <span className="text-sm text-muted-foreground">
+                  صفحة {currentPage} من {totalPages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    السابق
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      setCurrentPage((prev) => {
+                        return Math.min(totalPages, prev + 1);
+                      })
+                    }
+                    disabled={currentPage === totalPages}
+                  >
+                    التالي
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
