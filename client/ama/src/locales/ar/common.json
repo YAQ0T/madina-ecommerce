@@ -245,8 +245,18 @@
     "sizesLabel": "المقاسات",
     "colorLabel": "اللون",
     "colorsLabel": "الألوان",
-    "discountTimerTitle": "مدّة الخصم",
-    "discountTimer": "ينتهي قريبًا",
+    "discount": {
+      "progressTitle": "مدّة الخصم",
+      "progressAria": "مدّة الخصم المتبقية",
+      "endsIn": "ينتهي خلال:",
+      "ended": "انتهى الخصم",
+      "parts": {
+        "days": "{{value}}ي",
+        "hours": "{{value}}س",
+        "minutes": "{{value}}د",
+        "seconds": "{{value}}ث"
+      }
+    },
     "dialogDescription": "اختر اللون والمقاس قبل إضافة المنتج إلى السلة.",
     "cancel": "إلغاء",
     "quantityLabel": "الكمية",
