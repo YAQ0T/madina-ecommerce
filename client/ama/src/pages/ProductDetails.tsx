@@ -14,11 +14,12 @@ import { useTranslation } from "@/i18n";
 import clsx from "clsx";
 import { Heart } from "lucide-react";
 
+/* ========== الأنواع ========== */
 type Variant = {
   _id: string;
   product: string;
   measure: string;
-  measureUnit?: string; // ✅ جديد
+  measureUnit?: string;
   measureSlug: string;
   color: { name: string; code?: string; images?: string[] };
   colorSlug: string;
@@ -34,16 +35,30 @@ type Variant = {
   };
   stock: { inStock: number; sku: string };
   tags: string[];
+  // قد تأتي من السيرفر لكن لن نعتمد عليها:
   finalAmount?: number;
   isDiscountActive?: boolean;
   displayCompareAt?: number | null;
 };
 
+type TimeUnit = "days" | "hours" | "minutes" | "seconds";
+
+/* ========== مساعدات عامة ========== */
 const clamp = (n: number, min = 0, max = 100) =>
   Math.max(min, Math.min(max, n));
 
-type TimeUnit = "days" | "hours" | "minutes" | "seconds";
+const normalize = (s?: string) =>
+  (s || "").trim().replace(/\s+/g, "").toLowerCase();
+const isUnified = (s?: string) => normalize(s) === normalize("موحد");
 
+/** يُرجع دائمًا مصفوفة المتغيّرات سواء كانت الاستجابة {items:[]} أو [] مباشرة */
+function normalizeVariantsResponse(data: any): Variant[] {
+  if (data && Array.isArray(data.items)) return data.items as Variant[];
+  if (Array.isArray(data)) return data as Variant[];
+  return [];
+}
+
+/** تنسيق الوقت المتبقي للمؤقّت */
 const formatTimeLeft = (
   ms: number
 ): { expired: boolean; parts: { unit: TimeUnit; value: number }[] } => {
@@ -86,17 +101,73 @@ const formatTimeLeft = (
   };
 };
 
-const normalize = (s?: string) =>
-  (s || "").trim().replace(/\s+/g, "").toLowerCase();
-const isUnified = (s?: string) => normalize(s) === normalize("موحد");
+/* ========== تسعير موحّد محليًا (نفس منطق البطاقة) ========== */
+function computeVariantPricing(v?: Variant, nowTs = Date.now()) {
+  if (!v) {
+    return {
+      final: undefined as number | undefined,
+      compare: undefined as number | undefined,
+      discountActive: false,
+      discountPercent: null as number | null,
+      window: { start: undefined as number | undefined, end: undefined as number | undefined },
+    };
+  }
 
-/** ✅ يُرجع دائمًا مصفوفة المتغيّرات سواء كانت الاستجابة {items:[]} أو [] مباشرة */
-function normalizeVariantsResponse(data: any): Variant[] {
-  if (data && Array.isArray(data.items)) return data.items as Variant[];
-  if (Array.isArray(data)) return data as Variant[];
-  return [];
+  const base = typeof v.price?.amount === "number" ? v.price.amount : undefined;
+  const compareRaw =
+    typeof v.price?.compareAt === "number" ? v.price.compareAt : undefined;
+
+  const d = v.price?.discount;
+  const startMs = d?.startAt ? new Date(d.startAt).getTime() : undefined;
+  const endMs = d?.endAt ? new Date(d.endAt).getTime() : undefined;
+
+  const inWindow =
+    (!!startMs ? nowTs >= startMs : true) &&
+    (!!endMs ? nowTs < endMs : true);
+
+  let discounted = base;
+  let anyDiscountApplied = false;
+  if (inWindow && typeof base === "number" && d?.value) {
+    if (d.type === "percent") {
+      discounted = Math.max(0, base - (base * d.value) / 100);
+      anyDiscountApplied = d.value > 0;
+    } else if (d.type === "amount") {
+      discounted = Math.max(0, base - d.value);
+      anyDiscountApplied = d.value > 0;
+    }
+  }
+
+  let compare: number | undefined = undefined;
+  if (typeof compareRaw === "number" && typeof discounted === "number") {
+    compare = compareRaw > discounted ? compareRaw : undefined;
+  }
+  if (!compare && anyDiscountApplied && typeof base === "number" && typeof discounted === "number") {
+    compare = base > discounted ? base : undefined;
+  }
+
+  let discountPercent: number | null = null;
+  if (
+    typeof compare === "number" &&
+    typeof discounted === "number" &&
+    compare > 0 &&
+    discounted < compare
+  ) {
+    discountPercent = Math.round(((compare - discounted) / compare) * 100);
+  }
+
+  const final =
+    typeof discounted === "number" ? Number(discounted.toFixed(2)) : undefined;
+
+  return {
+    final,
+    compare: typeof compare === "number" ? Number(compare.toFixed(2)) : undefined,
+    discountActive: !!(discountPercent && discountPercent > 0),
+    discountPercent,
+    window: { start: startMs, end: endMs },
+  };
 }
 
+/* ========== المكوّن الرئيسي ========== */
 const ProductDetails: React.FC = () => {
   const { addToCart } = useCart();
   const { id } = useParams();
@@ -166,6 +237,7 @@ const ProductDetails: React.FC = () => {
       .join(" ");
   }, [timeLeft, t]);
 
+  /* جلب المنتج والمتغيرات */
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -202,7 +274,7 @@ const ProductDetails: React.FC = () => {
     };
   }, [id]);
 
-  // خرائط عرضية للأسماء + الوحدة
+  /* خرائط عرضية للأسماء + الوحدة */
   const measureInfoBySlug = useMemo(() => {
     const map = new Map<string, { label: string; unit?: string }>();
     for (const v of variants) {
@@ -227,14 +299,13 @@ const ProductDetails: React.FC = () => {
     return map;
   }, [variants]);
 
-  // المقاسات (مع استبعاد "موحّد")
+  /* المقاسات/الألوان مع استبعاد "موحّد" */
   const measures = useMemo(() => {
     return Array.from(measureInfoBySlug.entries())
       .map(([slug, info]) => ({ slug, ...info }))
       .filter((m) => !isUnified(m.label));
   }, [measureInfoBySlug]);
 
-  // الألوان (مع استبعاد "موحّد")
   const allColors = useMemo(() => {
     return Array.from(colorLabelBySlug.entries())
       .map(([slug, label]) => {
@@ -270,6 +341,7 @@ const ProductDetails: React.FC = () => {
     );
   }, [variants, measure, color]);
 
+  /* عدد / صور */
   useEffect(() => {
     setQuantity(1);
   }, [currentVariant?._id]);
@@ -287,7 +359,8 @@ const ProductDetails: React.FC = () => {
     if (!color || !allowed.has(color)) {
       setColor(Array.from(allowed)[0]);
     }
-  }, [measure, colorsByMeasure]); // intentionally omit `color`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measure, colorsByMeasure]);
 
   const images =
     currentVariant?.color?.images && currentVariant.color.images.length > 0
@@ -300,50 +373,30 @@ const ProductDetails: React.FC = () => {
   const prevImage = () =>
     setCurrentImage((p) => (p - 1 + images.length) % images.length);
 
-  const finalAmount = currentVariant?.finalAmount;
-  const compareAt = currentVariant?.displayCompareAt ?? null;
-  const handleQuantityChange = (newQty: number) => {
-    setQuantity((prev) => {
-      const desired = Number.isFinite(newQty) ? newQty : prev;
-      return Math.max(1, desired);
-    });
-  };
+  /* --- السعر/الخصم (المصدر الموحّد) --- */
+  const {
+    final: finalPrice,
+    compare: comparePrice,
+    discountActive,
+    discountPercent,
+    window: discountWindow,
+  } = useMemo(
+    () => computeVariantPricing(currentVariant || undefined),
+    [currentVariant]
+  );
 
-  const isQuantityValid = !!currentVariant && quantity >= 1;
-
-  const isCtaDisabled = !currentVariant || !isQuantityValid;
-
-  const discountPercent =
-    typeof finalAmount === "number" &&
-    typeof compareAt === "number" &&
-    compareAt > 0 &&
-    finalAmount < compareAt
-      ? Math.round(((compareAt - finalAmount) / compareAt) * 100)
-      : null;
-
+  /* مؤقّت الخصم — يعتمد على وجود endAt + كون الخصم فعليًا */
   useEffect(() => {
-    const d = currentVariant?.price?.discount;
-    if (!d?.endAt) {
-      setShowDiscountTimer(false);
-      setTimeLeftMs(null);
-      setProgressPct(null);
-      return;
-    }
-
-    const now = Date.now();
-    const end = new Date(d.endAt).toISOString();
-    const endMs = new Date(end).getTime();
-    const start = d.startAt ? new Date(d.startAt).getTime() : now;
+    const end = discountWindow.end;
+    const start = discountWindow.start ?? Date.now();
 
     const hasRealDiscount =
-      typeof finalAmount === "number" &&
-      typeof compareAt === "number" &&
-      compareAt > 0 &&
-      finalAmount < compareAt;
+      typeof comparePrice === "number" &&
+      typeof finalPrice === "number" &&
+      comparePrice > 0 &&
+      finalPrice < comparePrice;
 
-    const isActive = hasRealDiscount && now >= start && now < endMs;
-
-    if (!isActive) {
+    if (!end || !hasRealDiscount) {
       setShowDiscountTimer(false);
       setTimeLeftMs(null);
       setProgressPct(null);
@@ -354,33 +407,37 @@ const ProductDetails: React.FC = () => {
 
     const update = () => {
       const t = Date.now();
-      const left = endMs - t;
+      const left = end - t;
       setTimeLeftMs(left > 0 ? left : 0);
 
-      const duration = Math.max(1, endMs - start);
+      const duration = Math.max(1, end - start);
       const progress = ((t - start) / duration) * 100;
       setProgressPct(clamp(progress));
 
-      if (t >= endMs) setShowDiscountTimer(false);
+      if (t >= end) setShowDiscountTimer(false);
     };
 
     update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
-  }, [
-    currentVariant?.price?.discount?.startAt,
-    currentVariant?.price?.discount?.endAt,
-    finalAmount,
-    compareAt,
-  ]);
+  }, [discountWindow.end, discountWindow.start, comparePrice, finalPrice]);
 
+  const handleQuantityChange = (newQty: number) => {
+    setQuantity((prev) => {
+      const desired = Number.isFinite(newQty) ? newQty : prev;
+      return Math.max(1, desired);
+    });
+  };
+
+  const isQuantityValid = !!currentVariant && quantity >= 1;
+  const isCtaDisabled = !currentVariant || !isQuantityValid;
+
+  /* التحميل */
   if (!product) {
-    return (
-      <p className="text-center mt-10">{t("productDetails.loading")}</p>
-    );
+    return <p className="text-center mt-10">{t("productDetails.loading")}</p>;
   }
 
-  // إخفاء UI المقاس إن لم يتبقَّ إلا "موحّد"
+  /* إخفاء UI المقاس/اللون لو ما في إلا "موحّد" */
   const showMeasureUI = measures.length > 0;
   const showColorsUI = allColors.length > 0;
 
@@ -422,7 +479,7 @@ const ProductDetails: React.FC = () => {
                   ▶
                 </button>
 
-                {discountPercent !== null && (
+                {discountActive && discountPercent !== null && (
                   <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
                     -{discountPercent}%
                   </span>
@@ -514,19 +571,17 @@ const ProductDetails: React.FC = () => {
 
             {/* السعر */}
             <div className="mb-2">
-              {typeof compareAt === "number" &&
-              typeof finalAmount === "number" &&
-              compareAt > finalAmount ? (
+              {typeof comparePrice === "number" &&
+              typeof finalPrice === "number" &&
+              comparePrice > finalPrice ? (
                 <div className="flex items-baseline gap-2">
-                  <span className="text-gray-500 line-through">
-                    ₪{compareAt}
-                  </span>
-                  <span className="text-xl font-semibold">₪{finalAmount}</span>
+                  <span className="text-gray-500 line-through">₪{comparePrice}</span>
+                  <span className="text-xl font-semibold">₪{finalPrice}</span>
                 </div>
               ) : (
                 <p className="text-xl font-semibold">
-                  {typeof finalAmount === "number" ? (
-                    <>₪{finalAmount}</>
+                  {typeof finalPrice === "number" ? (
+                    <>₪{finalPrice}</>
                   ) : (
                     t("productDetails.price.selectOptions")
                   )}
@@ -534,6 +589,7 @@ const ProductDetails: React.FC = () => {
               )}
             </div>
 
+            {/* مؤقّت الخصم */}
             {showDiscountTimer &&
               progressPct !== null &&
               timeLeftMs !== null && (
@@ -572,25 +628,27 @@ const ProductDetails: React.FC = () => {
                 disabled={isCtaDisabled}
                 onClick={() => {
                   if (!currentVariant || isCtaDisabled) return;
+                  const computed = computeVariantPricing(currentVariant);
+                  const priceForCart =
+                    typeof computed.final === "number"
+                      ? computed.final
+                      : (currentVariant.price?.amount ?? product.price ?? 0);
+
                   addToCart(
                     {
                       ...product,
                       selectedVariantId: currentVariant._id,
                       selectedSku: currentVariant.stock.sku,
                       selectedMeasure: currentVariant.measure,
-                      selectedMeasureUnit:
-                        currentVariant.measureUnit || undefined, // ✅
+                      selectedMeasureUnit: currentVariant.measureUnit || undefined,
                       selectedColor: currentVariant.color?.name,
-                      price:
-                        typeof currentVariant.finalAmount === "number"
-                          ? currentVariant.finalAmount
-                          : currentVariant.price?.amount,
+                      price: priceForCart,
                     },
                     quantity
                   );
                 }}
               >
-              {t("productDetails.cta.addToCart")}
+                {t("productDetails.cta.addToCart")}
               </Button>
             </div>
           </div>

@@ -228,7 +228,7 @@ const Navbar: React.FC = () => {
 
   const renderNotificationsMenu = (
     ref: React.RefObject<HTMLDivElement | null>,
-    alignment: "left" | "right" = "right"
+    alignment: "left" | "right" = "left"
   ) => (
     <div className="relative" ref={ref}>
       <button
