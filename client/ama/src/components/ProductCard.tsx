@@ -58,9 +58,10 @@ type Variant = {
   };
   stock: { inStock: number; sku: string };
   tags?: string[];
+  // قد تكون موجودة من السيرفر، لكن لن نعتمد عليها:
   finalAmount?: number;
-  isDiscountActive?: boolean;
   displayCompareAt?: number | null;
+  isDiscountActive?: boolean;
 };
 
 const normalize = (s?: string) =>
@@ -79,11 +80,85 @@ function normalizeVariantsResponse(data: any): Variant[] {
   return [];
 }
 
+/** ✅ تسعير موحّد محليًا من amount/compareAt/discount (+ نافذة الزمن) */
+function computeVariantPricing(v?: Variant, nowTs = Date.now()) {
+  if (!v) {
+    return {
+      final: undefined as number | undefined,
+      compare: undefined as number | undefined,
+      discountActive: false,
+      discountPercent: null as number | null,
+      window: { start: undefined as number | undefined, end: undefined as number | undefined },
+    };
+  }
+
+  const base =
+    typeof v.price?.amount === "number" ? v.price.amount : undefined;
+  const compareRaw =
+    typeof v.price?.compareAt === "number" ? v.price.compareAt : undefined;
+
+  const d = v.price?.discount;
+  const startMs = d?.startAt ? new Date(d.startAt).getTime() : undefined;
+  const endMs = d?.endAt ? new Date(d.endAt).getTime() : undefined;
+
+  // نافذة الخصم فعّالة؟
+  const inWindow =
+    (!!startMs ? nowTs >= startMs : true) &&
+    (!!endMs ? nowTs < endMs : true);
+
+  // طبّق الخصم على السعر الأساسي عند توافره وكون النافذة فعّالة
+  let discounted = base;
+  let anyDiscountApplied = false;
+  if (inWindow && typeof base === "number" && d?.value) {
+    if (d.type === "percent") {
+      discounted = Math.max(0, base - (base * d.value) / 100);
+      anyDiscountApplied = d.value > 0;
+    } else if (d.type === "amount") {
+      discounted = Math.max(0, base - d.value);
+      anyDiscountApplied = d.value > 0;
+    }
+  }
+
+  // قرّر قيمة الـ compare للعرض:
+  // - لو compareAt من السيرفر أكبر من النهائي => استخدمه
+  // - وإلا لو عندك خصم فعّال، استخدم base كـ compare إذا كان أعلى
+  let compare: number | undefined = undefined;
+  if (typeof compareRaw === "number" && typeof discounted === "number") {
+    compare = compareRaw > discounted ? compareRaw : undefined;
+  }
+  if (!compare && anyDiscountApplied && typeof base === "number" && typeof discounted === "number") {
+    compare = base > discounted ? base : undefined;
+  }
+
+  // نسبة الخصم
+  let discountPercent: number | null = null;
+  if (
+    typeof compare === "number" &&
+    typeof discounted === "number" &&
+    compare > 0 &&
+    discounted < compare
+  ) {
+    discountPercent = Math.round(((compare - discounted) / compare) * 100);
+  }
+
+  const final =
+    typeof discounted === "number" ? Number(discounted.toFixed(2)) : undefined;
+
+  return {
+    final,
+    compare: typeof compare === "number" ? Number(compare.toFixed(2)) : undefined,
+    discountActive: !!(discountPercent && discountPercent > 0),
+    discountPercent,
+    window: { start: startMs, end: endMs },
+  };
+}
+
 const ProductCard: React.FC<Props> = ({ product }) => {
   const { addToCart } = useCart();
   const navigate = useNavigate();
   const { locale } = useLanguage();
   const { t } = useTranslation();
+
   const productName = useMemo(
     () => getLocalizedText(product.name, locale) || product._id,
     [product.name, locale, product._id]
@@ -121,7 +196,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
-    const [quantityInput, setQuantityInput] = useState("1");
+  const [quantityInput, setQuantityInput] = useState("1");
 
   const [isAdding, setIsAdding] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
@@ -249,7 +324,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       const first = Array.from(allowed)[0];
       setSelectedColor(first);
     }
-  }, [selectedMeasure, colorsByMeasure, variants.length]); // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMeasure, colorsByMeasure, variants.length]);
 
   // إعادة المؤشر للصورة الأولى عند تغيّر المصدر
   useEffect(() => {
@@ -259,46 +335,27 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   useEffect(() => {
     setQuantity(1);
     setQuantityInput("1");
-
   }, [currentVariantId]);
 
-  // الأسعار/الخصم
-  const variantFinal = currentVariant?.finalAmount;
-  const variantCompare = currentVariant?.displayCompareAt ?? null;
-  const displayPrice =
-    typeof variantFinal === "number" ? variantFinal : product.price ?? 0;
+  // --- السعر/الخصم (المصدر الموحّد) ---
+  const { final, compare, discountActive, discountPercent, window: discountWindow } =
+    useMemo(() => computeVariantPricing(currentVariant || undefined), [currentVariant]);
 
-  const discountPercent =
-    typeof variantFinal === "number" &&
-    typeof variantCompare === "number" &&
-    variantCompare > 0 &&
-    variantFinal < variantCompare
-      ? Math.round(((variantCompare - variantFinal) / variantCompare) * 100)
-      : null;
+  const displayPrice = typeof final === "number" ? final : (product.price ?? 0);
+  const variantCompare = typeof compare === "number" ? compare : null;
 
-  // مؤقّت الخصم
+  // مؤقّت الخصم (يعتمد فقط على وجود نافذة endAt + وجود خصم فعلي)
   useEffect(() => {
-    const d = currentVariant?.price?.discount;
-    if (!d?.endAt) {
-      setShowDiscountTimer(false);
-      setTimeLeftMs(null);
-      setProgressPct(null);
-      return;
-    }
-
-    const now = Date.now();
-    const end = new Date(d.endAt).getTime();
-    const start = d.startAt ? new Date(d.startAt).getTime() : now;
+    const end = discountWindow.end;
+    const start = discountWindow.start ?? Date.now();
 
     const hasRealDiscount =
-      typeof variantFinal === "number" &&
       typeof variantCompare === "number" &&
+      typeof displayPrice === "number" &&
       variantCompare > 0 &&
-      variantFinal < variantCompare;
+      displayPrice < variantCompare;
 
-    const isActive = hasRealDiscount && now >= start && now < end;
-
-    if (!isActive) {
+    if (!end || !hasRealDiscount) {
       setShowDiscountTimer(false);
       setTimeLeftMs(null);
       setProgressPct(null);
@@ -319,12 +376,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
-  }, [
-    currentVariant?.price?.discount?.startAt,
-    currentVariant?.price?.discount?.endAt,
-    variantFinal,
-    variantCompare,
-  ]);
+  }, [discountWindow.end, discountWindow.start, variantCompare, displayPrice]);
 
   // تنقّل الصور
   const nextImage = () =>
@@ -339,7 +391,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const arrowSize = "w-9 h-9 flex items-center justify-center";
   const arrowIcon = "pointer-events-none select-none";
 
-  // إضافة للسلة
+  // كمية وإضافة للسلة
   const handleQuantityChange = useCallback((newQty: number) => {
     const safeQty = Math.max(1, Math.min(Number.isFinite(newQty) ? newQty : 1, 999));
     setQuantity(safeQty);
@@ -366,18 +418,10 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     (event: ChangeEvent<HTMLInputElement>) => {
       const { value } = event.target;
       const sanitized = value.replace(/[^0-9]/g, "");
-
       setQuantityInput(sanitized);
-
-      if (sanitized === "") {
-        return;
-      }
-
+      if (sanitized === "") return;
       const parsed = Number.parseInt(sanitized, 10);
-      if (Number.isNaN(parsed)) {
-        return;
-      }
-
+      if (Number.isNaN(parsed)) return;
       handleQuantityChange(parsed);
     },
     [handleQuantityChange]
@@ -388,17 +432,13 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       handleQuantityChange(1);
       return;
     }
-
     const parsed = Number.parseInt(quantityInput, 10);
     if (Number.isNaN(parsed)) {
       handleQuantityChange(1);
       return;
     }
-
     handleQuantityChange(parsed);
   }, [handleQuantityChange, quantityInput]);
-
-
 
   const addItemToCart = useCallback(async () => {
     if (isAdding) return false;
@@ -412,6 +452,12 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       if (variants.length > 0) {
         if (!currentVariant) return false;
 
+        const computed = computeVariantPricing(currentVariant);
+        const priceForCart =
+          typeof computed.final === "number"
+            ? computed.final
+            : (currentVariant.price?.amount ?? product.price ?? 0);
+
         const itemForCart = {
           ...product,
           image: displayedImages?.[0] || fallbackImg,
@@ -420,10 +466,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           selectedMeasure: currentVariant.measure,
           selectedMeasureUnit: currentVariant.measureUnit || undefined,
           selectedColor: currentVariant.color?.name,
-          price:
-            typeof currentVariant.finalAmount === "number"
-              ? currentVariant.finalAmount
-              : currentVariant.price?.amount ?? product.price ?? 0,
+          price: priceForCart,
         };
         addToCart(itemForCart, effectiveQuantity);
         added = true;
@@ -622,7 +665,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   return (
     <>
-      {/* ============ موبايل (واجهة مبسّطة + كل البطاقة تفتح التفاصيل) ============ */}
+      {/* ============ موبايل ============ */}
       <div
         className={clsx(
           "relative border rounded-lg p-2 text-right hover:shadow flex flex-col h-full md:hidden cursor-pointer transition-all duration-300",
@@ -643,101 +686,101 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           )}
         >
           <div className="relative w-full aspect-[4/5] mb-1.5 overflow-hidden rounded bg-white">
-          {displayedImages.map((src, index) => (
-            <img
-              key={`${src}-${index}`}
-              src={src}
-              alt={productName}
-              className={clsx(
-                "absolute inset-0 w-full h-full object-contain transition-all duration-500",
-                {
-                  "opacity-100 translate-x-0 z-10": index === currentImage,
-                  "opacity-0 translate-x-full z-0": index > currentImage,
-                  "opacity-0 -translate-x-full z-0": index < currentImage,
-                }
-              )}
-              loading="lazy"
-              decoding="async"
-              sizes="100vw"
-              draggable={false}
-            />
-          ))}
+            {displayedImages.map((src, index) => (
+              <img
+                key={`${src}-${index}`}
+                src={src}
+                alt={productName}
+                className={clsx(
+                  "absolute inset-0 w-full h-full object-contain transition-all duration-500",
+                  {
+                    "opacity-100 translate-x-0 z-10": index === currentImage,
+                    "opacity-0 translate-x-full z-0": index > currentImage,
+                    "opacity-0 -translate-x-full z-0": index < currentImage,
+                  }
+                )}
+                loading="lazy"
+                decoding="async"
+                sizes="100vw"
+                draggable={false}
+              />
+            ))}
 
-          {displayedImages.length > 1 && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  prevImage();
-                }}
-                aria-label={t("productCard.previousImage")}
-                className={clsx(arrowBase, arrowSize, "left-2 text-white")}
-              >
-                <svg
-                  className={arrowIcon}
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  width="18"
-                  height="18"
-                  fill="currentColor"
+            {displayedImages.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    prevImage();
+                  }}
+                  aria-label={t("productCard.previousImage")}
+                  className={clsx(arrowBase, arrowSize, "left-2 text-white")}
                 >
-                  <path d="M12.707 15.707a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414l5-5a1 1 0 1 1 1.414 1.414L8.414 10l4.293 4.293a1 1 0 0 1 0 1.414z" />
-                </svg>
-              </button>
+                  <svg
+                    className={arrowIcon}
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    width="18"
+                    height="18"
+                    fill="currentColor"
+                  >
+                    <path d="M12.707 15.707a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414l5-5a1 1 0 1 1 1.414 1.414L8.414 10l4.293 4.293a1 1 0 0 1 0 1.414z" />
+                  </svg>
+                </button>
 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  nextImage();
-                }}
-                aria-label={t("productCard.nextImage")}
-                className={clsx(arrowBase, arrowSize, "right-2 text-white")}
-              >
-                <svg
-                  className={arrowIcon}
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  width="18"
-                  height="18"
-                  fill="currentColor"
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    nextImage();
+                  }}
+                  aria-label={t("productCard.nextImage")}
+                  className={clsx(arrowBase, arrowSize, "right-2 text-white")}
                 >
-                  <path d="M7.293 4.293a1 1 0 0 1 1.414 0l5 5a1 1 0 0 1 0 1.414l-5 5A1 1 0 1 1 7.293 14.293L11.586 10 7.293 5.707a1 1 0 0 1 0-1.414z" />
-                </svg>
-              </button>
-            </>
-          )}
-
-          <button
-            type="button"
-            className={clsx(
-              "absolute top-2 left-2 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition",
-              isFavoriteProduct
-                ? "bg-red-600 text-white border-red-500 hover:bg-red-500"
-                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                  <svg
+                    className={arrowIcon}
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    width="18"
+                    height="18"
+                    fill="currentColor"
+                  >
+                    <path d="M7.293 4.293a1 1 0 0 1 1.414 0l5 5a1 1 0 0 1 0 1.414l-5 5A1 1 0 1 1 7.293 14.293L11.586 10 7.293 5.707a1 1 0 0 1 0-1.414z" />
+                  </svg>
+                </button>
+              </>
             )}
-            onClick={(event) => {
-              event.stopPropagation();
-              handleToggleFavorite();
-            }}
-            aria-label={
-              isFavoriteProduct
-                ? t("productCard.removeFavorite")
-                : t("productCard.addFavorite")
-            }
-          >
-            <Heart
-              className="h-4 w-4"
-              fill={isFavoriteProduct ? "currentColor" : "none"}
-              aria-hidden="true"
-            />
-          </button>
 
-          {discountPercent !== null && (
-            <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-20">
-              -{discountPercent}%
-            </span>
-          )}
-        </div>
+            <button
+              type="button"
+              className={clsx(
+                "absolute top-2 left-2 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition",
+                isFavoriteProduct
+                  ? "bg-red-600 text-white border-red-500 hover:bg-red-500"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleToggleFavorite();
+              }}
+              aria-label={
+                isFavoriteProduct
+                  ? t("productCard.removeFavorite")
+                  : t("productCard.addFavorite")
+              }
+            >
+              <Heart
+                className="h-4 w-4"
+                fill={isFavoriteProduct ? "currentColor" : "none"}
+                aria-hidden="true"
+              />
+            </button>
+
+            {discountActive && discountPercent !== null && (
+              <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-20">
+                -{discountPercent}%
+              </span>
+            )}
+          </div>
 
           <div className="pr-0">
             <div className="flex items-start justify-between gap-1.5">
@@ -788,10 +831,11 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             </div>
           </div>
         </div>
+
         {renderExpandedPanel("md:hidden")}
       </div>
 
-      {/* ============ ديسكتوب (كما هو لديك) ============ */}
+      {/* ============ ديسكتوب ============ */}
       <div
         className={clsx(
           "hidden md:flex group border rounded-lg p-3 text-right hover:shadow relative flex-col justify-between h-full transition-all duration-300",
@@ -811,116 +855,116 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             onClick={() => navigate(`/products/${product._id}`)}
             role="button"
             tabIndex={0}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              navigate(`/products/${product._id}`);
-            }
-          }}
-        >
-          {displayedImages.map((src, index) => (
-            <img
-              key={`${src}-${index}`}
-              src={src}
-              alt={productName}
-              className={clsx(
-                "absolute inset-0 w-full h-full object-contain transition-all duration-500 ",
-                {
-                  "opacity-100 translate-x-0 z-10": index === currentImage,
-                  "opacity-0 translate-x-full z-0": index > currentImage,
-                  "opacity-0 -translate-x-full z-0": index < currentImage,
-                }
-              )}
-              loading="lazy"
-              decoding="async"
-              sizes="33vw"
-              draggable={false}
-            />
-          ))}
-
-          {displayedImages.length > 1 && (
-            <>
-              <button
-                onClick={(event) => {
-                  event.stopPropagation();
-                  prevImage();
-                }}
-                aria-label={t("productCard.previousImage")}
-                className={clsx(
-                  arrowBase,
-                  arrowSize,
-                  "left-2 text-white md:text-black"
-                )}
-              >
-                <svg
-                  className={arrowIcon}
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  width="20"
-                  height="20"
-                  fill="currentColor"
-                >
-                  <path d="M12.707 15.707a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414l5-5a1 1 0 1 1 1.414 1.414L8.414 10l4.293 4.293a1 1 0 0 1 0 1.414z" />
-                </svg>
-              </button>
-
-              <button
-                onClick={(event) => {
-                  event.stopPropagation();
-                  nextImage();
-                }}
-                aria-label={t("productCard.nextImage")}
-                className={clsx(
-                  arrowBase,
-                  arrowSize,
-                  "right-2 text-white md:text-black"
-                )}
-              >
-                <svg
-                  className={arrowIcon}
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  width="20"
-                  height="20"
-                  fill="currentColor"
-                >
-                  <path d="M7.293 4.293a1 1 0 0 1 1.414 0l5 5a1 1 0 0 1 0 1.414l-5 5A1 1 0 1 1 7.293 14.293L11.586 10 7.293 5.707a1 1 0 0 1 0-1.414z" />
-                </svg>
-              </button>
-            </>
-          )}
-
-          <button
-            type="button"
-            className={clsx(
-              "absolute top-2 left-2 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition",
-              isFavoriteProduct
-                ? "bg-red-600 text-white border-red-500 hover:bg-red-500"
-                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
-            )}
-            onClick={(event) => {
-              event.stopPropagation();
-              handleToggleFavorite();
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                navigate(`/products/${product._id}`);
+              }
             }}
-            aria-label={
-              isFavoriteProduct
-                ? t("productCard.removeFavorite")
-                : t("productCard.addFavorite")
-            }
           >
-            <Heart
-              className="h-4 w-4"
-              fill={isFavoriteProduct ? "currentColor" : "none"}
-              aria-hidden="true"
-            />
-          </button>
+            {displayedImages.map((src, index) => (
+              <img
+                key={`${src}-${index}`}
+                src={src}
+                alt={productName}
+                className={clsx(
+                  "absolute inset-0 w-full h-full object-contain transition-all duration-500 ",
+                  {
+                    "opacity-100 translate-x-0 z-10": index === currentImage,
+                    "opacity-0 translate-x-full z-0": index > currentImage,
+                    "opacity-0 -translate-x-full z-0": index < currentImage,
+                  }
+                )}
+                loading="lazy"
+                decoding="async"
+                sizes="33vw"
+                draggable={false}
+              />
+            ))}
 
-          {discountPercent !== null && (
-            <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-20">
-              -{discountPercent}%
-            </span>
-          )}
-        </div>
+            {displayedImages.length > 1 && (
+              <>
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    prevImage();
+                  }}
+                  aria-label={t("productCard.previousImage")}
+                  className={clsx(
+                    arrowBase,
+                    arrowSize,
+                    "left-2 text-white md:text-black"
+                  )}
+                >
+                  <svg
+                    className={arrowIcon}
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    width="20"
+                    height="20"
+                    fill="currentColor"
+                  >
+                    <path d="M12.707 15.707a1 1 0 0 1-1.414 0l-5-5a1 1 0 0 1 0-1.414l5-5a1 1 0 1 1 1.414 1.414L8.414 10l4.293 4.293a1 1 0 0 1 0 1.414z" />
+                  </svg>
+                </button>
+
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    nextImage();
+                  }}
+                  aria-label={t("productCard.nextImage")}
+                  className={clsx(
+                    arrowBase,
+                    arrowSize,
+                    "right-2 text-white md:text-black"
+                  )}
+                >
+                  <svg
+                    className={arrowIcon}
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    width="20"
+                    height="20"
+                    fill="currentColor"
+                  >
+                    <path d="M7.293 4.293a1 1 0 0 1 1.414 0l5 5a1 1 0 0 1 0 1.414l-5 5A1 1 0 1 1 7.293 14.293L11.586 10 7.293 5.707a1 1 0 0 1 0-1.414z" />
+                  </svg>
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              className={clsx(
+                "absolute top-2 left-2 z-30 inline-flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition",
+                isFavoriteProduct
+                  ? "bg-red-600 text-white border-red-500 hover:bg-red-500"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleToggleFavorite();
+              }}
+              aria-label={
+                isFavoriteProduct
+                  ? t("productCard.removeFavorite")
+                  : t("productCard.addFavorite")
+              }
+            >
+              <Heart
+                className="h-4 w-4"
+                fill={isFavoriteProduct ? "currentColor" : "none"}
+                aria-hidden="true"
+              />
+            </button>
+
+            {discountActive && discountPercent !== null && (
+              <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded z-20">
+                -{discountPercent}%
+              </span>
+            )}
+          </div>
 
           <h3 className="text-base font-medium mb-1">{productName}</h3>
 
@@ -1067,7 +1111,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
         {renderExpandedPanel("hidden md:flex")}
       </div>
-
     </>
   );
 };
