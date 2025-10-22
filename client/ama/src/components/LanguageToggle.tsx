@@ -26,7 +26,7 @@ const LanguageToggle = ({ className }: LanguageToggleProps) => {
         id={selectId}
         value={locale}
         onChange={(event) => setLocale(event.target.value as LanguageCode)}
-        className="h-9 min-w-[6rem] rounded-md border border-border bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="h-9 rounded-md border border-border bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {LANGUAGE_OPTIONS.map((option) => (
           <option key={option.code} value={option.code}>

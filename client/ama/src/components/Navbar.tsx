@@ -320,87 +320,103 @@ const Navbar: React.FC = () => {
   );
 
   return (
-    <header className="sticky top-0 inset-x-0 z-50 border-b bg-white/90 dark:bg-slate-950/90 backdrop-blur shadow-sm mb-6">
-      {/* {showBanner && (
-        <OfferBanner
-          message={bannerinfo.current}
-          onClose={() => setShowBanner(false)}
-        />
-      )} */}
+    <header
+      className="sticky top-0 inset-x-0 z-50 border-b bg-white/90 dark:bg-slate-950/90 backdrop-blur shadow-sm"
+      style={
+        // دعم الـ safe area على iOS
+        { paddingTop: "env(safe-area-inset-top)" }
+      }
+    >
+      <nav
+        className="mx-auto w-full max-w-[100svw] overflow-x-clip px-3 sm:px-4"
+      >
+        <div className="flex h-14 items-center justify-between gap-2">
+          {/* يسار: التبديلات */}
+          <div className="flex shrink-0 items-center gap-1.5 w-20">
+            {/* قلل العرض الثابت عالجوال وخليه يتمدد فقط على الشاشات الأكبر */}
+            <LanguageToggle />
+            {/* {showThemeToggle && <ThemeToggle />} */}
+          </div>
 
-      <nav className="container mx-auto flex items-center justify-between px-4 py-2 sm:px-6">
-        {/* الشعار */}
-        <div className="flex items-center gap-1.5">
-          <LanguageToggle className="w-24" />
-          {showThemeToggle && <ThemeToggle />}
-        </div>
-        <Link to="/" className="text-xl font-semibold tracking-tight md:text-2xl min-w-45">
-          {t("navbar.brand")}
-        </Link>
-        {/* <div className="bg-testRed">لو ظهر أحمر، كل شيء تمام</div> */}
-
-        {/* زر القائمة للجوال */}
-        <div className="flex items-center gap-2 lg:hidden">
-          {renderNotificationsMenu(mobileNotificationsRef)}
-          <CartButton />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setMenuOpen((prev) => !prev)}
+          {/* وسط: الشعار (يتمدّد ويختصر) */}
+          <Link
+            to="/"
+            className="min-w-0 flex-1 text-center"
           >
-            <Menu />
-          </Button>
-        </div>
+            <span className="block truncate text-lg font-semibold tracking-tight md:text-2xl">
+              {t("navbar.brand")}
+            </span>
+          </Link>
 
-        {/* روابط الصفحة على الشاشات الكبيرة */}
-        <div className="hidden lg:flex items-center gap-1.5">
-          {links.map((link) => (
-            <Button key={link.path} asChild variant="ghost">
-              <Link to={link.path}>{link.name}</Link>
+          {/* يمين: أزرار الموبايل */}
+          <div className="flex shrink-0 items-center gap-2 lg:hidden">
+            {renderNotificationsMenu(mobileNotificationsRef)}
+            <CartButton />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMenuOpen((prev) => !prev)}
+              aria-label="فتح القائمة"
+            >
+              <Menu />
             </Button>
-          ))}
+          </div>
 
-          {!user && (
-            <>
-              <Button asChild variant="ghost">
-                <Link to="/login">{t("navbar.auth.login")}</Link>
+          {/* روابط الديسكتوب */}
+          <div className="hidden lg:flex items-center gap-1.5">
+            {links.map((link) => (
+              <Button key={link.path} asChild variant="ghost">
+                <Link to={link.path}>{link.name}</Link>
               </Button>
-              <Button asChild variant="ghost">
-                <Link to="/register">{t("navbar.auth.register")}</Link>
-              </Button>
-            </>
-          )}
+            ))}
 
-          {user && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">
-                {t("navbar.auth.greeting", { name: user.name })}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  logout();
-                  navigate("/login");
-                }}
-              >
-                {t("navbar.auth.logout")}
-              </Button>
-            </div>
-          )}
+            {!user ? (
+              <>
+                <Button asChild variant="ghost">
+                  <Link to="/login">{t("navbar.auth.login")}</Link>
+                </Button>
+                <Button asChild variant="ghost">
+                  <Link to="/register">{t("navbar.auth.register")}</Link>
+                </Button>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">
+                  {t("navbar.auth.greeting", { name: user.name })}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    logout();
+                    navigate("/login");
+                  }}
+                >
+                  {t("navbar.auth.logout")}
+                </Button>
+              </div>
+            )}
 
-          {renderNotificationsMenu(desktopNotificationsRef)}
-          <CartButton />
+            {renderNotificationsMenu(desktopNotificationsRef)}
+            <CartButton />
+          </div>
         </div>
       </nav>
-      {/* القائمة الجوالية */}
+
+      {/* القائمة الجوالية: مُثبتة ولا توسّع عرض الـnavbar */}
       {menuOpen && (
-        <div className="lg:hidden relative z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur shadow-lg border-t py-4 px-6 space-y-3 text-right">
+        <div
+          className="lg:hidden fixed inset-x-0 z-40 bg-white/95 dark:bg-slate-950/95 backdrop-blur shadow-lg border-t py-4 px-6 space-y-3 text-right"
+          style={{
+            // نحسب أعلى القائمة تحت الـnavbar مع safe area
+            top: "calc(env(safe-area-inset-top, 0px) + 56px)",
+          }}
+        >
           {links.map((link) => (
             <div key={link.path}>
               <Link
                 to={link.path}
-                className="block py-2 text-gray-800 font-medium hover:text-black"
+                className="block py-2 text-gray-800 font-medium hover:text-black dark:text-slate-100"
                 onClick={() => setMenuOpen(false)}
               >
                 {link.name}
@@ -408,28 +424,26 @@ const Navbar: React.FC = () => {
             </div>
           ))}
 
-          {!user && (
+          {!user ? (
             <>
               <Link
                 to="/login"
-                className="block py-2 text-gray-800 font-medium hover:text-black"
+                className="block py-2 text-gray-800 font-medium hover:text-black dark:text-slate-100"
                 onClick={() => setMenuOpen(false)}
               >
                 {t("navbar.auth.login")}
               </Link>
               <Link
                 to="/register"
-                className="block py-2 text-gray-800 font-medium hover:text-black"
+                className="block py-2 text-gray-800 font-medium hover:text-black dark:text-slate-100"
                 onClick={() => setMenuOpen(false)}
               >
                 {t("navbar.auth.register")}
               </Link>
             </>
-          )}
-
-          {user && (
+          ) : (
             <>
-              <span className="block py-2 text-gray-800 font-medium">
+              <span className="block py-2 text-gray-800 font-medium dark:text-slate-100">
                 {t("navbar.auth.greeting", { name: user.name })}
               </span>
               <button
