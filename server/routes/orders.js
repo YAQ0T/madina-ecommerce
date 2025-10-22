@@ -21,6 +21,7 @@ const {
   hasAnyTranslation,
   mapLocalizedForResponse,
 } = require("../utils/localized");
+const { sendSMSHTD, normalizePhone } = require("../utils/sms");
 const DEFAULT_RECAPTCHA_ACTION = "checkout";
 const ENV_MIN_SCORE = Number(process.env.RECAPTCHA_MIN_SCORE);
 const DEFAULT_RECAPTCHA_MIN_SCORE = Number.isFinite(ENV_MIN_SCORE)
@@ -296,6 +297,114 @@ async function computeOrderTotals(items, incomingDiscount) {
   return { subtotal, discount, total };
 }
 
+const MAX_SMS_ITEMS = 4;
+const ADDRESS_SMS_MAX_LENGTH = 70;
+
+function truncateText(text, maxLength) {
+  if (!text) return "";
+  const value = String(text);
+  if (value.length <= maxLength) return value;
+  const sliceEnd = Math.max(0, maxLength - 1);
+  return `${value.slice(0, sliceEnd).trimEnd()}…`;
+}
+
+function formatOrderTotal(amount) {
+  const numeric = Number(amount);
+  if (!Number.isFinite(numeric)) return "0";
+  const rounded = Math.round(numeric * 100) / 100;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return rounded.toFixed(2);
+}
+
+function formatOrderItemsForSms(items) {
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, MAX_SMS_ITEMS).map((item) => {
+    const name = truncateText(toDisplayName(item?.name), 32);
+    const qty = Math.max(1, parseInt(item?.quantity, 10) || 1);
+    const suffix = qty > 1 ? ` x${qty}` : "";
+    return `• ${name}${suffix}`;
+  });
+}
+
+function buildOrderSmsMessage({ orderId, items, total, currency, address }) {
+  if (!orderId) return "";
+  const lines = [`شكراً لطلبك من ديكوري!`, `رقم الطلب: ${orderId}`];
+
+  const itemLines = formatOrderItemsForSms(items);
+  if (itemLines.length) {
+    lines.push("المنتجات:");
+    lines.push(...itemLines);
+    if (Array.isArray(items) && items.length > MAX_SMS_ITEMS) {
+      const remaining = items.length - MAX_SMS_ITEMS;
+      if (remaining === 1) {
+        lines.push("و1 منتج إضافي...");
+      } else if (remaining > 1) {
+        lines.push(`و${remaining} منتجات إضافية...`);
+      }
+    }
+  }
+
+  const safeCurrency = currency || DEFAULT_PAY_CURRENCY;
+  lines.push(`الإجمالي: ${formatOrderTotal(total)} ${safeCurrency}`);
+
+  const trimmedAddress = truncateText(String(address || "").trim(), ADDRESS_SMS_MAX_LENGTH);
+  if (trimmedAddress) {
+    lines.push(`العنوان: ${trimmedAddress}`);
+  }
+
+  lines.push("سنتواصل معك لتأكيد الطلب.");
+  return lines.join("\n");
+}
+
+function pickOrderPhone(userObj, guestObj) {
+  if (userObj?.phone) return userObj.phone;
+  if (guestObj?.phone) return guestObj.phone;
+  return null;
+}
+
+function isLikelySmsPhone(phone) {
+  if (typeof phone !== "string") return false;
+  const digits = phone.replace(/\D/g, "");
+  return digits.length >= 9;
+}
+
+async function sendOrderConfirmationSMS({ order, items, user, guest }) {
+  if (!order || !order._id) return;
+
+  const candidatePhone = pickOrderPhone(user, guest);
+  const normalized = normalizePhone(candidatePhone);
+  if (!isLikelySmsPhone(normalized)) return;
+
+  const message = buildOrderSmsMessage({
+    orderId: String(order._id),
+    items,
+    total: Number(order.total || 0),
+    currency: order.paymentCurrency || DEFAULT_PAY_CURRENCY,
+    address: order.address,
+  });
+
+  if (!message) return;
+
+  try {
+    const smsResult = await sendSMSHTD(normalized, message, {
+      label: `order:${order._id}`,
+    });
+    if (!smsResult?.ok) {
+      console.error("Order confirmation SMS did not send successfully", {
+        orderId: order._id,
+        phone: normalized,
+        result: smsResult,
+      });
+    }
+  } catch (smsErr) {
+    console.error("Failed to send order confirmation SMS", {
+      orderId: order._id,
+      phone: normalized,
+      error: smsErr?.response?.data || smsErr?.message || smsErr,
+    });
+  }
+}
+
 /* ======================= إنشاء طلب COD ======================= */
 router.post("/", verifyTokenOptional, async (req, res) => {
   try {
@@ -442,6 +551,12 @@ router.post("/", verifyTokenOptional, async (req, res) => {
 
       reference: null,
       notes: isNonEmpty(notes) ? String(notes).trim() : "",
+    });
+
+    await sendOrderConfirmationSMS({
+      order: doc,
+      items: cleanItems,
+      user: userObj,
     });
 
     return res.status(201).json(doc);
@@ -595,6 +710,13 @@ router.post("/prepare-card", verifyTokenOptional, async (req, res) => {
       paymentStatus: "unpaid",
       reference: null,
       notes: isNonEmpty(notes) ? String(notes).trim() : "",
+    });
+
+    await sendOrderConfirmationSMS({
+      order: doc,
+      items: cleanItems,
+      user: userObj,
+      guest: guestObj,
     });
 
     return res.status(201).json({ _id: doc._id, total: doc.total });
