@@ -12,7 +12,7 @@ import CartButton from "@/components/CartButton";
 import { Button } from "@/components/ui/button";
 import { Bell, Menu } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import ThemeToggle from "@/components/ThemeToggle";
+// import ThemeToggle from "@/components/ThemeToggle";
 import LanguageToggle from "@/components/LanguageToggle";
 import { useTranslation } from "@/i18n";
 // import OfferBanner from "./common/OfferBanner";
@@ -48,7 +48,7 @@ const Navbar: React.FC = () => {
   const mobileNotificationsRef = useRef<HTMLDivElement | null>(null);
   const desktopNotificationsRef = useRef<HTMLDivElement | null>(null);
 
-  const showThemeToggle = !user || user.role !== "admin";
+  // const showThemeToggle = !user || user.role !== "admin";
   const baseLinks = useMemo(
     () => [
       { key: "home", path: "/" },
@@ -332,7 +332,7 @@ const Navbar: React.FC = () => {
       >
         <div className="flex h-14 items-center justify-between gap-2">
           {/* يسار: التبديلات */}
-          <div className="flex shrink-0 items-center gap-1.5 w-20">
+          <div className="flex shrink-0 items-center gap-1.5 w-18">
             {/* قلل العرض الثابت عالجوال وخليه يتمدد فقط على الشاشات الأكبر */}
             <LanguageToggle />
             {/* {showThemeToggle && <ThemeToggle />} */}
