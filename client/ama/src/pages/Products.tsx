@@ -708,7 +708,7 @@ const Products: React.FC = () => {
                   return next;
                 });
               }}
-              className={`relative px-3 py-2 rounded transition-colors duration-200 ${
+              className={`hidden relative px-3 py-2 rounded transition-colors duration-200 ${
                 recentDays
                   ? "bg-black text-white"
                   : "bg-gray-100 text-black hover:bg-gray-300"
@@ -733,6 +733,8 @@ const Products: React.FC = () => {
                   const v = parseInt(e.target.value || "7", 10);
                   setRecentDays(Number.isFinite(v) && v > 0 ? v : 7);
                   setCurrentPage(1);
+
+                  console.log("hi")
                 }}
                 title={t("productsPage.recentUpdates.daysTitle")}
               >
