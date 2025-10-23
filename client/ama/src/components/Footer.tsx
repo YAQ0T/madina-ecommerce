@@ -40,6 +40,9 @@ const Footer: React.FC = () => {
         <Link to="/terms" className="dark:text-gray-200 hover:text-black">
           {t("footer.legal.terms")}
         </Link>
+        <Link to="/returnes" className="dark:text-gray-200 hover:text-black">
+          سياسة الإرجاع والاستبدال
+        </Link>
       </div>
 
       {/* شعارات الدفع */}
