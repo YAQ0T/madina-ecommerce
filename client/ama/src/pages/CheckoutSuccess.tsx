@@ -12,7 +12,220 @@ type OrderSummary = {
   reference?: string;
   total?: number;
   status?: string;
+  cardType?: string;
+  cardLast4?: string;
+  orderDate?: string;
 };
+
+type CardInfo = {
+  cardType?: string;
+  cardLast4?: string;
+  paidAt?: string;
+};
+
+function pickStringField(
+  source: Record<string, unknown>,
+  keys: string[]
+): string | undefined {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function pickStringOrNumberField(
+  source: Record<string, unknown>,
+  keys: string[]
+): string | number | undefined {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function pickTimestampField(
+  source: Record<string, unknown>,
+  keys: string[]
+): string | undefined {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const date = new Date(value);
+      if (!Number.isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    }
+  }
+  return undefined;
+}
+
+function normalizeCardTypeText(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const trimmed = String(value).trim();
+  if (!trimmed) return undefined;
+  const lower = trimmed.toLowerCase();
+  if (lower === "cod" || lower === "cash" || lower === "cash_on_delivery") {
+    return undefined;
+  }
+  if (lower === "card") {
+    return "بطاقة";
+  }
+  if (/[\p{Script=Arabic}]/u.test(trimmed)) {
+    return trimmed;
+  }
+  return trimmed
+    .split(/\s+/)
+    .map((part) =>
+      part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : ""
+    )
+    .filter(Boolean)
+    .join(" ");
+}
+
+function normalizeCardLast4(
+  value?: string | number | null
+): string | undefined {
+  if (value === null || typeof value === "undefined") return undefined;
+  const digits = String(value).replace(/\D+/g, "").slice(-4);
+  if (!digits) return undefined;
+  return digits.padStart(4, "0");
+}
+
+function extractCardInfoFromResponse(raw: unknown): CardInfo {
+  if (!raw || typeof raw !== "object") return {};
+  const visited = new Set<unknown>();
+  const stack: unknown[] = [raw];
+  const info: CardInfo = {};
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== "object") continue;
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    const candidate = (current as Record<string, unknown>).authorization;
+    if (candidate && typeof candidate === "object") {
+      const auth = candidate as Record<string, unknown>;
+      if (!info.cardType) {
+        const typeCandidate = pickStringField(auth, [
+          "card_type",
+          "cardType",
+          "brand",
+          "card_brand",
+          "bank",
+        ]);
+        info.cardType = normalizeCardTypeText(typeCandidate);
+      }
+      if (!info.cardLast4) {
+        const last4Candidate = pickStringOrNumberField(auth, [
+          "last4",
+          "last_4",
+          "lastDigits",
+          "last_digits",
+          "last",
+        ]);
+        info.cardLast4 = normalizeCardLast4(last4Candidate);
+      }
+    }
+
+    if (!info.paidAt) {
+      const container = current as Record<string, unknown>;
+      const timestamp = pickTimestampField(container, [
+        "transaction_date",
+        "transactionDate",
+        "paid_at",
+        "paidAt",
+        "created_at",
+        "createdAt",
+        "updated_at",
+        "updatedAt",
+      ]);
+      if (timestamp) {
+        info.paidAt = timestamp;
+      }
+    }
+
+    for (const value of Object.values(current)) {
+      if (value && typeof value === "object") {
+        stack.push(value);
+      }
+    }
+  }
+
+  return info;
+}
+
+function mergeCardInfo(
+  sources: Array<CardInfo | null | undefined>
+): CardInfo {
+  return sources.reduce<CardInfo>((acc, source) => {
+    if (!source) return acc;
+    if (!acc.cardType && source.cardType) {
+      acc.cardType = source.cardType;
+    }
+    if (!acc.cardLast4 && source.cardLast4) {
+      acc.cardLast4 = source.cardLast4;
+    }
+    if (!acc.paidAt && source.paidAt) {
+      acc.paidAt = source.paidAt;
+    }
+    return acc;
+  }, {});
+}
+
+function buildCardDisplay(cardType?: string, cardLast4?: string): string {
+  const cleanType = normalizeCardTypeText(cardType);
+  const cleanLast4 = normalizeCardLast4(cardLast4);
+  if (!cleanType && !cleanLast4) return "";
+  if (cleanType && cleanLast4) return `${cleanType} ****${cleanLast4}`;
+  if (cleanType) return cleanType;
+  return cleanLast4 ? `****${cleanLast4}` : "";
+}
+
+function formatOrderDate(value?: string | Date | null): string {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat("ar-EG", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      hour12: false,
+    }).format(date);
+  } catch {
+    return date.toLocaleString();
+  }
+}
+
+function parseMetadata(raw: unknown): unknown {
+  if (!raw) return undefined;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+  }
+  if (typeof raw === "object") {
+    return raw;
+  }
+  return undefined;
+}
 
 const CheckoutSuccess: React.FC = () => {
   const { clearCart } = useCart();
@@ -78,7 +291,9 @@ const CheckoutSuccess: React.FC = () => {
         }
 
         const verifyJson = await verifyResp.json();
-        const status = String(verifyJson?.data?.status || "").toLowerCase();
+        const verifyData = (verifyJson as any)?.data || {};
+        const metadata = parseMetadata((verifyData as any)?.metadata);
+        const status = String((verifyData as any)?.status || "").toLowerCase();
 
         if (status !== "success") {
           setState("fail");
@@ -101,6 +316,11 @@ const CheckoutSuccess: React.FC = () => {
         }
 
         const confirmJson = await confirmResp.json();
+        const confirmData = (confirmJson as any)?.data || {};
+        const confirmInnerData =
+          confirmData && typeof confirmData === "object" && "data" in confirmData
+            ? (confirmData as Record<string, unknown>).data
+            : confirmData;
         const confirmStatus = String(confirmJson?.status || "").toLowerCase();
         if (confirmStatus !== "success" || confirmJson?.mismatch) {
           setState("fail");
@@ -109,6 +329,7 @@ const CheckoutSuccess: React.FC = () => {
         }
 
         let summary: OrderSummary | null = null;
+        let orderData: any = null;
 
         // محاولة جلب بيانات الطلب من الخادم بالمرجع لضمان عرض معلومات دقيقة
         if (user && token) {
@@ -120,7 +341,7 @@ const CheckoutSuccess: React.FC = () => {
               }
             );
             if (orderResp.ok) {
-              const orderData = await orderResp.json();
+              orderData = await orderResp.json();
               summary = {
                 id: orderData?._id,
                 reference: orderData?.reference || ref,
@@ -129,6 +350,10 @@ const CheckoutSuccess: React.FC = () => {
                     ? orderData.total
                     : undefined,
                 status: orderData?.status,
+                cardType:
+                  orderData?.paymentCardType || orderData?.paymentMethod,
+                cardLast4: orderData?.paymentCardLast4,
+                orderDate: orderData?.createdAt || orderData?.updatedAt,
               };
             } else if (confirmJson?.orderId) {
               summary = {
@@ -142,37 +367,45 @@ const CheckoutSuccess: React.FC = () => {
         }
         // fallback على معلومات metadata القادمة من لحظة إن وُجدت
         if (!summary) {
-          const metadataRaw = verifyJson?.data?.metadata;
-          let metadata: any = undefined;
-          if (metadataRaw && typeof metadataRaw === "string") {
-            try {
-              metadata = JSON.parse(metadataRaw);
-            } catch (err) {
-              metadata = undefined;
-            }
-          } else if (metadataRaw && typeof metadataRaw === "object") {
-            metadata = metadataRaw;
-          }
-
           if (metadata && typeof metadata === "object") {
+            const metaObj = metadata as Record<string, any>;
             const amountMinor =
-              metadata.expectedAmountMinor ??
-              metadata.amountMinor ??
-              metadata.amount_minor;
+              metaObj.expectedAmountMinor ??
+              metaObj.amountMinor ??
+              metaObj.amount_minor;
             summary = {
               id:
-                metadata.orderId ||
-                metadata.order_id ||
+                metaObj.orderId ||
+                metaObj.order_id ||
                 confirmJson?.orderId ||
                 undefined,
               reference: ref,
               total:
                 typeof amountMinor !== "undefined"
                   ? Number(amountMinor) / 100
-                  : typeof metadata.total === "number"
-                  ? metadata.total
+                  : typeof metaObj.total === "number"
+                  ? metaObj.total
                   : undefined,
-              status: metadata.status,
+              status: metaObj.status,
+              cardType:
+                metaObj.cardType ||
+                metaObj.card_type ||
+                metaObj.brand ||
+                metaObj.paymentMethod,
+              cardLast4:
+                metaObj.cardLast4 ||
+                metaObj.card_last4 ||
+                metaObj.last4 ||
+                metaObj.last_4 ||
+                metaObj.lastDigits ||
+                metaObj.last_digits,
+              orderDate:
+                metaObj.transaction_date ||
+                metaObj.transactionDate ||
+                metaObj.paid_at ||
+                metaObj.paidAt ||
+                metaObj.created_at ||
+                metaObj.createdAt,
             };
           } else {
             summary = { reference: ref };
@@ -181,6 +414,57 @@ const CheckoutSuccess: React.FC = () => {
 
         if (!summary && confirmJson?.orderId) {
           summary = { reference: ref, id: confirmJson.orderId };
+        }
+
+        const mergedCardInfo = mergeCardInfo([
+          extractCardInfoFromResponse(verifyJson),
+          extractCardInfoFromResponse(verifyData),
+          extractCardInfoFromResponse(confirmJson),
+          extractCardInfoFromResponse(confirmData),
+          extractCardInfoFromResponse(confirmInnerData),
+          metadata && typeof metadata === "object"
+            ? extractCardInfoFromResponse(metadata)
+            : null,
+          orderData
+            ? {
+                cardType: normalizeCardTypeText(
+                  orderData.paymentCardType || orderData.paymentMethod
+                ),
+                cardLast4: normalizeCardLast4(orderData.paymentCardLast4),
+                paidAt: orderData.createdAt || orderData.updatedAt,
+              }
+            : null,
+        ]);
+
+        if (summary) {
+          const sanitizedType =
+            normalizeCardTypeText(summary.cardType) || mergedCardInfo.cardType;
+          const sanitizedLast4 =
+            normalizeCardLast4(summary.cardLast4) || mergedCardInfo.cardLast4;
+          const resolvedDate =
+            summary.orderDate ||
+            mergedCardInfo.paidAt ||
+            orderData?.createdAt ||
+            orderData?.updatedAt;
+
+          let normalizedDate: string | undefined;
+          if (typeof resolvedDate === "string") {
+            normalizedDate = resolvedDate;
+          } else if (resolvedDate instanceof Date) {
+            normalizedDate = resolvedDate.toISOString();
+          } else if (resolvedDate) {
+            const parsed = new Date(resolvedDate as any);
+            if (!Number.isNaN(parsed.getTime())) {
+              normalizedDate = parsed.toISOString();
+            }
+          }
+
+          summary = {
+            ...summary,
+            cardType: sanitizedType,
+            cardLast4: sanitizedLast4,
+            orderDate: normalizedDate,
+          };
         }
 
         clearCart();
@@ -220,30 +504,44 @@ const CheckoutSuccess: React.FC = () => {
     return "تعذر تأكيد الدفع";
   }, [paymentMethod, state]);
 
-  const metadataEntries = useMemo(
-    () =>
-      [
-        orderSummary?.id
-          ? { label: "رقم الطلب", value: orderSummary.id }
-          : null,
-        orderSummary?.reference || reference
-          ? {
-              label: "مرجع المعاملة",
-              value: orderSummary?.reference || reference,
-            }
-          : null,
-        typeof orderSummary?.total === "number"
-          ? {
-              label: "الإجمالي المدفوع",
-              value: `${orderSummary.total.toFixed(2)} شيقل`,
-            }
-          : null,
-        orderSummary?.status
-          ? { label: "حالة الطلب", value: orderSummary.status }
-          : null,
-      ].filter(Boolean) as { label: string; value: string }[],
-    [orderSummary, reference]
-  );
+  const metadataEntries = useMemo(() => {
+    const entries: { label: string; value: string }[] = [];
+
+    if (orderSummary?.id) {
+      entries.push({ label: "رقم الطلب", value: orderSummary.id });
+    }
+
+    const referenceValue = orderSummary?.reference || reference;
+    if (referenceValue) {
+      entries.push({ label: "مرجع المعاملة", value: referenceValue });
+    }
+
+    if (typeof orderSummary?.total === "number") {
+      entries.push({
+        label: "الإجمالي المدفوع",
+        value: `${orderSummary.total.toFixed(2)} شيقل`,
+      });
+    }
+
+    const cardDisplay = buildCardDisplay(
+      orderSummary?.cardType,
+      orderSummary?.cardLast4
+    );
+    if (cardDisplay) {
+      entries.push({ label: "البطاقة المستخدمة", value: cardDisplay });
+    }
+
+    const orderDateDisplay = formatOrderDate(orderSummary?.orderDate);
+    if (orderDateDisplay) {
+      entries.push({ label: "تاريخ الطلب", value: orderDateDisplay });
+    }
+
+    if (orderSummary?.status) {
+      entries.push({ label: "حالة الطلب", value: orderSummary.status });
+    }
+
+    return entries;
+  }, [orderSummary, reference]);
 
   const statusIcon = useMemo(() => {
     if (state === "checking") {
