@@ -117,6 +117,7 @@ const Order = require("./models/Order");
 const Variant = require("./models/Variant");
 const Product = require("./models/Product");
 const { prepareLahzaPaymentUpdate, verifyLahzaTransaction } = require("./utils/lahza");
+const { sendOrderConfirmationSMS } = require("./utils/order-sms");
 
 function getClientIp(req) {
   const xff = req.headers["x-forwarded-for"];
@@ -280,6 +281,18 @@ async function lahzaWebhookHandler(req, res) {
 
       if (updated) {
         await decrementStockByOrderItems(updated.items || []);
+        await sendOrderConfirmationSMS({
+          order: updated,
+          items: updated.items,
+          user: updated.user,
+          guest: updated.isGuest ? updated.guestInfo : undefined,
+          overrides: {
+            paymentCardType:
+              successSet.paymentCardType || verification.cardType || null,
+            paymentCardLast4:
+              successSet.paymentCardLast4 || verification.cardLast4 || null,
+          },
+        });
       }
     }
 
