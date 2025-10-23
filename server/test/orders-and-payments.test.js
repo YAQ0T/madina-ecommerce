@@ -975,3 +975,53 @@ test("buildOrderSmsMessage renders card details when available", () => {
     "SMS should include the masked card last four digits"
   );
 });
+
+test("buildOrderSmsMessage handles card-like payment method labels", () => {
+  const message = buildOrderSmsMessage({
+    orderId: "68f9dc9ba861d30343790c8b",
+    items: [],
+    total: 99.9,
+    currency: "ILS",
+    address: "Testing",
+    paymentMethod: "credit_card",
+    paymentCardType: "Visa",
+    paymentCardLast4: "4242",
+    orderCreatedAt: "2025-11-01T08:03:00Z",
+  });
+
+  assert.ok(
+    message.includes("طريقة الدفع: الدفع بالبطاقة"),
+    "SMS should translate card-like payment methods"
+  );
+  assert.ok(
+    message.includes("نوع البطاقة: فيزا"),
+    "SMS should include the translated card brand"
+  );
+  assert.ok(
+    message.includes("آخر 4 أرقام من البطاقة: ****4242"),
+    "SMS should include the masked card digits for card-like methods"
+  );
+});
+
+test("buildOrderSmsMessage includes card details when payment method missing", () => {
+  const message = buildOrderSmsMessage({
+    orderId: "68f9dc9ba861d30343790c8c",
+    items: [],
+    total: 50,
+    currency: "ILS",
+    address: "Testing",
+    paymentMethod: "",
+    paymentCardType: "Mastercard",
+    paymentCardLast4: "9876",
+    orderCreatedAt: "2025-12-31T23:59:00Z",
+  });
+
+  assert.ok(
+    message.includes("نوع البطاقة: ماستركارد"),
+    "SMS should include the translated card type even without method label"
+  );
+  assert.ok(
+    message.includes("آخر 4 أرقام من البطاقة: ****9876"),
+    "SMS should include card digits even without method label"
+  );
+});
