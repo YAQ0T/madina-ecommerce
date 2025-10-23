@@ -20,6 +20,60 @@ const CARD_TYPE_LABELS = {
   unionpay: "يونيون باي",
 };
 
+const CARD_METHOD_KEYWORDS = [
+  "card",
+  "credit",
+  "debit",
+  "visa",
+  "master",
+  "mada",
+  "amex",
+  "americanexpress",
+  "diners",
+  "discover",
+  "jcb",
+  "unionpay",
+];
+
+function normalizePaymentMethod(method) {
+  if (method == null) return "";
+  return String(method).trim().toLowerCase();
+}
+
+function simplifyPaymentMethod(method) {
+  if (method == null) return "";
+  return String(method).replace(/[^a-z]/gi, "").toLowerCase();
+}
+
+function isCardPaymentMethod(method) {
+  const normalized = normalizePaymentMethod(method);
+  if (!normalized) return false;
+
+  const simplified = simplifyPaymentMethod(method);
+  if (!simplified) return false;
+
+  if (simplified === "card") return true;
+  if (simplified === "creditcard" || simplified === "debitcard") return true;
+
+  return CARD_METHOD_KEYWORDS.some((keyword) =>
+    normalized.includes(keyword) || simplified.includes(keyword)
+  );
+}
+
+function isCodPaymentMethod(method) {
+  const normalized = normalizePaymentMethod(method);
+  if (!normalized) return false;
+
+  const simplified = simplifyPaymentMethod(normalized);
+  if (simplified === "cod") return true;
+
+  if (normalized.includes("cash") && normalized.includes("delivery")) {
+    return true;
+  }
+
+  return false;
+}
+
 const toDisplayName = (raw) => {
   const normalized = ensureLocalizedObject(raw);
   return normalized.ar || normalized.he || "منتج";
@@ -53,10 +107,17 @@ function formatOrderItemsForSms(items) {
 
 function describePaymentMethod(method) {
   if (!method) return "";
-  const normalized = String(method).trim().toLowerCase();
+  const normalized = normalizePaymentMethod(method);
   if (!normalized) return "";
-  if (normalized === "card") return "الدفع بالبطاقة";
-  if (normalized === "cod") return "الدفع عند التوصيل";
+
+  if (isCardPaymentMethod(normalized)) {
+    return "الدفع بالبطاقة";
+  }
+
+  if (isCodPaymentMethod(normalized)) {
+    return "الدفع عند التوصيل";
+  }
+
   return String(method);
 }
 
@@ -126,17 +187,20 @@ function buildOrderSmsMessage({
   }
 
   const methodDescription = describePaymentMethod(paymentMethod);
-  const normalizedMethod = String(paymentMethod || "").trim().toLowerCase();
+  const normalizedMethod = normalizePaymentMethod(paymentMethod);
+  const cardTypeText = translateCardTypeForSms(paymentCardType);
+  const last4Text = formatCardLast4ForSms(paymentCardLast4);
+  const shouldIncludeCardDetails =
+    isCardPaymentMethod(normalizedMethod) || cardTypeText || last4Text;
+
   if (methodDescription) {
     lines.push(`طريقة الدفع: ${methodDescription}`);
   }
 
-  if (normalizedMethod === "card") {
-    const cardTypeText = translateCardTypeForSms(paymentCardType);
+  if (shouldIncludeCardDetails) {
     if (cardTypeText) {
       lines.push(`نوع البطاقة: ${cardTypeText}`);
     }
-    const last4Text = formatCardLast4ForSms(paymentCardLast4);
     if (last4Text) {
       lines.push(`آخر 4 أرقام من البطاقة: ${last4Text}`);
     }
@@ -173,7 +237,7 @@ async function sendOrderConfirmationSMS({
   if (!order || !order._id) return;
 
   const paymentMethod = overrides.paymentMethod || order.paymentMethod;
-  const normalizedMethod = String(paymentMethod || "").trim().toLowerCase();
+  const normalizedMethod = normalizePaymentMethod(paymentMethod);
   const paymentStatus = (overrides.paymentStatus || order.paymentStatus || "")
     .toString()
     .trim()
@@ -183,7 +247,7 @@ async function sendOrderConfirmationSMS({
   const paymentCardLast4 =
     overrides.paymentCardLast4 ?? order.paymentCardLast4 ?? null;
 
-  if (normalizedMethod === "card" && paymentStatus !== "paid") {
+  if (isCardPaymentMethod(normalizedMethod) && paymentStatus !== "paid") {
     return;
   }
 
