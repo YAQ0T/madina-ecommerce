@@ -21,6 +21,7 @@ const {
   hasAnyTranslation,
   mapLocalizedForResponse,
 } = require("../utils/localized");
+const { queueOrderSummarySMS } = require("../utils/orderSms");
 const DEFAULT_RECAPTCHA_ACTION = "checkout";
 const ENV_MIN_SCORE = Number(process.env.RECAPTCHA_MIN_SCORE);
 const DEFAULT_RECAPTCHA_MIN_SCORE = Number.isFinite(ENV_MIN_SCORE)
@@ -83,6 +84,7 @@ const {
   normalizeMinorAmount,
   mapVerificationPayload,
   resolveMinorAmount,
+  extractCardDetails,
 } = require("../utils/lahza");
 
 async function verifyLahzaCharge(reference) {
@@ -444,6 +446,11 @@ router.post("/", verifyTokenOptional, async (req, res) => {
       notes: isNonEmpty(notes) ? String(notes).trim() : "",
     });
 
+    queueOrderSummarySMS({
+      order: doc,
+      cardType: "الدفع عند الاستلام",
+    });
+
     return res.status(201).json(doc);
   } catch (err) {
     console.error("POST /api/orders error:", err);
@@ -639,6 +646,7 @@ router.patch(
           .json({ message: "تعذر التحقق من الدفع من لحظة، حاول لاحقًا" });
       }
 
+      const cardDetails = extractCardDetails({ verification });
       const metadataExpected = resolveMinorAmount({
         candidates: [
           verification.metadata?.expectedAmountMinor,
@@ -732,6 +740,12 @@ router.patch(
       if (!order.paymentCurrency && actualCurrency) {
         updateSet.paymentCurrency = actualCurrency;
       }
+      if (cardDetails.cardType) {
+        updateSet.paymentCardType = cardDetails.cardType;
+      }
+      if (cardDetails.last4) {
+        updateSet.paymentCardLast4 = cardDetails.last4;
+      }
 
       const updated = await Order.findOneAndUpdate(
         { _id: order._id, paymentStatus: { $ne: "paid" } },
@@ -753,6 +767,12 @@ router.patch(
           )
         )
       );
+
+      queueOrderSummarySMS({
+        order: updated,
+        cardType: cardDetails.cardType,
+        cardLast4: cardDetails.last4,
+      });
 
       return res.json(updated);
     } catch (err) {
