@@ -7,6 +7,7 @@ const {
   prepareLahzaPaymentUpdate,
   verifyLahzaTransaction,
 } = require("../utils/lahza");
+const { sendOrderConfirmationSMS } = require("../utils/order-sms");
 
 const router = express.Router();
 
@@ -201,6 +202,18 @@ router.post("/status/:reference/confirm", async (req, res) => {
           ).lean();
 
           if (updated) {
+            await sendOrderConfirmationSMS({
+              order: updated,
+              items: updated.items,
+              user: updated.user,
+              guest: updated.isGuest ? updated.guestInfo : undefined,
+              overrides: {
+                paymentCardType:
+                  successSet.paymentCardType || verification.cardType || null,
+                paymentCardLast4:
+                  successSet.paymentCardLast4 || verification.cardLast4 || null,
+              },
+            });
             result.updated = true;
           } else {
             result.alreadyPaid = order.paymentStatus === "paid";
