@@ -950,6 +950,39 @@ test("prepareLahzaPaymentUpdate extracts nested card details", () => {
   assert.equal(result.successSet.paymentCardLast4, "1111");
 });
 
+test(
+  "prepareLahzaPaymentUpdate extracts card details from Lahza authorization",
+  () => {
+    const order = {
+      total: 1080,
+      paymentCurrency: "ILS",
+    };
+
+    const verification = {
+      status: "success",
+      amountMinor: 108000,
+      currency: "ILS",
+      authorization: {
+        authorization_code: "AUTH_XXXXXX",
+        card_type: "visa",
+        last4: "0444",
+        exp_month: "01",
+        exp_year: "2023",
+      },
+    };
+
+    const result = prepareLahzaPaymentUpdate({
+      order,
+      verification,
+      eventPayload: {},
+    });
+
+    assert.equal(result.amountMatches, true);
+    assert.equal(result.successSet.paymentCardType, "فيزا");
+    assert.equal(result.successSet.paymentCardLast4, "0444");
+  }
+);
+
 test("buildOrderSmsMessage renders card details when available", () => {
   const message = buildOrderSmsMessage({
     orderId: "68f9dc9ba861d30343790c8a",
