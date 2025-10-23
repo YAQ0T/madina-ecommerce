@@ -8,6 +8,137 @@ const MINOR_AMOUNT_TOLERANCE = Number.isFinite(ENV_MINOR_TOLERANCE)
   ? Math.max(0, Math.round(ENV_MINOR_TOLERANCE))
   : 1;
 
+const CARD_TYPE_TRANSLATIONS = {
+  visa: "فيزا",
+  mastercard: "ماستركارد",
+  master: "ماستركارد",
+  maestro: "مايسترو",
+  amex: "أمريكان إكسبريس",
+  americanexpress: "أمريكان إكسبريس",
+  diners: "داينرز كلوب",
+  dinersclub: "داينرز كلوب",
+  discover: "ديسكفر",
+  jcb: "جي سي بي",
+  mada: "مدى",
+  unionpay: "يونيون باي",
+};
+
+function toStringValue(value) {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "bigint") {
+    return String(value);
+  }
+  return "";
+}
+
+function getNestedValue(source, path) {
+  if (!source || typeof source !== "object") return undefined;
+  const segments = Array.isArray(path)
+    ? path
+    : String(path)
+        .split(".")
+        .map((seg) => seg.trim())
+        .filter(Boolean);
+  let current = source;
+  for (const segment of segments) {
+    if (!current || typeof current !== "object") {
+      return undefined;
+    }
+    if (!(segment in current)) {
+      return undefined;
+    }
+    current = current[segment];
+  }
+  return current;
+}
+
+function pickFirstNonEmptyString(sources = [], paths = []) {
+  for (const source of sources) {
+    if (!source) continue;
+    for (const path of paths) {
+      const value = getNestedValue(source, path);
+      if (value == null) continue;
+      const str = toStringValue(value).trim();
+      if (str) {
+        return str;
+      }
+    }
+  }
+  return "";
+}
+
+function normalizeCardType(value) {
+  const str = toStringValue(value).trim();
+  if (!str) return "";
+  if (/[ء-ي]/.test(str)) return str; // Already localized
+  const normalizedKey = str.toLowerCase().replace(/[^a-z]/g, "");
+  if (normalizedKey && CARD_TYPE_TRANSLATIONS[normalizedKey]) {
+    return CARD_TYPE_TRANSLATIONS[normalizedKey];
+  }
+  return str;
+}
+
+function normalizeCardLast4(value) {
+  const digits = toStringValue(value).replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.slice(-4);
+}
+
+function extractCardDetails(...rawSources) {
+  const sources = [];
+  for (const candidate of rawSources) {
+    if (!candidate) continue;
+    sources.push(candidate);
+    if (candidate.card && typeof candidate.card === "object") {
+      sources.push(candidate.card);
+    }
+    if (candidate.payment_method && typeof candidate.payment_method === "object") {
+      sources.push(candidate.payment_method);
+    }
+    if (
+      candidate.payment_method_details &&
+      typeof candidate.payment_method_details === "object"
+    ) {
+      sources.push(candidate.payment_method_details);
+    }
+  }
+
+  const typeRaw = pickFirstNonEmptyString(sources, [
+    ["card", "type"],
+    ["card", "brand"],
+    "card_type",
+    "cardType",
+    "card_brand",
+    "cardBrand",
+    ["payment_method", "card", "type"],
+    ["payment_method", "card", "brand"],
+    ["payment_method_details", "card", "type"],
+    ["payment_method_details", "card", "brand"],
+    ["payment_method_details", "brand"],
+    "cardScheme",
+    "card_scheme",
+  ]);
+
+  const last4Raw = pickFirstNonEmptyString(sources, [
+    ["card", "last4"],
+    ["card", "last_digits"],
+    "card_last4",
+    "cardLast4",
+    "card_last_digits",
+    "cardLastDigits",
+    "last4",
+    ["payment_method", "card", "last4"],
+    ["payment_method_details", "card", "last4"],
+    ["payment_method_details", "card", "last_digits"],
+  ]);
+
+  return {
+    cardType: normalizeCardType(typeRaw),
+    cardLast4: normalizeCardLast4(last4Raw),
+  };
+}
+
 function toNumber(value) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -124,12 +255,22 @@ function mapVerificationPayload(raw = {}) {
     expectedMinor,
   });
 
+  const { cardType, cardLast4 } = extractCardDetails(
+    raw,
+    metadata,
+    raw?.card,
+    raw?.payment_method,
+    raw?.payment_method_details
+  );
+
   return {
     status: String(raw.status || "").toLowerCase(),
     amountMinor,
     currency: extractCurrency(raw, metadata),
     metadata,
     transactionId: extractTransactionId(raw),
+    cardType,
+    cardLast4,
   };
 }
 
@@ -259,6 +400,24 @@ function prepareLahzaPaymentUpdate({
     mismatchSet.paymentVerifiedAmount = amountForStorage;
   if (verifiedCurrency) mismatchSet.paymentVerifiedCurrency = verifiedCurrency;
   if (transactionId) mismatchSet.paymentTransactionId = String(transactionId);
+
+  const { cardType, cardLast4 } = extractCardDetails(
+    verification,
+    verification?.raw,
+    verification?.metadata,
+    eventSnapshot,
+    eventMetadata,
+    eventPayload
+  );
+
+  if (cardType) {
+    successSet.paymentCardType = cardType;
+    mismatchSet.paymentCardType = cardType;
+  }
+  if (cardLast4) {
+    successSet.paymentCardLast4 = cardLast4;
+    mismatchSet.paymentCardLast4 = cardLast4;
+  }
 
   return {
     amountMatches,

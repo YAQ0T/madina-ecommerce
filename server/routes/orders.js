@@ -113,6 +113,8 @@ async function verifyLahzaCharge(reference) {
     currency: payload.currency,
     metadata: payload.metadata,
     transactionId: payload.transactionId,
+    cardType: payload.cardType,
+    cardLast4: payload.cardLast4,
     raw: data?.data || {},
   };
 }
@@ -300,6 +302,59 @@ async function computeOrderTotals(items, incomingDiscount) {
 const MAX_SMS_ITEMS = 4;
 const ADDRESS_SMS_MAX_LENGTH = 70;
 
+const CARD_TYPE_LABELS = {
+  visa: "فيزا",
+  mastercard: "ماستركارد",
+  master: "ماستركارد",
+  maestro: "مايسترو",
+  amex: "أمريكان إكسبريس",
+  americanexpress: "أمريكان إكسبريس",
+  diners: "داينرز كلوب",
+  dinersclub: "داينرز كلوب",
+  discover: "ديسكفر",
+  jcb: "جي سي بي",
+  mada: "مدى",
+  unionpay: "يونيون باي",
+};
+
+function describePaymentMethod(method) {
+  if (!method) return "";
+  const normalized = String(method).trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized === "card") return "الدفع بالبطاقة";
+  if (normalized === "cod") return "الدفع عند التوصيل";
+  return String(method);
+}
+
+function translateCardTypeForSms(cardType) {
+  if (cardType == null) return "";
+  const raw = String(cardType).trim();
+  if (!raw) return "";
+  if (/[ء-ي]/.test(raw)) return raw;
+  const key = raw.toLowerCase().replace(/[^a-z]/g, "");
+  return CARD_TYPE_LABELS[key] || raw;
+}
+
+function formatCardLast4ForSms(last4) {
+  if (last4 == null) return "";
+  const digits = String(last4).replace(/\D/g, "").slice(-4);
+  if (!digits) return "";
+  return `****${digits}`;
+}
+
+function formatOrderDateForSms(createdAt) {
+  if (!createdAt) return "";
+  const date = createdAt instanceof Date ? createdAt : new Date(createdAt);
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  const y = date.getFullYear();
+  const m = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  const hrs = pad(date.getHours());
+  const mins = pad(date.getMinutes());
+  return `${y}-${m}-${d} ${hrs}:${mins}`;
+}
+
 function truncateText(text, maxLength) {
   if (!text) return "";
   const value = String(text);
@@ -326,7 +381,17 @@ function formatOrderItemsForSms(items) {
   });
 }
 
-function buildOrderSmsMessage({ orderId, items, total, currency, address }) {
+function buildOrderSmsMessage({
+  orderId,
+  items,
+  total,
+  currency,
+  address,
+  paymentMethod,
+  paymentCardType,
+  paymentCardLast4,
+  orderCreatedAt,
+}) {
   if (!orderId) return "";
   const lines = [`شكراً لطلبك من ديكوري!`, `رقم الطلب: ${orderId}`];
 
@@ -350,6 +415,26 @@ function buildOrderSmsMessage({ orderId, items, total, currency, address }) {
   const trimmedAddress = truncateText(String(address || "").trim(), ADDRESS_SMS_MAX_LENGTH);
   if (trimmedAddress) {
     lines.push(`العنوان: ${trimmedAddress}`);
+  }
+
+  const methodDescription = describePaymentMethod(paymentMethod);
+  const normalizedMethod = String(paymentMethod || "")
+    .trim()
+    .toLowerCase();
+  if (methodDescription) {
+    lines.push(`طريقة الدفع: ${methodDescription}`);
+  }
+
+  if (normalizedMethod === "card") {
+    const cardTypeText = translateCardTypeForSms(paymentCardType);
+    lines.push(`نوع البطاقة: ${cardTypeText || "غير متوفرة"}`);
+    const last4Text = formatCardLast4ForSms(paymentCardLast4);
+    lines.push(`آخر 4 أرقام من البطاقة: ${last4Text || "غير متوفرة"}`);
+  }
+
+  const orderDateText = formatOrderDateForSms(orderCreatedAt);
+  if (orderDateText) {
+    lines.push(`تاريخ الطلب: ${orderDateText}`);
   }
 
   lines.push("سنتواصل معك لتأكيد الطلب.");
@@ -381,6 +466,10 @@ async function sendOrderConfirmationSMS({ order, items, user, guest }) {
     total: Number(order.total || 0),
     currency: order.paymentCurrency || DEFAULT_PAY_CURRENCY,
     address: order.address,
+    paymentMethod: order.paymentMethod,
+    paymentCardType: order.paymentCardType,
+    paymentCardLast4: order.paymentCardLast4,
+    orderCreatedAt: order.createdAt,
   });
 
   if (!message) return;
@@ -817,6 +906,10 @@ router.patch(
         paymentDetailsUpdate.paymentVerifiedCurrency = actualCurrency;
       if (transactionId)
         paymentDetailsUpdate.paymentTransactionId = String(transactionId);
+      if (verification.cardType)
+        paymentDetailsUpdate.paymentCardType = verification.cardType;
+      if (verification.cardLast4)
+        paymentDetailsUpdate.paymentCardLast4 = verification.cardLast4;
 
       if (!amountMatches || !currencyMatches) {
         console.error("🚫 Admin pay: تعارض في مبلغ/عملة الدفع", {
