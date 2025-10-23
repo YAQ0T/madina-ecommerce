@@ -87,50 +87,122 @@ function normalizeCardLast4(value) {
 
 function extractCardDetails(...rawSources) {
   const sources = [];
+  const queue = [];
+  const seen = new WeakSet();
+
   for (const candidate of rawSources) {
-    if (!candidate) continue;
+    if (!candidate || typeof candidate !== "object") continue;
+    queue.push(candidate);
+  }
+
+  const NESTED_KEYS = [
+    "card",
+    "card_data",
+    "cardData",
+    "card_details",
+    "cardDetails",
+    "data",
+    "details",
+    "payment",
+    "payment_data",
+    "paymentData",
+    "payment_details",
+    "paymentDetails",
+    "payment_method",
+    "paymentMethod",
+    "payment_method_data",
+    "paymentMethodData",
+    "payment_method_details",
+    "paymentMethodDetails",
+    "payment_source",
+    "paymentSource",
+    "source",
+    "transaction",
+    "charge",
+  ];
+
+  while (queue.length) {
+    const candidate = queue.shift();
+    if (!candidate || typeof candidate !== "object") continue;
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+
+    if (Array.isArray(candidate)) {
+      for (const entry of candidate) {
+        if (entry && typeof entry === "object") {
+          queue.push(entry);
+        }
+      }
+      continue;
+    }
+
     sources.push(candidate);
-    if (candidate.card && typeof candidate.card === "object") {
-      sources.push(candidate.card);
-    }
-    if (candidate.payment_method && typeof candidate.payment_method === "object") {
-      sources.push(candidate.payment_method);
-    }
-    if (
-      candidate.payment_method_details &&
-      typeof candidate.payment_method_details === "object"
-    ) {
-      sources.push(candidate.payment_method_details);
+
+    for (const key of NESTED_KEYS) {
+      const nested = candidate[key];
+      if (nested && typeof nested === "object") {
+        queue.push(nested);
+      }
     }
   }
 
   const typeRaw = pickFirstNonEmptyString(sources, [
     ["card", "type"],
     ["card", "brand"],
+    ["card", "scheme"],
+    ["card", "scheme_name"],
+    ["card", "network"],
     "card_type",
     "cardType",
     "card_brand",
     "cardBrand",
+    "card_scheme",
+    "cardScheme",
+    "brand",
+    "scheme",
+    "scheme_name",
+    "schemeName",
+    "network",
     ["payment_method", "card", "type"],
     ["payment_method", "card", "brand"],
+    ["payment_method", "card", "scheme"],
     ["payment_method_details", "card", "type"],
     ["payment_method_details", "card", "brand"],
+    ["payment_method_details", "card", "scheme"],
     ["payment_method_details", "brand"],
-    "cardScheme",
-    "card_scheme",
+    ["payment_method", "brand"],
+    ["payment_method", "cardBrand"],
+    ["payment_method", "card_brand"],
+    ["payment_method", "scheme"],
+    ["payment_method", "scheme_name"],
+    ["payment_method_details", "cardBrand"],
+    ["payment_method_details", "card_brand"],
+    ["payment_method_details", "scheme"],
+    ["payment_method_details", "scheme_name"],
   ]);
 
   const last4Raw = pickFirstNonEmptyString(sources, [
     ["card", "last4"],
     ["card", "last_digits"],
+    ["card", "lastFour"],
+    ["card", "last_four"],
     "card_last4",
     "cardLast4",
     "card_last_digits",
     "cardLastDigits",
-    "last4",
+    "card_last_four",
+    "cardLastFour",
     ["payment_method", "card", "last4"],
+    ["payment_method", "card", "last_digits"],
+    ["payment_method", "card", "lastFour"],
+    ["payment_method", "card", "last_four"],
     ["payment_method_details", "card", "last4"],
     ["payment_method_details", "card", "last_digits"],
+    ["payment_method_details", "card", "lastFour"],
+    ["payment_method_details", "card", "last_four"],
+    "last4",
+    "lastFour",
+    "last_digits",
   ]);
 
   return {

@@ -23,6 +23,8 @@ const {
   normalizeIp,
   WEBHOOK_ALLOWED_IPS,
 } = require("../index");
+const { prepareLahzaPaymentUpdate } = require("../utils/lahza");
+const { buildOrderSmsMessage } = require("../utils/order-sms");
 
 const ordersStore = new Map();
 
@@ -909,5 +911,67 @@ test(
     assert.equal(saved.paymentVerifiedCurrency, "ILS");
     assert.equal(saved.paymentTransactionId, "txn-fallback");
     assert.equal(saved.status, "waiting_confirmation");
-  }
-);
+  });
+
+test("prepareLahzaPaymentUpdate extracts nested card details", () => {
+  const order = {
+    total: 1080,
+    paymentCurrency: "ILS",
+  };
+
+  const verification = {
+    status: "success",
+    amountMinor: 108000,
+    currency: "ILS",
+    metadata: { expectedAmountMinor: 108000 },
+  };
+
+  const eventPayload = {
+    amount_minor: 108000,
+    currency: "ILS",
+    metadata: { expectedAmountMinor: 108000 },
+    data: {
+      payment_method: {
+        brand: "Visa",
+        scheme_name: "visa",
+        last4: "1111",
+      },
+    },
+  };
+
+  const result = prepareLahzaPaymentUpdate({
+    order,
+    verification,
+    eventPayload,
+  });
+
+  assert.equal(result.amountMatches, true);
+  assert.equal(result.successSet.paymentCardType, "فيزا");
+  assert.equal(result.successSet.paymentCardLast4, "1111");
+});
+
+test("buildOrderSmsMessage renders card details when available", () => {
+  const message = buildOrderSmsMessage({
+    orderId: "68f9dc9ba861d30343790c8a",
+    items: [
+      { name: { ar: "تاج ملان بلوط", he: "" }, quantity: 3 },
+      { name: { ar: "فشط أزرق 5cm", he: "" }, quantity: 12 },
+    ],
+    total: 1080,
+    currency: "ILS",
+    address: "TESTing",
+    paymentMethod: "card",
+    paymentCardType: "فيزا",
+    paymentCardLast4: "1111",
+    orderCreatedAt: "2025-10-23T10:43:00Z",
+  });
+
+  assert.ok(
+    message.includes("نوع البطاقة: فيزا"),
+    "SMS should include the localized card type"
+  );
+  assert.ok(
+    message.includes("آخر 4 أرقام من البطاقة: ****1111"),
+    "SMS should include the masked card last four digits"
+  );
+});
